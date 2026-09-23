@@ -60,7 +60,8 @@ New binary:
 ```bash
 go run ./cmd/valdr-explorer \
   --node http://127.0.0.1:7332 \
-  --listen 127.0.0.1:7331
+  --listen 127.0.0.1:7331 \
+  --index-file ~/.valdr/explorer-index.json
 ```
 
 Current explorer routes:
@@ -68,13 +69,15 @@ Current explorer routes:
 - `/` - network status and the latest blocks;
 - `/block/<height-or-hash>` - block details and transaction links;
 - `/tx/<txid>` - confirmed/mempool transaction details;
-- `/address/<VDR-address>` - confirmed address balance;
+- `/address/<VDR-address>` - confirmed address balance plus received/spent transaction history;
 - `/search?q=...` - height/hash/txid/address lookup;
 - `/healthz` - node-backed health response.
 
 The explorer uses the existing node RPC only and keeps private keys outside the process. It adds basic browser security headers and server timeouts.
 
-This is **slice 1**, not the completed "full explorer" milestone: address transaction history and a persistent explorer index are still pending.
+The explorer maintains a separate confirmed-chain index. It resolves transaction inputs against previously indexed outputs so address pages can show received and spent amounts. The default index is `~/.valdr/explorer-index.json` (override with `--index-file` or `VALDR_EXPLORER_INDEX_FILE`). Writes use a temporary `0600` file plus `fsync` and atomic rename. The index verifies its last indexed block against the node and rebuilds if confirmed history changes.
+
+This remains an early v0.2 explorer implementation: pagination, richer transaction statistics, and dedicated explorer integration coverage against live `valdrd` processes remain future hardening work.
 
 ## Day 9 P2P data propagation
 
