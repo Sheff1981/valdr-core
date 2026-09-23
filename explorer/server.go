@@ -31,6 +31,7 @@ type RPCClient interface {
 
 type Server struct {
 	client         RPCClient
+	index          *Index
 	requestTimeout time.Duration
 	recentBlocks   uint64
 }
@@ -43,15 +44,25 @@ type pageData struct {
 	Block       *rpc.BlockResult
 	Transaction *rpc.TransactionResult
 	Balance     *rpc.BalanceResult
+	History     []AddressActivity
 	Error       string
 }
 
 func New(client RPCClient) (*Server, error) {
+	return NewWithIndex(client, "")
+}
+
+func NewWithIndex(client RPCClient, indexPath string) (*Server, error) {
 	if client == nil {
 		return nil, ErrInvalidClient
 	}
+	index, err := NewIndex(client, indexPath)
+	if err != nil {
+		return nil, err
+	}
 	return &Server{
 		client:         client,
+		index:          index,
 		requestTimeout: defaultRequestTimeout,
 		recentBlocks:   defaultRecentBlocks,
 	}, nil
@@ -195,11 +206,16 @@ func (s *Server) handleAddress(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, http.StatusBadGateway, "Unable to load address balance")
 		return
 	}
+	if err := s.index.Refresh(ctx); err != nil {
+		s.renderError(w, http.StatusBadGateway, "Unable to update explorer index")
+		return
+	}
 
 	s.render(w, http.StatusOK, pageData{
 		Title:       "Address - VALDR Explorer",
-		Description: "VALDR address balance",
+		Description: "VALDR address balance and confirmed history",
 		Balance:     &balance,
+		History:     s.index.Activities(address),
 	})
 }
 
@@ -347,5 +363,6 @@ const pageHTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><me
 {{if .Blocks}}<section><h2>Recent blocks</h2><table><tr><th>Height</th><th>Hash</th><th>Time</th><th>Tx</th></tr>{{range .Blocks}}<tr><td><a href="/block/{{.Height}}">{{.Height}}</a></td><td><a href="/block/{{.BlockHash}}"><code>{{.BlockHash}}</code></a></td><td>{{time .Timestamp}}</td><td>{{len .Transactions}}</td></tr>{{end}}</table></section>{{end}}
 {{with .Block}}<section><h2>Block {{.Height}}</h2><p>Hash <code>{{.BlockHash}}</code></p><p>Previous {{if .PreviousBlockHash}}<a href="/block/{{.PreviousBlockHash}}"><code>{{.PreviousBlockHash}}</code></a>{{else}}Genesis{{end}}</p><p>Time {{time .Timestamp}} · Difficulty {{.Difficulty}} · Nonce {{.Nonce}}</p><p>Merkle <code>{{.MerkleRoot}}</code></p>{{if .Transactions}}<h3>Transactions</h3>{{range .Transactions}}{{if .}}<p><a href="/tx/{{.TransactionID}}"><code>{{.TransactionID}}</code></a></p>{{end}}{{end}}{{end}}</section>{{end}}
 {{with .Transaction}}{{with .Transaction}}<section><h2>Transaction</h2><p><code>{{.TransactionID}}</code></p><p>Status: {{if $.Transaction.Confirmed}}Confirmed in <a href="/block/{{$.Transaction.BlockHeight}}">block {{$.Transaction.BlockHeight}}</a>{{else}}Mempool{{end}}</p><h3>Inputs</h3>{{range .Inputs}}<p><code>{{.PreviousTransactionID}}:{{.OutputIndex}}</code></p>{{end}}<h3>Outputs</h3>{{range .Outputs}}<p><a href="/address/{{.Recipient}}"><code>{{.Recipient}}</code></a> — <b>{{vdr .Amount}}</b></p>{{end}}</section>{{end}}{{end}}
-{{with .Balance}}<section><h2>Address</h2><p><code>{{.Address}}</code></p><p>Confirmed balance: <b>{{vdr .BalanceVal}}</b></p><p class="muted">Address transaction history requires the v0.2 explorer index and is the next explorer slice.</p></section>{{end}}
+{{with .Balance}}<section><h2>Address</h2><p><code>{{.Address}}</code></p><p>Confirmed balance: <b>{{vdr .BalanceVal}}</b></p></section>{{end}}
+{{if .History}}<section><h2>Confirmed activity</h2><table><tr><th>Block</th><th>Transaction</th><th>Received</th><th>Spent</th></tr>{{range .History}}<tr><td><a href="/block/{{.BlockHeight}}">{{.BlockHeight}}</a></td><td><a href="/tx/{{.TransactionID}}"><code>{{.TransactionID}}</code></a></td><td>{{vdr .ReceivedVal}}</td><td>{{vdr .SpentVal}}</td></tr>{{end}}</table></section>{{else}}{{with .Balance}}<section><p class="muted">No confirmed transaction activity for this address.</p></section>{{end}}{{end}}
 <footer class="muted">VALDR read-only explorer</footer></body></html>`
