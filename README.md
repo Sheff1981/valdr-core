@@ -77,7 +77,15 @@ The explorer uses the existing node RPC only and keeps private keys outside the 
 
 The explorer maintains a separate confirmed-chain index. It resolves transaction inputs against previously indexed outputs so address pages can show received and spent amounts. The default index is `~/.valdr/explorer-index.json` (override with `--index-file` or `VALDR_EXPLORER_INDEX_FILE`). Writes use a temporary `0600` file plus `fsync` and atomic rename. The index verifies its last indexed block against the node and rebuilds if confirmed history changes.
 
-This remains an early v0.2 explorer implementation: pagination, richer transaction statistics, and dedicated explorer integration coverage against live `valdrd` processes remain future hardening work.
+Explorer acceptance also has a live integration gate:
+
+```bash
+./scripts/test-explorer-v0.2.sh
+```
+
+That scenario starts the real three-node Devnet, mines a block, runs `valdr-explorer` against `valdrd`, verifies network/block/transaction/address pages, confirms the persistent index is created, restarts the Explorer, and verifies indexed history again.
+
+Pagination and richer aggregate statistics are UI hardening items; they do not change the VALDR consensus or node protocol.
 
 ## Day 9 P2P data propagation
 
