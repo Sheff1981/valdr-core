@@ -1,8 +1,31 @@
 # VALDR Core
 
-VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 implementation follows `VALDR_Master_TZ_v0.1_14_days.pdf`.
+VALDR is a standalone cryptocurrency and blockchain project.
 
-## Protocol identity
+The frozen working baseline is **VALDR Devnet v0.1** at `release/valdr-devnet-v0.1`.
+Active development on branch `valdr-v0.2` follows `docs/VALDR_Master_TZ_v0.2.md`.
+
+## v0.2 development status
+
+**Stage 1 — Storage v2 + v0.1 migration: implemented and CI-verified.**
+
+Current Stage 1 changes:
+
+- active v0.2 node storage uses **BadgerDB v4.9.4** with schema version `2`;
+- block, height, header, transaction, UTXO, undo and metadata indexes are written atomically per accepted block;
+- database identity binds schema version, network and Genesis hash before node services start;
+- deterministic UTXO-set hash protects active-state consistency;
+- `blockchain.json` remains read-only compatibility input for explicit one-way migration;
+- `valdrd migrate --from-v0.1 <data> --network valdr-devnet-1` replays and verifies the legacy chain;
+- migration verifies height, tip hash, every confirmed txid and UTXO-set hash;
+- original v0.1 `blockchain.json` is preserved;
+- `valdrd verify-db --data <path>` replays and verifies the indexed database;
+- persistence failure rolls the candidate block back from in-memory confirmed state;
+- clean build, full tests, race detector, storage/migration gate and three-node runtime smoke pass.
+
+**Stage 2 is not started.** Network profiles and P2P v2 are intentionally deferred, so Stage 1 still runs the v0.1-compatible `valdr-devnet-1` network identity while storage is migrated independently.
+
+## Current runtime protocol identity (Stage 1 compatibility baseline)
 
 - Network / coin: **VALDR**
 - Ticker: **VDR**
@@ -18,9 +41,9 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 - Default P2P port: **7333**
 - Default RPC port: **7332**
 
-## Development status
+## v0.1 baseline status
 
-Completed milestone: **Day 14 - VALDR Devnet v0.1 final integration**.
+Completed frozen baseline: **Day 14 - VALDR Devnet v0.1 final integration**.
 
 Implemented through Day 14:
 
