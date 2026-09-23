@@ -20,7 +20,11 @@ VALDR is a standalone cryptocurrency and blockchain project. `main` preserves th
 
 ## Development status
 
-Stable baseline: **Day 14 - VALDR Devnet v0.1 final integration**.\n\nActive milestone: **VALDR v0.2 - Block Explorer, slice 1**.
+Stable baseline: **Day 14 - VALDR Devnet v0.1 final integration**.
+
+Completed v0.2 milestone: **Block Explorer**.
+
+Active v0.2 milestone: **Seed-node bootstrap**.
 
 Implemented through Day 14:
 
@@ -51,7 +55,7 @@ Implemented through Day 14:
 - structured NODE/P2P/BLOCK/TX/MINER/MEMPOOL/SYNC/ERROR logs;
 - final executable three-node mine/send/mine/sync/restart/persistence test.
 
-## VALDR v0.2 - Block Explorer slice 1
+## VALDR v0.2 - Block Explorer
 
 The first v0.2 change follows section 30 of the master specification and adds a read-only web explorer without changing consensus, block/transaction formats, P2P, mining, or wallet rules.
 
@@ -86,6 +90,29 @@ bash ./scripts/test-explorer-v0.2.sh
 That scenario starts the real three-node Devnet, mines a block, runs `valdr-explorer` against `valdrd`, verifies network/block/transaction/address pages, confirms the persistent index is created, restarts the Explorer, and verifies indexed history again.
 
 Pagination and richer aggregate statistics are UI hardening items; they do not change the VALDR consensus or node protocol.
+
+## VALDR v0.2 - Seed-node bootstrap
+
+The next master-spec item adds bootstrap semantics without changing the P2P wire protocol.
+
+A node can now use one or more seed addresses:
+
+```bash
+valdrd start \
+  --data ./data/node-b \
+  --node-id node-b \
+  --p2p-port 7433 \
+  --rpc-port 7432 \
+  --seed 127.0.0.1:7333
+```
+
+Seed connections are **best-effort**: an unavailable seed is logged and does not stop an otherwise healthy node from starting. Repeated `--peer` addresses retain their existing strict behavior and fail startup when the requested peer connection cannot be established.
+
+After a successful seed connection, VALDR uses the existing `get_peers / peers` exchange to learn additional connection candidates. No new consensus or wire message is introduced.
+
+The local three-node Devnet now boots Node B through Node A as a seed and Node C through Node B as a seed. Therefore the existing smoke and final integration tests exercise the seed bootstrap path with real `valdrd` processes.
+
+No public seed hostname or IP is hard-coded yet. Public seed deployment belongs with the later public test-node infrastructure milestone; inventing an endpoint before that infrastructure exists would make the client configuration incorrect.
 
 ## Day 9 P2P data propagation
 
@@ -322,7 +349,7 @@ valdrd status
 valdrd version
 ```
 
-`valdrd start` starts the blockchain, mempool, P2P transport and local RPC server in one process. Repeated `--peer host:port` flags may be used for outbound P2P connections. The confirmed blockchain is loaded from and persisted to `<data>/blockchain.json`; startup replays persisted blocks through normal consensus/UTXO validation before serving RPC/P2P.
+`valdrd start` starts the blockchain, mempool, P2P transport and local RPC server in one process. Repeated `--peer host:port` flags request strict outbound P2P connections. v0.2 also supports repeated `--seed host:port` best-effort bootstrap connections. The confirmed blockchain is loaded from and persisted to `<data>/blockchain.json`; startup replays persisted blocks through normal consensus/UTXO validation before serving RPC/P2P.
 
 ### Explorer-ready data
 
@@ -393,7 +420,7 @@ The master-plan Day 13 startup entrypoint is:
 ./scripts/start-devnet.sh
 ```
 
-The script builds `valdrd` and `valdr-cli`, initializes three local data directories, starts three real node processes and connects them in this topology:
+The script builds `valdrd` and `valdr-cli`, initializes three local data directories, starts three real node processes and bootstraps them through seed connections in this topology:
 
 ```text
 Node A <-> Node B <-> Node C
@@ -607,6 +634,7 @@ go build ./...
 go test ./...
 ./scripts/start-devnet.sh smoke
 ./scripts/test-devnet-v0.1.sh
+bash ./scripts/test-explorer-v0.2.sh
 ```
 
 ## Archived Bitcoin Core experiment
