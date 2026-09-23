@@ -8,7 +8,7 @@ CLI="${VALDR_TESTNET_CLI:-$ROOT/release/bin/valdr-cli}"
 
 rm -rf "$D"
 mkdir -p "$D"/{n1,n2,n3}
-COMMON=(-testnet4 -server=1 -listen=1 -dnsseed=0 -fixedseeds=0 -fallbackfee=0.00001000 -daemonwait)
+COMMON=(-testnet4 -server=1 -listen=1 -listenonion=0 -natpmp=0 -dnsseed=0 -fixedseeds=0 -fallbackfee=0.00001000 -daemonwait)
 
 cleanup(){
   "$CLI" -testnet4 -datadir="$D/n1" -rpcport=37332 stop >/dev/null 2>&1 || true
@@ -27,8 +27,8 @@ start_node() {
 }
 
 start_node n1 -datadir="$D/n1" -port=37333 -rpcport=37332 "${COMMON[@]}"
-start_node n2 -datadir="$D/n2" -port=37334 -rpcport=37342 -connect=127.0.0.1:37333 "${COMMON[@]}"
-start_node n3 -datadir="$D/n3" -port=37335 -rpcport=37352 -connect=127.0.0.1:37333 "${COMMON[@]}"
+start_node n2 -datadir="$D/n2" -port=37343 -rpcport=37342 -connect=127.0.0.1:37333 "${COMMON[@]}"
+start_node n3 -datadir="$D/n3" -port=37353 -rpcport=37352 -connect=127.0.0.1:37333 "${COMMON[@]}"
 
 C1=("$CLI" -testnet4 -datadir="$D/n1" -rpcport=37332)
 C2=("$CLI" -testnet4 -datadir="$D/n2" -rpcport=37342)
