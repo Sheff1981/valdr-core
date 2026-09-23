@@ -1,0 +1,45 @@
+name: VALDR Core CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  linux-build-and-testnet:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout VALDR
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkgconf python3 libevent-dev libboost-dev libsqlite3-dev libzmq3-dev
+
+      - name: Syntax-check overlay
+        run: |
+          python3 -m py_compile tools/apply_valdr.py tools/apply_valdr_testnet.py
+
+      - name: Build VALDR Core from pinned Bitcoin Core 31.1 commit
+        run: bash scripts/build-ci.sh
+
+      - name: Run 3-node TESTNET sync and 1 VLD transfer
+        run: bash scripts/run-3-node-testnet.sh
+
+      - name: Stage unsigned CI artifacts
+        run: |
+          mkdir -p ci-artifacts
+          cp release/bin/valdrd release/bin/valdr-cli release/bin/SHA256SUMS ci-artifacts/
+          release/bin/valdrd --version | tee ci-artifacts/version.txt
+
+      - name: Upload unsigned VALDR Core binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: valdr-core-0.5.0-linux-x86_64-unsigned
+          path: ci-artifacts/
+          if-no-files-found: error
