@@ -3,6 +3,7 @@ package mining
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/blockchain"
@@ -48,10 +49,19 @@ func MineBlock(
 		}
 	}
 
+	fees, err := chain.CalculateFees(transactions)
+	if err != nil {
+		return nil, err
+	}
+	if math.MaxUint64-reward < fees {
+		return nil, fmt.Errorf("coinbase reward overflow: subsidy=%d fees=%d", reward, fees)
+	}
+	claim := reward + fees
+
 	coinbase, err := transaction.NewCoinbase(
 		height,
 		minerAddress,
-		reward,
+		claim,
 		timestamp,
 	)
 	if err != nil {
