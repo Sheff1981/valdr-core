@@ -135,10 +135,11 @@ func TestRPCReadSendConfirmFlow(t *testing.T) {
 		t.Fatalf("UTXO count = %d, want 1", len(available))
 	}
 
-	payment, err := minerWallet.CreateTransaction(
+	payment, err := minerWallet.CreateTransactionWithFee(
 		available,
 		recipientWallet.Address,
 		10*config.AtomicUnitsPerVDR,
+		1*config.AtomicUnitsPerVDR,
 		config.GenesisTimestamp+90,
 	)
 	if err != nil {
@@ -195,6 +196,12 @@ func TestRPCReadSendConfirmFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if len(block2.Transactions) == 0 ||
+		len(block2.Transactions[0].Outputs) != 1 ||
+		block2.Transactions[0].Outputs[0].Amount != 51*config.AtomicUnitsPerVDR {
+		t.Fatalf("fee-paying coinbase = %+v, want 51 VDR", block2.Transactions[0])
+	}
+
 	var confirmed TransactionResult
 	if err := client.Call(
 		ctx,
@@ -219,6 +226,22 @@ func TestRPCReadSendConfirmFlow(t *testing.T) {
 	}
 	if recipientBalance.BalanceVal != 10*config.AtomicUnitsPerVDR {
 		t.Fatalf("recipient balance = %d, want 10 VDR", recipientBalance.BalanceVal)
+	}
+
+	var minerBalanceAfterFee BalanceResult
+	if err := client.Call(
+		ctx,
+		MethodGetBalance,
+		AddressParams{Address: minerWallet.Address},
+		&minerBalanceAfterFee,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if minerBalanceAfterFee.BalanceVal != 90*config.AtomicUnitsPerVDR {
+		t.Fatalf(
+			"miner balance after fee block = %d, want 90 VDR",
+			minerBalanceAfterFee.BalanceVal,
+		)
 	}
 
 	var peers []p2p.Peer
