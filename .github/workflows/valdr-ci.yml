@@ -3,7 +3,7 @@ name: VALDR Go CI
 on:
   workflow_dispatch:
   push:
-    branches: [ main, valdr-v0.1-go ]
+    branches: [ main, valdr-v0.1-go, valdr-v0.2-dev ]
   pull_request:
     branches: [ main ]
 
