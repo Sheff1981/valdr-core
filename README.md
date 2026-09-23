@@ -15,73 +15,94 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 
 ## Development status
 
-Completed milestone: **Day 5 - Transaction Engine**.
+Completed milestone: **Day 6 - UTXO Engine**.
 
-Implemented through Day 5:
+Implemented through Day 6:
 
 - Go project skeleton;
 - block model, SHA-256 block hashing, fixed Genesis and local blockchain;
 - Proof of Work with nonce search, target validation and simplified devnet difficulty;
-- ECDSA P-256 private/public key generation and digital signatures;
-- VALDR devnet addresses beginning with `VDR1`;
+- ECDSA P-256 keys, VALDR addresses and digital signatures;
 - local CLI wallet create/list/export;
-- typed UTXO-style transaction inputs and outputs;
-- canonical transaction signing bytes;
-- transaction-level digital signature verification;
-- SHA-256 transaction IDs;
+- typed signed UTXO-style transactions and SHA-256 transaction IDs;
 - typed transactions committed into block Merkle roots;
-- Day 5 transaction structure validation.
+- UTXO set reconstruction from previously validated state;
+- address balance calculation;
+- UTXO ownership validation from the signing public key;
+- atomic UTXO spending and output creation;
+- insufficient-funds checks;
+- global double-spend prevention through spent-output removal;
+- atomic transaction-batch application for a block;
+- blockchain validation of Merkle root and UTXO state before block acceptance.
 
-## Transaction Engine v0.1
+## UTXO Engine v0.1
 
-The master specification defines the transaction fields as `version`, `inputs[]`, `outputs[]`, `timestamp`, `signature` and `transaction_id`.
-
-VALDR v0.1 represents an input as:
+A UTXO is identified by:
 
 ```text
 transaction_id
 output_index
 ```
 
-and an output as:
+and stores:
 
 ```text
-amount       # uint64 atomic units (val)
-recipient    # VDR1... address
+amount
+recipient
 ```
 
-A normal Day 5 transaction has one transaction-level public key and signature. The signature covers the chain ID, version, timestamp, every input, every output and the public key. The transaction ID is:
+For a normal signed transaction, the UTXO Engine performs this sequence:
+
+1. validate transaction structure, signature and transaction ID;
+2. locate every referenced UTXO;
+3. derive the signer address from the transaction public key;
+4. require every input UTXO to belong to that address;
+5. sum input values safely;
+6. sum output values safely;
+7. reject insufficient input value;
+8. require exact value conservation in v0.1;
+9. remove spent UTXOs;
+10. create one new UTXO for every transaction output.
+
+Normal v0.1 transactions currently require:
+
+```text
+sum(inputs) == sum(outputs)
+```
+
+Transaction fees are not introduced in the 14-day MVP and are scheduled for a later protocol stage, so the Day 6 engine does not silently burn the difference as a fee.
+
+A second attempt to spend an already consumed outpoint fails because that UTXO no longer exists.
+
+Block-sized transaction batches are applied to a temporary UTXO state and committed only if every transaction succeeds. A failed later transaction therefore cannot leave earlier transactions partially applied.
+
+`utxo.New(initial)` is only a state-reconstruction constructor for already validated chain state. It is not a minting API. Live VDR creation remains reserved for the coinbase/mining-reward work scheduled for Day 7.
+
+## Transaction Engine v0.1
+
+A normal transaction contains:
+
+```text
+version
+inputs[]
+outputs[]
+timestamp
+public_key
+signature
+transaction_id
+```
+
+The signature covers chain ID, version, timestamp, inputs, outputs and public key. The transaction ID is:
 
 ```text
 SHA-256(canonical signed transaction bytes)
 ```
 
-The chain ID is included in signed bytes to prevent the same signature from being replayed unchanged across a future network with a different chain ID.
+## Wallet balance
 
-Day 5 validation checks:
-
-- transaction version;
-- non-empty inputs and outputs;
-- syntactically valid previous transaction IDs;
-- no duplicate input reference inside the same transaction;
-- output amount greater than zero;
-- amount overflow;
-- valid `VDR1...` recipient;
-- valid public key;
-- valid digital signature;
-- correct transaction ID.
-
-The following checks are **not implemented on Day 5** because the master plan assigns them to the UTXO Engine on Day 6:
-
-- whether the referenced UTXO actually exists;
-- whether that UTXO belongs to the signing public key;
-- sufficient input value / balance;
-- creating and spending UTXOs;
-- global double-spend protection.
+The UTXO Engine can now calculate an address balance in memory. The standalone `valdr-cli wallet balance` command still needs live node/RPC state access, which is scheduled for the later RPC/CLI integration stage; it does not invent a balance from wallet files alone.
 
 ## Wallet and cryptography v0.1
-
-For the devnet MVP:
 
 ```text
 signature: ECDSA P-256 over SHA-256(message)
@@ -90,12 +111,6 @@ address payload: first 20 bytes of SHA-256(public_key)
 checksum: first 4 bytes of SHA-256(chain_id || payload)
 address: VDR1 + Base32(payload || checksum)
 ```
-
-This format remains a devnet MVP parameter. Before mainnet, the cryptographic suite and address encoding must be explicitly frozen as protocol constants.
-
-Private keys never leave the wallet code through normal create/list output and are never sent over the network. `wallet export` intentionally reveals the private key and prints a warning.
-
-`valdr-cli wallet balance` remains intentionally unavailable until the UTXO Engine exists.
 
 ## Proof of Work v0.1
 
@@ -116,7 +131,7 @@ The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second
 - message: `VALDR genesis block | valdr-devnet-1 | 2026-09-23`
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-Not implemented yet: UTXO balances/spending, coinbase/mining reward, P2P synchronization, persistent blockchain storage, RPC behavior, and the final three-node devnet scenario.
+Not implemented yet: coinbase/mining reward, P2P synchronization, persistent blockchain storage, RPC behavior, and the final three-node devnet scenario.
 
 ## Build and test
 

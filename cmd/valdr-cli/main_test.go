@@ -64,8 +64,11 @@ func TestWalletCLIFlow(t *testing.T) {
 		&errOut,
 	); code != 2 {
 		t.Fatalf(
-			"balance exit=%d, want 2 until UTXO engine exists",
+			"balance exit=%d, want 2 until live node/RPC state is connected",
 			code,
 		)
+	}
+	if !strings.Contains(errOut.String(), "RPC") {
+		t.Fatalf("balance stderr = %q, want RPC integration message", errOut.String())
 	}
 }

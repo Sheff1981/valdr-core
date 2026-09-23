@@ -48,7 +48,7 @@ func runWallet(args []string, out, errOut io.Writer) int {
 	case "balance":
 		fmt.Fprintln(
 			errOut,
-			"wallet balance requires the UTXO Engine scheduled for Day 6",
+			"wallet balance engine exists, but CLI balance requires live node/RPC state integration scheduled for Day 11",
 		)
 		return 2
 	default:

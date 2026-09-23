@@ -2,11 +2,14 @@ package blockchain
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/consensus"
+	"github.com/Sheff1981/valdr-core/core/transaction"
+	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 )
 
 func TestLocalChainGenesisBlock1Block2(t *testing.T) {
@@ -70,6 +73,17 @@ func TestRejectsTamperedBlockHash(t *testing.T) {
 	}
 }
 
+func TestRejectsTamperedMerkleRoot(t *testing.T) {
+	chain := New()
+	candidate := block.New(1, chain.Tip().BlockHash, config.GenesisTimestamp+60, 1, 0, nil, "")
+	candidate.MerkleRoot = "tampered"
+
+	err := chain.AddBlock(candidate)
+	if !errors.Is(err, ErrInvalidMerkleRoot) {
+		t.Fatalf("AddBlock error = %v, want ErrInvalidMerkleRoot", err)
+	}
+}
+
 func TestRejectsWrongDifficulty(t *testing.T) {
 	chain := New()
 	candidate := block.New(1, chain.Tip().BlockHash, config.GenesisTimestamp+60, 2, 0, nil, "")
@@ -95,5 +109,58 @@ func TestRejectsInvalidPoW(t *testing.T) {
 	err := chain.AddBlock(candidate)
 	if !errors.Is(err, ErrInvalidPoW) {
 		t.Fatalf("AddBlock error = %v, want ErrInvalidPoW", err)
+	}
+}
+
+func TestRejectsTransactionWithMissingUTXO(t *testing.T) {
+	chain := New()
+
+	signer, err := valdrcrypto.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipientKey, err := valdrcrypto.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipient, err := valdrcrypto.AddressFromPublicKey(&recipientKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tx := transaction.New(
+		[]transaction.Input{{
+			PreviousTransactionID: strings.Repeat("88", 32),
+			OutputIndex:           0,
+		}},
+		[]transaction.Output{{
+			Amount:    10,
+			Recipient: recipient,
+		}},
+		config.GenesisTimestamp+60,
+	)
+	if err := tx.Sign(signer); err != nil {
+		t.Fatal(err)
+	}
+
+	candidate := block.New(
+		1,
+		chain.Tip().BlockHash,
+		config.GenesisTimestamp+60,
+		1,
+		0,
+		[]*transaction.Transaction{tx},
+		"",
+	)
+	if err := consensus.Mine(candidate); err != nil {
+		t.Fatal(err)
+	}
+
+	err = chain.AddBlock(candidate)
+	if !errors.Is(err, ErrInvalidTransaction) {
+		t.Fatalf("AddBlock error = %v, want ErrInvalidTransaction", err)
+	}
+	if chain.Len() != 1 {
+		t.Fatalf("chain length = %d after rejected block, want 1", chain.Len())
 	}
 }

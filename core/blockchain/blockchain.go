@@ -8,24 +8,31 @@ import (
 	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/consensus"
 	"github.com/Sheff1981/valdr-core/core/transaction"
+	"github.com/Sheff1981/valdr-core/core/utxo"
 )
 
 var (
-	ErrNilBlock          = errors.New("block is nil")
-	ErrInvalidHeight     = errors.New("invalid block height")
-	ErrPreviousHash      = errors.New("previous block hash mismatch")
-	ErrInvalidHash       = errors.New("invalid block hash")
-	ErrWrongChainID      = errors.New("wrong chain id")
-	ErrInvalidDifficulty = errors.New("invalid difficulty")
-	ErrInvalidPoW        = errors.New("invalid proof of work")
+	ErrNilBlock           = errors.New("block is nil")
+	ErrInvalidHeight      = errors.New("invalid block height")
+	ErrPreviousHash       = errors.New("previous block hash mismatch")
+	ErrInvalidMerkleRoot  = errors.New("invalid merkle root")
+	ErrInvalidHash        = errors.New("invalid block hash")
+	ErrWrongChainID       = errors.New("wrong chain id")
+	ErrInvalidDifficulty  = errors.New("invalid difficulty")
+	ErrInvalidPoW         = errors.New("invalid proof of work")
+	ErrInvalidTransaction = errors.New("invalid block transaction")
 )
 
 type Blockchain struct {
 	blocks []*block.Block
+	utxos  *utxo.Set
 }
 
 func New() *Blockchain {
-	return &Blockchain{blocks: []*block.Block{block.NewGenesis()}}
+	return &Blockchain{
+		blocks: []*block.Block{block.NewGenesis()},
+		utxos:  utxo.NewEmpty(),
+	}
 }
 
 func (bc *Blockchain) Len() int {
@@ -44,6 +51,14 @@ func (bc *Blockchain) BlockAt(height uint64) (*block.Block, bool) {
 		return nil, false
 	}
 	return bc.blocks[height], true
+}
+
+func (bc *Blockchain) Balance(address string) (uint64, error) {
+	return bc.utxos.Balance(address)
+}
+
+func (bc *Blockchain) UTXOSnapshot() []utxo.UTXO {
+	return bc.utxos.Snapshot()
 }
 
 func (bc *Blockchain) Append(
@@ -104,11 +119,24 @@ func (bc *Blockchain) AddBlock(candidate *block.Block) error {
 			expectedDifficulty,
 		)
 	}
+
+	expectedMerkleRoot := block.CalculateMerkleRoot(candidate.Transactions)
+	if candidate.MerkleRoot != expectedMerkleRoot {
+		return fmt.Errorf(
+			"%w: got %q want %q",
+			ErrInvalidMerkleRoot,
+			candidate.MerkleRoot,
+			expectedMerkleRoot,
+		)
+	}
 	if candidate.BlockHash != candidate.CalculateHash() {
 		return ErrInvalidHash
 	}
 	if err := consensus.ValidatePoW(candidate); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidPoW, err)
+	}
+	if err := bc.utxos.ApplyTransactions(candidate.Transactions); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
 	}
 
 	bc.blocks = append(bc.blocks, candidate)
