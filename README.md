@@ -20,7 +20,7 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 
 ## Development status
 
-Completed milestone: **Day 10 - three-node confirmed-chain convergence**.
+Completed milestone: **Day 11 - local RPC API + CLI integration**.
 
 Implemented through Day 9:
 
@@ -38,7 +38,12 @@ Implemented through Day 9:
 - mempool duplicate and unconfirmed-input conflict protection;
 - confirmed transaction removal and stale mempool pruning;
 - thread-safe blockchain access for concurrent P2P readers;
-- three-node A ↔ B ↔ C integration with identical confirmed block hashes and balances.
+- three-node A ↔ B ↔ C integration with identical confirmed block hashes and balances;
+- local HTTP RPC API on the devnet RPC port;
+- RPC queries for status, blocks, transactions, balances, mempool, peers and mining info;
+- RPC transaction submission;
+- RPC-backed valdr-cli status/block/tx/balance/send/peers/mempool/mining commands;
+- valdrd init/start/status/version command surface.
 
 ## Day 9 P2P data propagation
 
@@ -195,6 +200,94 @@ The test compares every confirmed block hash from Genesis through the tip, not o
 
 Day 10 does not add RPC/CLI behavior. That is the next master-plan stage.
 
+## Day 11 RPC API + CLI
+
+The node exposes a local HTTP endpoint:
+
+```text
+POST /rpc
+default: http://127.0.0.1:7332/rpc
+```
+
+The request envelope is:
+
+```json
+{
+  "method": "getStatus",
+  "params": {}
+}
+```
+
+Mandatory v0.1 RPC methods from the master specification are implemented:
+
+```text
+getStatus
+getBlock
+getBlockByHash
+getTransaction
+getBalance
+getMempool
+sendTransaction
+getPeers
+getMiningInfo
+```
+
+Day 11 also adds one read-only helper:
+
+```text
+getUTXOs
+```
+
+`getUTXOs` exists so `valdr-cli send` can select spendable outputs and sign the transaction locally. The node never receives the wallet private key.
+
+### CLI
+
+Examples:
+
+```bash
+valdr-cli status
+valdr-cli block get 2
+valdr-cli tx get <txid>
+valdr-cli balance VDR1...
+valdr-cli peers
+valdr-cli mempool
+valdr-cli mining info
+
+valdr-cli send \
+  --from alice \
+  --to VDR1... \
+  --amount 10
+```
+
+A non-default RPC endpoint can be selected with `--node`.
+
+Amounts passed to `send --amount` are parsed as decimal VDR with at most 8 decimal places and converted to atomic `val` without floating-point arithmetic.
+
+### valdrd
+
+The node command surface now includes:
+
+```bash
+valdrd init --data ./data/node1
+
+valdrd start \
+  --data ./data/node1 \
+  --node-id node1 \
+  --p2p-port 7333 \
+  --rpc-port 7332
+
+valdrd status
+valdrd version
+```
+
+`valdrd start` starts the existing in-memory blockchain, mempool, P2P transport and local RPC server in one process. Repeated `--peer host:port` flags may be used for outbound P2P connections.
+
+Important current limitation: the `--data` directory stores node metadata only. Blockchain persistence to an embedded database is not yet implemented, so a restarted Day 11 node still starts from Genesis. This limitation is intentionally not hidden.
+
+### Explorer-ready data
+
+The existing block and transaction JSON returned by RPC exposes the fields required by the master specification for a later explorer: block height/hash/previous hash, transactions, transaction IDs, addresses, amounts, difficulty and timestamp.
+
 ## Coinbase and mining reward v0.1
 
 Only a validated block coinbase may create new VDR.
@@ -235,7 +328,7 @@ The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second
 - timestamp: `1790121600` (2026-09-23 00:00:00 UTC)
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-Not implemented yet: persistent blockchain storage, RPC/CLI behavior, final halving interval, and full fork/reorganization policy.
+Not implemented yet: persistent blockchain storage, final halving interval, full fork/reorganization policy, and the Day 12 security-hardening pass.
 
 ## Build and test
 

@@ -1,16 +1,27 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Sheff1981/valdr-core/config"
+	"github.com/Sheff1981/valdr-core/core/block"
+	"github.com/Sheff1981/valdr-core/core/transaction"
+	"github.com/Sheff1981/valdr-core/core/utxo"
+	"github.com/Sheff1981/valdr-core/p2p"
+	"github.com/Sheff1981/valdr-core/rpc"
 	"github.com/Sheff1981/valdr-core/wallet"
 )
+
+const defaultRPCEndpoint = "http://127.0.0.1:7332"
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
@@ -25,16 +36,287 @@ func run(args []string, out, errOut io.Writer) int {
 		)
 		return 0
 	}
-	if args[0] != "wallet" {
+
+	switch args[0] {
+	case "status":
+		return statusCommand(args[1:], out, errOut)
+	case "block":
+		return blockCommand(args[1:], out, errOut)
+	case "tx":
+		return transactionCommand(args[1:], out, errOut)
+	case "balance":
+		return balanceCommand(args[1:], out, errOut)
+	case "send":
+		return sendCommand(args[1:], out, errOut)
+	case "peers":
+		return peersCommand(args[1:], out, errOut)
+	case "mempool":
+		return mempoolCommand(args[1:], out, errOut)
+	case "mining":
+		return miningCommand(args[1:], out, errOut)
+	case "wallet":
+		return runWallet(args[1:], out, errOut)
+	default:
 		fmt.Fprintf(errOut, "unknown command %q\n", args[0])
 		return 2
 	}
-	return runWallet(args[1:], out, errOut)
+}
+
+func statusCommand(args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	node := fs.String("node", defaultRPCEndpoint, "VALDR RPC endpoint")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintln(errOut, "usage: valdr-cli status [--node URL]")
+		return 2
+	}
+
+	var result rpc.StatusResult
+	if err := rpcCall(*node, rpc.MethodGetStatus, nil, &result); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return writeJSON(out, result, errOut)
+}
+
+func blockCommand(args []string, out, errOut io.Writer) int {
+	if len(args) == 0 || args[0] != "get" {
+		fmt.Fprintln(errOut, "usage: valdr-cli block get [--node URL] <height>")
+		return 2
+	}
+
+	fs := flag.NewFlagSet("block get", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	node := fs.String("node", defaultRPCEndpoint, "VALDR RPC endpoint")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprintln(errOut, "usage: valdr-cli block get [--node URL] <height>")
+		return 2
+	}
+
+	height, err := strconv.ParseUint(fs.Arg(0), 10, 64)
+	if err != nil {
+		fmt.Fprintln(errOut, "invalid block height")
+		return 2
+	}
+
+	var result block.Block
+	if err := rpcCall(*node, rpc.MethodGetBlock, rpc.HeightParams{Height: height}, &result); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return writeJSON(out, result, errOut)
+}
+
+func transactionCommand(args []string, out, errOut io.Writer) int {
+	if len(args) == 0 || args[0] != "get" {
+		fmt.Fprintln(errOut, "usage: valdr-cli tx get [--node URL] <txid>")
+		return 2
+	}
+
+	fs := flag.NewFlagSet("tx get", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	node := fs.String("node", defaultRPCEndpoint, "VALDR RPC endpoint")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprintln(errOut, "usage: valdr-cli tx get [--node URL] <txid>")
+		return 2
+	}
+
+	var result rpc.TransactionResult
+	if err := rpcCall(
+		*node,
+		rpc.MethodGetTransaction,
+		rpc.TransactionParams{TransactionID: fs.Arg(0)},
+		&result,
+	); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return writeJSON(out, result, errOut)
+}
+
+func balanceCommand(args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("balance", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	node := fs.String("node", defaultRPCEndpoint, "VALDR RPC endpoint")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprintln(errOut, "usage: valdr-cli balance [--node URL] <address>")
+		return 2
+	}
+
+	var result rpc.BalanceResult
+	if err := rpcCall(
+		*node,
+		rpc.MethodGetBalance,
+		rpc.AddressParams{Address: fs.Arg(0)},
+		&result,
+	); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+
+	output := struct {
+		Address    string `json:"address"`
+		BalanceVal uint64 `json:"balance_val"`
+		BalanceVDR string `json:"balance_vdr"`
+	}{
+		Address:    result.Address,
+		BalanceVal: result.BalanceVal,
+		BalanceVDR: formatVDR(result.BalanceVal),
+	}
+	return writeJSON(out, output, errOut)
+}
+
+func sendCommand(args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("send", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+
+	node := fs.String("node", defaultRPCEndpoint, "VALDR RPC endpoint")
+	walletDir := fs.String("wallet-dir", "", "wallet directory")
+	from := fs.String("from", "", "wallet name or address")
+	to := fs.String("to", "", "recipient VDR address")
+	amountText := fs.String("amount", "", "amount in VDR")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 || *from == "" || *to == "" || *amountText == "" {
+		fmt.Fprintln(
+			errOut,
+			"usage: valdr-cli send [--node URL] [--wallet-dir PATH] --from WALLET --to ADDRESS --amount VDR",
+		)
+		return 2
+	}
+
+	amount, err := parseVDR(*amountText)
+	if err != nil || amount == 0 {
+		fmt.Fprintln(errOut, "invalid VDR amount")
+		return 2
+	}
+
+	store, code := walletStore(*walletDir, errOut)
+	if code != 0 {
+		return code
+	}
+	source, err := store.Export(*from)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+
+	var available []utxo.UTXO
+	if err := rpcCall(
+		*node,
+		rpc.MethodGetUTXOs,
+		rpc.AddressParams{Address: source.Address},
+		&available,
+	); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+
+	tx, err := source.CreateTransaction(
+		available,
+		*to,
+		amount,
+		time.Now().UTC().Unix(),
+	)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+
+	var result rpc.SendTransactionResult
+	if err := rpcCall(
+		*node,
+		rpc.MethodSendTransaction,
+		rpc.SendTransactionParams{Transaction: tx},
+		&result,
+	); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return writeJSON(out, result, errOut)
+}
+
+func peersCommand(args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("peers", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	node := fs.String("node", defaultRPCEndpoint, "VALDR RPC endpoint")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintln(errOut, "usage: valdr-cli peers [--node URL]")
+		return 2
+	}
+
+	var result []p2p.Peer
+	if err := rpcCall(*node, rpc.MethodGetPeers, nil, &result); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return writeJSON(out, result, errOut)
+}
+
+func mempoolCommand(args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("mempool", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	node := fs.String("node", defaultRPCEndpoint, "VALDR RPC endpoint")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintln(errOut, "usage: valdr-cli mempool [--node URL]")
+		return 2
+	}
+
+	var result []*transaction.Transaction
+	if err := rpcCall(*node, rpc.MethodGetMempool, nil, &result); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return writeJSON(out, result, errOut)
+}
+
+func miningCommand(args []string, out, errOut io.Writer) int {
+	if len(args) == 0 || args[0] != "info" {
+		fmt.Fprintln(errOut, "usage: valdr-cli mining info [--node URL]")
+		return 2
+	}
+
+	fs := flag.NewFlagSet("mining info", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	node := fs.String("node", defaultRPCEndpoint, "VALDR RPC endpoint")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintln(errOut, "usage: valdr-cli mining info [--node URL]")
+		return 2
+	}
+
+	var result rpc.MiningInfoResult
+	if err := rpcCall(*node, rpc.MethodGetMiningInfo, nil, &result); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return writeJSON(out, result, errOut)
 }
 
 func runWallet(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(errOut, "usage: valdr-cli wallet <create|list|export|balance>")
+		fmt.Fprintln(errOut, "usage: valdr-cli wallet <create|list|export>")
 		return 2
 	}
 
@@ -45,12 +327,6 @@ func runWallet(args []string, out, errOut io.Writer) int {
 		return walletList(args[1:], out, errOut)
 	case "export":
 		return walletExport(args[1:], out, errOut)
-	case "balance":
-		fmt.Fprintln(
-			errOut,
-			"wallet balance engine exists, but CLI balance requires live node/RPC state integration scheduled for Day 11",
-		)
-		return 2
 	default:
 		fmt.Fprintf(errOut, "unknown wallet command %q\n", args[0])
 		return 2
@@ -143,6 +419,64 @@ func walletStore(dir string, errOut io.Writer) (*wallet.Store, int) {
 		dir = resolved
 	}
 	return wallet.NewStore(dir), 0
+}
+
+func rpcCall(endpoint, method string, params, result any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return rpc.NewClient(endpoint).Call(ctx, method, params, result)
+}
+
+func parseVDR(value string) (uint64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+") {
+		return 0, errors.New("invalid amount")
+	}
+
+	parts := strings.Split(value, ".")
+	if len(parts) > 2 {
+		return 0, errors.New("invalid amount")
+	}
+	if parts[0] == "" {
+		parts[0] = "0"
+	}
+
+	whole, err := strconv.ParseUint(parts[0], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if whole > ^uint64(0)/config.AtomicUnitsPerVDR {
+		return 0, errors.New("amount overflow")
+	}
+	total := whole * config.AtomicUnitsPerVDR
+
+	if len(parts) == 2 {
+		if len(parts[1]) > 8 {
+			return 0, errors.New("too many decimal places")
+		}
+		fractionText := parts[1] + strings.Repeat("0", 8-len(parts[1]))
+		if fractionText != "" {
+			fraction, err := strconv.ParseUint(fractionText, 10, 64)
+			if err != nil {
+				return 0, err
+			}
+			if ^uint64(0)-total < fraction {
+				return 0, errors.New("amount overflow")
+			}
+			total += fraction
+		}
+	}
+	return total, nil
+}
+
+func formatVDR(value uint64) string {
+	whole := value / config.AtomicUnitsPerVDR
+	fraction := value % config.AtomicUnitsPerVDR
+	if fraction == 0 {
+		return strconv.FormatUint(whole, 10)
+	}
+	text := fmt.Sprintf("%d.%08d", whole, fraction)
+	return strings.TrimRight(text, "0")
 }
 
 func writeJSON(out io.Writer, value any, errOut io.Writer) int {
