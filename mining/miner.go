@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/bits"
+	"sort"
 
 	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/blockchain"
@@ -18,8 +20,15 @@ var (
 	ErrCoinbaseProvided = errors.New("caller must not provide coinbase transaction")
 )
 
-// MineBlock creates the required coinbase transaction, mines PoW and commits
-// the block to the local chain after full blockchain/UTXO validation.
+type transactionCandidate struct {
+	tx   *transaction.Transaction
+	fee  uint64
+	size int
+}
+
+// MineBlock creates the required coinbase transaction, selects valid normal
+// transactions by fee-rate, respects the consensus block-size limit, mines PoW
+// and commits the block after full blockchain/UTXO validation.
 func MineBlock(
 	chain *blockchain.Blockchain,
 	minerAddress string,
@@ -43,34 +52,127 @@ func MineBlock(
 		return nil, fmt.Errorf("no block reward configured for height %d", height)
 	}
 
+	candidates := make([]transactionCandidate, 0, len(transactions))
 	for i, tx := range transactions {
-		if tx != nil && tx.HasCoinbaseMarker() {
+		if tx == nil {
+			return nil, fmt.Errorf("nil transaction at index %d", i)
+		}
+		if tx.HasCoinbaseMarker() {
 			return nil, fmt.Errorf("%w at transaction %d", ErrCoinbaseProvided, i)
 		}
+		fee, err := chain.CalculateFees([]*transaction.Transaction{tx})
+		if err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, transactionCandidate{
+			tx:   tx,
+			fee:  fee,
+			size: tx.SerializedSize(),
+		})
 	}
 
-	fees, err := chain.CalculateFees(transactions)
-	if err != nil {
-		return nil, err
-	}
-	if math.MaxUint64-reward < fees {
-		return nil, fmt.Errorf("coinbase reward overflow: subsidy=%d fees=%d", reward, fees)
-	}
-	claim := reward + fees
+	sort.Slice(candidates, func(i, j int) bool {
+		cmp := compareFeeRate(candidates[i], candidates[j])
+		if cmp != 0 {
+			return cmp > 0
+		}
+		return candidates[i].tx.TransactionID < candidates[j].tx.TransactionID
+	})
 
+	selected := make([]*transaction.Transaction, 0, len(candidates))
+	var selectedFees uint64
+
+	for _, candidate := range candidates {
+		prospective := append(
+			append([]*transaction.Transaction(nil), selected...),
+			candidate.tx,
+		)
+		fees, err := chain.CalculateFees(prospective)
+		if err != nil {
+			// A direct caller may supply conflicts even though the mempool
+			// policy forbids them. Keep the higher-priority set already chosen.
+			continue
+		}
+		if math.MaxUint64-reward < fees {
+			return nil, fmt.Errorf(
+				"coinbase reward overflow: subsidy=%d fees=%d",
+				reward,
+				fees,
+			)
+		}
+
+		coinbase, err := transaction.NewCoinbase(
+			height,
+			minerAddress,
+			reward+fees,
+			timestamp,
+		)
+		if err != nil {
+			return nil, err
+		}
+		blockTransactions := make(
+			[]*transaction.Transaction,
+			0,
+			len(prospective)+1,
+		)
+		blockTransactions = append(blockTransactions, coinbase)
+		blockTransactions = append(blockTransactions, prospective...)
+
+		sizeProbe := block.New(
+			height,
+			tip.BlockHash,
+			timestamp,
+			tip.Difficulty,
+			0,
+			blockTransactions,
+			"",
+		)
+		if sizeProbe.SerializedSize() > block.MaxSerializedSize {
+			continue
+		}
+
+		selected = prospective
+		selectedFees = fees
+	}
+
+	if math.MaxUint64-reward < selectedFees {
+		return nil, fmt.Errorf(
+			"coinbase reward overflow: subsidy=%d fees=%d",
+			reward,
+			selectedFees,
+		)
+	}
 	coinbase, err := transaction.NewCoinbase(
 		height,
 		minerAddress,
-		claim,
+		reward+selectedFees,
 		timestamp,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	blockTransactions := make([]*transaction.Transaction, 0, len(transactions)+1)
+	blockTransactions := make([]*transaction.Transaction, 0, len(selected)+1)
 	blockTransactions = append(blockTransactions, coinbase)
-	blockTransactions = append(blockTransactions, transactions...)
+	blockTransactions = append(blockTransactions, selected...)
 
 	return chain.Append(timestamp, blockTransactions)
+}
+
+func compareFeeRate(a, b transactionCandidate) int {
+	aHi, aLo := bits.Mul64(a.fee, uint64(b.size))
+	bHi, bLo := bits.Mul64(b.fee, uint64(a.size))
+	if aHi < bHi {
+		return -1
+	}
+	if aHi > bHi {
+		return 1
+	}
+	if aLo < bLo {
+		return -1
+	}
+	if aLo > bLo {
+		return 1
+	}
+	return 0
 }
