@@ -23,7 +23,36 @@ Current Stage 1 changes:
 - persistence failure rolls the candidate block back from in-memory confirmed state;
 - clean build, full tests, race detector, storage/migration gate and three-node runtime smoke pass.
 
-**Stage 2 is not started.** Network profiles and P2P v2 are intentionally deferred, so Stage 1 still runs the v0.1-compatible `valdr-devnet-1` network identity while storage is migrated independently.
+**Stage 2 — Network profiles + P2P v2 framing/versioning: implemented and CI-verified.**
+
+Stage 2 adds the master-spec network profiles for legacy v0.1, `devnet2` and `testnet`, plus the v2 wire envelope (network magic, uint16 protocol/message type, bounded payload length, SHA-256 checksum and strict UTF-8 JSON). The node has an explicit v2 handshake path with `hello/hello_ack`, highest-mutual version selection, wrong-network rejection, ping/pong and peer discovery.
+
+The existing v0.1-compatible runtime remains the default while chainwork/reorg and headers-first synchronization are still pending. v2 block/transaction/header data messages are intentionally not activated yet; they belong to later v0.2 stages and are not silently routed through the legacy `get_block` synchronizer.
+
+**Stage 3 is not started.** Next master-spec milestone: chainwork, side branches, undo data and atomic reorganization.
+
+## Stage 2 protocol gate
+
+Network profiles:
+
+| Profile | Chain ID | P2P | P2P port | RPC port |
+| --- | --- | ---: | ---: | ---: |
+| `legacy-v0.1` | `valdr-devnet-1` | v1 | 7333 | 7332 |
+| `devnet2` | `valdr-devnet-2` | v2 | 7333 | 7332 |
+| `testnet` | `valdr-testnet-1` | v2 | 17333 | 17332 |
+
+P2P v2 frame:
+
+```text
+4 bytes  network magic = first 4 bytes SHA-256(chain_id)
+2 bytes  protocol version
+2 bytes  message type
+4 bytes  payload length
+4 bytes  checksum = first 4 bytes SHA-256(payload)
+N bytes  strict UTF-8 JSON payload
+```
+
+Automated Stage 2 coverage includes deterministic frame/network-magic vectors, checksum rejection, strict JSON rejection, wrong-network rejection, version negotiation, live v2 hello/hello_ack, and v2 peer discovery. The v0.2 CI keeps the existing storage and legacy runtime gates in place as regression protection.
 
 ## Current runtime protocol identity (Stage 1 compatibility baseline)
 
