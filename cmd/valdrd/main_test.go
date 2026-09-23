@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Sheff1981/valdr-core/config"
 )
 
 func TestVersionCommand(t *testing.T) {
@@ -13,7 +15,7 @@ func TestVersionCommand(t *testing.T) {
 	if code := run([]string{"version"}, &out, &errOut); code != 0 {
 		t.Fatalf("version exit=%d stderr=%s", code, errOut.String())
 	}
-	if !strings.Contains(out.String(), "VALDR") || !strings.Contains(out.String(), "0.1.0-dev") {
+	if !strings.Contains(out.String(), "VALDR") || !strings.Contains(out.String(), config.Version) {
 		t.Fatalf("unexpected version output: %s", out.String())
 	}
 }
