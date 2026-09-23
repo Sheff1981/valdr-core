@@ -177,7 +177,7 @@ func TestInsufficientFundsRejected(t *testing.T) {
 	}
 }
 
-func TestValueMustBeConservedWithoutFees(t *testing.T) {
+func TestTransactionFeeIsInputMinusOutput(t *testing.T) {
 	ownerKey, ownerAddress := testKeyAndAddress(t)
 	_, recipientAddress := testKeyAndAddress(t)
 
@@ -202,8 +202,15 @@ func TestValueMustBeConservedWithoutFees(t *testing.T) {
 	)
 	signTransaction(t, tx, ownerKey)
 
-	if err := set.ApplyTransaction(tx); !errors.Is(err, ErrValueMismatch) {
-		t.Fatalf("ApplyTransaction error = %v, want ErrValueMismatch", err)
+	fee, err := set.ApplyTransactionWithFee(tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fee != 10 {
+		t.Fatalf("fee = %d, want 10", fee)
+	}
+	if got, err := set.Balance(recipientAddress); err != nil || got != 90 {
+		t.Fatalf("recipient balance = %d, err=%v; want 90", got, err)
 	}
 }
 
