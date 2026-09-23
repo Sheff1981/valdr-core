@@ -254,7 +254,7 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 		timestamp = tip.Timestamp + 1
 	}
 
-	transactions := s.node.MempoolTransactions()
+	transactions := s.node.MempoolTransactionsForMining()
 	candidate, err := mining.MineBlock(
 		s.chain,
 		params.RewardAddress,
@@ -278,6 +278,11 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 	}
 
 	reward := consensus.BlockReward(candidate.Height)
+	if len(candidate.Transactions) > 0 &&
+		candidate.Transactions[0] != nil &&
+		len(candidate.Transactions[0].Outputs) > 0 {
+		reward = candidate.Transactions[0].Outputs[0].Amount
+	}
 	logging.Printf(
 		logging.CategoryMiner,
 		"block found height=%d hash=%s reward_address=%s txs=%d",
