@@ -14,6 +14,7 @@ import (
 	"sort"
 
 	"github.com/Sheff1981/valdr-core/core/block"
+	"github.com/Sheff1981/valdr-core/core/consensus"
 	"github.com/Sheff1981/valdr-core/core/transaction"
 	"github.com/Sheff1981/valdr-core/core/utxo"
 	badger "github.com/dgraph-io/badger/v4"
@@ -41,6 +42,7 @@ var (
 	keyGenesis            = []byte("meta/genesis")
 	keyActiveTip          = []byte("meta/active-tip")
 	keyActiveHeight       = []byte("meta/height")
+	keyActiveChainwork    = []byte("meta/chainwork")
 	keyUTXOHash           = []byte("meta/utxo-hash")
 	keyMigrationStatus    = []byte("migration/status")
 	keyMigrationSource    = []byte("migration/source")
@@ -60,6 +62,7 @@ type StorageInfo struct {
 	GenesisHash     string `json:"genesis_hash"`
 	ActiveTip       string `json:"active_tip"`
 	Height          uint64 `json:"height"`
+	Chainwork       string `json:"chainwork,omitempty"`
 	UTXOHash        string `json:"utxo_hash"`
 	MigrationStatus string `json:"migration_status,omitempty"`
 }
@@ -205,9 +208,19 @@ func (s *BadgerStore) Save(blocks []*block.Block) error {
 		if err != nil {
 			return err
 		}
+		target, err := consensus.TargetHex(genesis.Difficulty)
+		if err != nil {
+			return err
+		}
+		work, err := consensus.BlockWork(genesis.Difficulty)
+		if err != nil {
+			return err
+		}
+		genesisChainwork := consensus.ChainworkHex(work)
 		rawHeader, err := json.Marshal(headerRecord{
 			Parent: genesis.PreviousBlockHash, Height: genesis.Height,
 			Difficulty: genesis.Difficulty, Status: "active",
+			Target: target, Chainwork: genesisChainwork,
 		})
 		if err != nil {
 			return err
@@ -218,6 +231,7 @@ func (s *BadgerStore) Save(blocks []*block.Block) error {
 			{keyGenesis, []byte(s.genesisHash)},
 			{keyActiveTip, []byte(genesis.BlockHash)},
 			{keyActiveHeight, encodeUint64(0)},
+			{keyActiveChainwork, []byte(genesisChainwork)},
 			{keyUTXOHash, []byte(HashUTXOSet(nil))},
 			{blockKey(genesis.BlockHash), rawBlock},
 			{heightKey(0), []byte(genesis.BlockHash)},
@@ -422,6 +436,11 @@ func (s *BadgerStore) info() (StorageInfo, bool, error) {
 		if err != nil { return err }
 		info.Height, err = getUint64(txn, keyActiveHeight)
 		if err != nil { return err }
+		if chainwork, chainworkErr := getString(txn, keyActiveChainwork); chainworkErr == nil {
+			info.Chainwork = chainwork
+		} else if !errors.Is(chainworkErr, badger.ErrKeyNotFound) {
+			return chainworkErr
+		}
 		info.UTXOHash, err = getString(txn, keyUTXOHash)
 		if err != nil { return err }
 		if status, err := getString(txn, keyMigrationStatus); err == nil {
