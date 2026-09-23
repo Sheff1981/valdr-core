@@ -46,5 +46,8 @@ jobs:
       - name: Fees and consensus size gate
         run: go test ./core/transaction ./core/block ./core/utxo ./core/blockchain ./mining
 
+      - name: Mempool policy and miner template gate
+        run: go test ./config ./core/mempool ./core/blockchain ./p2p ./mining
+
       - name: Three-node runtime smoke
         run: ./scripts/start-devnet.sh smoke
