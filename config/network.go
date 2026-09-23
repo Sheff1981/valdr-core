@@ -2,8 +2,9 @@ package config
 
 const (
 	ChainID                   = "valdr-devnet-1"
+	AddressPrefix             = "VDR1"
 	GenesisVersion            = uint32(1)
-	GenesisTimestamp          = int64(1790121600) // 2026-09-23 00:00:00 UTC
+	GenesisTimestamp          = int64(1790121600)
 	GenesisDifficulty         = uint64(1)
 	GenesisNonce              = uint64(0)
 	GenesisMessage            = "VALDR genesis block | valdr-devnet-1 | 2026-09-23"
