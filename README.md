@@ -14,51 +14,109 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 - Initial devnet mining reward: **50 VDR**
 - Target maximum supply: **21,000,000 VDR**
 - Address prefix: **VDR1**
+- P2P protocol version: **1**
+- Default P2P port: **7333**
+- Default RPC port: **7332**
 
 ## Development status
 
-Completed milestone: **Day 7 - Coinbase and mining reward**.
+Completed milestone: **Day 8 - P2P Node A ↔ Node B**.
 
-Implemented through Day 7:
+Implemented through Day 8:
 
-- Go project skeleton;
-- block model, SHA-256 block hashing, fixed Genesis and local blockchain;
-- Proof of Work with nonce search, target validation and simplified devnet difficulty;
+- block model, fixed Genesis and local blockchain;
+- Proof of Work with nonce search, target validation and simplified difficulty;
 - ECDSA P-256 keys, canonical VALDR addresses and digital signatures;
-- local CLI wallet create/list/export;
-- typed signed UTXO-style transactions and SHA-256 transaction IDs;
-- typed transactions committed into block Merkle roots;
-- UTXO balances, ownership validation, spending and double-spend protection;
-- atomic block transaction application;
-- coinbase transaction validation;
-- 50 VDR devnet mining reward;
-- rejection of missing, duplicate or wrong-reward coinbase transactions;
-- miner block assembly with coinbase at transaction index zero;
-- wallet UTXO selection, change output and signed zero-fee payment creation;
-- local single-chain flow: mine -> receive VDR -> send VDR -> mine next block.
+- local wallet creation and signed payments;
+- typed UTXO transactions and transaction IDs;
+- UTXO balances, spending and double-spend protection;
+- coinbase and 50 VDR mining reward;
+- local mine -> receive -> send -> mine flow;
+- TCP P2P listener and outbound connection;
+- bounded length-prefixed P2P framing;
+- Node A ↔ Node B handshake;
+- chain ID validation;
+- P2P protocol-version validation;
+- self-connection rejection;
+- duplicate-peer rejection;
+- exchange and recording of each peer's latest block height;
+- inbound/outbound peer tracking.
+
+## P2P v0.1 - Day 8
+
+Day 8 intentionally implements only peer transport and connection establishment.
+
+A node is configured with:
+
+```text
+node_id
+listen_address
+chain_id
+protocol_version
+height_provider
+```
+
+A connection begins with a framed JSON `hello` message carrying:
+
+```text
+type
+protocol_version
+chain_id
+node_id
+listen_address
+height
+```
+
+The frame format is:
+
+```text
+4-byte big-endian payload length
+JSON payload
+```
+
+Handshake payloads are size-limited. A peer is accepted only when:
+
+- the message is a valid VALDR hello;
+- `chain_id` matches the local network;
+- P2P protocol versions match;
+- the remote node ID is valid and is not the local node ID;
+- the peer is not already connected;
+- the remote listen address is syntactically valid.
+
+After a successful handshake both nodes retain peer metadata including the remote latest block height.
+
+The Day 8 test uses real loopback TCP sockets and verifies:
+
+```text
+Node A height=7
+      |
+      | TCP + VALDR hello
+      v
+Node B height=3
+```
+
+After connection:
+
+```text
+Node A sees Node B at height 3
+Node B sees Node A at height 7
+```
+
+### Deliberately deferred to Day 9
+
+The following are not implemented by Day 8:
+
+- block broadcast;
+- transaction broadcast;
+- peer discovery;
+- missing-block requests;
+- blockchain synchronization.
+
+Those are the next milestone in the master specification.
 
 ## Coinbase and mining reward v0.1
 
-The master specification requires coinbase to be the only mechanism that creates new VDR.
-
-VALDR v0.1 keeps the existing transaction fields and encodes coinbase using a special input:
-
-```text
-transaction_id = 0000000000000000000000000000000000000000000000000000000000000000
-output_index   = block height
-```
-
-Coinbase rules:
-
-- exactly one coinbase is required per non-genesis block;
-- coinbase must be transaction index zero;
-- coinbase has exactly one output;
-- the output recipient must be a valid `VDR1...` address;
-- the output amount must equal the consensus block reward;
-- coinbase has no public key and no signature;
-- its transaction ID includes the height marker, making each block subsidy transaction unique;
-- coinbase is accepted only with block context, never as a normal transaction;
-- the newly mined reward cannot be spent inside the same block.
+VALDR v0.1 allows new VDR only through the block coinbase transaction.
 
 Current reward:
 
@@ -66,51 +124,17 @@ Current reward:
 50 VDR = 5,000,000,000 val
 ```
 
-The master specification defines a 21,000,000 VDR limited-supply model and future halving, but does not yet freeze the halving interval. Therefore v0.1 exposes the maximum-supply parameter and keeps the initial devnet reward fixed at 50 VDR; final halving/supply enforcement must be frozen before mainnet.
-
-## Day 7 local flow
-
-The automated local-node core scenario now verifies:
-
-```text
-create miner wallet
-    ↓
-mine block #1
-    ↓
-coinbase credits 50 VDR
-    ↓
-create recipient wallet
-    ↓
-send 10 VDR
-    ↓
-mine block #2 containing payment
-    ↓
-recipient balance = 10 VDR
-miner balance     = 90 VDR
-```
-
-The 90 VDR miner balance consists of 40 VDR change from the first reward plus the second 50 VDR coinbase reward.
-
-This is the in-memory single-node core path required by Day 7. Persistent node state, P2P propagation and RPC/CLI network integration remain later stages in the master plan.
+Coinbase is required at transaction index zero of each non-genesis block and the reward is validated by consensus.
 
 ## UTXO Engine v0.1
 
-A UTXO is identified by:
-
-```text
-transaction_id
-output_index
-```
-
-Normal signed transactions must preserve value:
+Normal signed transactions preserve value:
 
 ```text
 sum(inputs) == sum(outputs)
 ```
 
-Fees are not introduced in the 14-day MVP. Only a validated block coinbase is allowed to create new value.
-
-A second attempt to spend an already consumed outpoint fails because the UTXO no longer exists. Block transaction batches are applied atomically.
+Only a validated block coinbase may create new value. Spent outpoints are removed, preventing a second spend. Block transaction application is atomic.
 
 ## Transaction Engine v0.1
 
@@ -142,8 +166,6 @@ checksum: first 4 bytes of SHA-256(chain_id || payload)
 address: VDR1 + canonical Base32(payload || checksum)
 ```
 
-The wallet can now construct and sign a zero-fee payment from its available UTXOs, including a change output. The standalone CLI balance/send path still needs live node/RPC state integration and is intentionally not simulated from wallet files.
-
 ## Proof of Work v0.1
 
 ```text
@@ -163,7 +185,7 @@ The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second
 - message: `VALDR genesis block | valdr-devnet-1 | 2026-09-23`
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-Not implemented yet: P2P synchronization, persistent blockchain storage, RPC behavior, final halving interval, and the final three-node devnet scenario.
+Not implemented yet: P2P data propagation/synchronization, persistent blockchain storage, RPC behavior, final halving interval, and the final three-node devnet scenario.
 
 ## Build and test
 

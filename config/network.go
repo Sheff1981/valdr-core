@@ -16,4 +16,7 @@ const (
 	InitialMiningReward       = InitialMiningRewardVDR * AtomicUnitsPerVDR
 	MaxSupplyVDR              = uint64(21_000_000)
 	MaxSupply                 = MaxSupplyVDR * AtomicUnitsPerVDR
+	P2PProtocolVersion        = uint32(1)
+	DefaultP2PPort            = uint16(7333)
+	DefaultRPCPort            = uint16(7332)
 )
