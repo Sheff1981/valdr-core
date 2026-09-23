@@ -148,7 +148,9 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	rpcHost := fs.String("rpc-host", "127.0.0.1", "RPC listen host")
 	rpcPort := fs.Uint("rpc-port", uint(config.DefaultRPCPort), "RPC listen port")
 	var peers stringListFlag
-	fs.Var(&peers, "peer", "P2P peer address; may be repeated")
+	var seeds stringListFlag
+	fs.Var(&peers, "peer", "required P2P peer address; may be repeated")
+	fs.Var(&seeds, "seed", "best-effort seed node address; may be repeated")
 
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -203,7 +205,28 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		*dataDir,
 	)
 
-	for _, peerAddress := range peers {
+	connectedSeeds := make(map[string]struct{}, len(seeds))
+	for _, seedAddress := range uniqueAddresses(seeds) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := node.Connect(ctx, seedAddress)
+		cancel()
+		if err != nil {
+			logging.Printf(
+				logging.CategoryP2P,
+				"seed bootstrap failed address=%s error=%v",
+				seedAddress,
+				err,
+			)
+			continue
+		}
+		connectedSeeds[seedAddress] = struct{}{}
+		logging.Printf(logging.CategoryP2P, "seed bootstrap connected address=%s", seedAddress)
+	}
+
+	for _, peerAddress := range uniqueAddresses(peers) {
+		if _, alreadyConnected := connectedSeeds[peerAddress]; alreadyConnected {
+			continue
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		err := node.Connect(ctx, peerAddress)
 		cancel()
@@ -267,6 +290,19 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+func uniqueAddresses(addresses []string) []string {
+	seen := make(map[string]struct{}, len(addresses))
+	result := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		if _, exists := seen[address]; exists {
+			continue
+		}
+		seen[address] = struct{}{}
+		result = append(result, address)
+	}
+	return result
 }
 
 func writeJSON(out io.Writer, value any, errOut io.Writer) int {
