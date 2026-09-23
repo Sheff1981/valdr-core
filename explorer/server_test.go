@@ -117,30 +117,71 @@ func TestOverviewAndBlockPages(t *testing.T) {
 }
 
 func TestTransactionAddressSearchAndHealth(t *testing.T) {
-	const blockHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const block1Hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	const txid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	const block2Hash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 
-	owner, err := wallet.New("explorer-test")
+	owner, err := wallet.New("explorer-owner")
 	if err != nil {
 		t.Fatal(err)
 	}
-	tx := &transaction.Transaction{
-		Version:       transaction.Version,
-		Inputs:        []transaction.Input{{PreviousTransactionID: blockHash, OutputIndex: 0}},
-		Outputs:       []transaction.Output{{Amount: 10 * config.AtomicUnitsPerVDR, Recipient: owner.Address}},
+	recipient, err := wallet.New("explorer-recipient")
+	if err != nil {
+		t.Fatal(err)
+	}
+	coinbase, err := transaction.NewCoinbase(
+		1,
+		owner.Address,
+		config.InitialMiningReward,
+		config.GenesisTimestamp+60,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payment := &transaction.Transaction{
+		Version: transaction.Version,
+		Inputs: []transaction.Input{{
+			PreviousTransactionID: coinbase.TransactionID,
+			OutputIndex:           0,
+		}},
+		Outputs: []transaction.Output{
+			{Amount: 10 * config.AtomicUnitsPerVDR, Recipient: recipient.Address},
+			{Amount: 40 * config.AtomicUnitsPerVDR, Recipient: owner.Address},
+		},
 		Timestamp:     config.GenesisTimestamp + 90,
 		TransactionID: txid,
 	}
-	candidate := block.Block{Height: 2, BlockHash: blockHash, Timestamp: config.GenesisTimestamp + 120}
+	block1 := block.Block{
+		Height:            1,
+		PreviousBlockHash: config.GenesisBlockHash,
+		BlockHash:         block1Hash,
+		Timestamp:         config.GenesisTimestamp + 60,
+		Transactions:      []*transaction.Transaction{coinbase},
+	}
+	block2 := block.Block{
+		Height:            2,
+		PreviousBlockHash: block1Hash,
+		BlockHash:         block2Hash,
+		Timestamp:         config.GenesisTimestamp + 120,
+		Transactions:      []*transaction.Transaction{payment},
+	}
 	client := &mockClient{
-		status: rpc.StatusResult{ChainID: config.ChainID, Height: 2, TipHash: blockHash},
-		blocks: map[uint64]rpc.BlockResult{},
-		byHash: map[string]rpc.BlockResult{blockHash: candidate},
+		status: rpc.StatusResult{ChainID: config.ChainID, Height: 2, TipHash: block2Hash},
+		blocks: map[uint64]rpc.BlockResult{
+			0: *block.NewGenesis(),
+			1: block1,
+			2: block2,
+		},
+		byHash: map[string]rpc.BlockResult{
+			block1Hash: block1,
+			block2Hash: block2,
+		},
 		txs: map[string]rpc.TransactionResult{
-			txid: {Transaction: tx, Confirmed: true, BlockHeight: 2, BlockHash: blockHash},
+			txid: {Transaction: payment, Confirmed: true, BlockHeight: 2, BlockHash: block2Hash},
 		},
 		balances: map[string]rpc.BalanceResult{
-			owner.Address: {Address: owner.Address, BalanceVal: 10 * config.AtomicUnitsPerVDR},
+			owner.Address:     {Address: owner.Address, BalanceVal: 40 * config.AtomicUnitsPerVDR},
+			recipient.Address: {Address: recipient.Address, BalanceVal: 10 * config.AtomicUnitsPerVDR},
 		},
 	}
 	server, err := New(client)
@@ -151,14 +192,27 @@ func TestTransactionAddressSearchAndHealth(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/tx/"+txid, nil))
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "10 VDR") {
+	if recorder.Code != http.StatusOK ||
+		!strings.Contains(recorder.Body.String(), "10 VDR") ||
+		!strings.Contains(recorder.Body.String(), "40 VDR") {
 		t.Fatalf("tx status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 
 	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/address/"+owner.Address, nil))
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "10 VDR") {
-		t.Fatalf("address status=%d body=%s", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusOK ||
+		!strings.Contains(recorder.Body.String(), "Confirmed activity") ||
+		!strings.Contains(recorder.Body.String(), "50 VDR") ||
+		!strings.Contains(recorder.Body.String(), "40 VDR") {
+		t.Fatalf("owner address status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/address/"+recipient.Address, nil))
+	if recorder.Code != http.StatusOK ||
+		!strings.Contains(recorder.Body.String(), "10 VDR") ||
+		!strings.Contains(recorder.Body.String(), txid) {
+		t.Fatalf("recipient address status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 
 	recorder = httptest.NewRecorder()
@@ -168,8 +222,8 @@ func TestTransactionAddressSearchAndHealth(t *testing.T) {
 	}
 
 	recorder = httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/search?q="+blockHash, nil))
-	if recorder.Code != http.StatusSeeOther || recorder.Header().Get("Location") != "/block/"+blockHash {
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/search?q="+block2Hash, nil))
+	if recorder.Code != http.StatusSeeOther || recorder.Header().Get("Location") != "/block/"+block2Hash {
 		t.Fatalf("hash search status=%d location=%s", recorder.Code, recorder.Header().Get("Location"))
 	}
 
