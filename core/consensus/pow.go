@@ -95,17 +95,69 @@ func Mine(b *block.Block) error {
 	}
 }
 
-// NextDifficulty is the simplified v0.1 devnet retarget algorithm.
-// It compares the latest block interval with the 60-second target and
-// limits each step to at most a 4x increase or decrease.
-func NextDifficulty(previousDifficulty uint64, previousTimestamp, candidateTimestamp int64) uint64 {
+// NextDifficulty returns the required difficulty for the next block.
+//
+// VALDR v0.2 retargets only at fixed window boundaries and uses the timestamps
+// of already-confirmed blocks. This avoids reacting to one candidate timestamp
+// and reduces the block-to-block oscillation of the v0.1 algorithm.
+//
+// With a 10-block window, the candidate at height 10 uses confirmed blocks
+// 0..9, height 20 uses 10..19, and so on. Between boundaries the previous
+// difficulty is retained. Each retarget remains clamped to at most 4x.
+func NextDifficulty(history []*block.Block) uint64 {
+	if len(history) == 0 {
+		return config.GenesisDifficulty
+	}
+
+	tip := history[len(history)-1]
+	if tip == nil {
+		return config.GenesisDifficulty
+	}
+
+	previousDifficulty := tip.Difficulty
 	if previousDifficulty == 0 {
 		previousDifficulty = 1
 	}
 
-	elapsed := candidateTimestamp - previousTimestamp
-	minElapsed := config.TargetBlockTimeSeconds / int64(config.DifficultyAdjustmentClamp)
-	maxElapsed := config.TargetBlockTimeSeconds * int64(config.DifficultyAdjustmentClamp)
+	window := config.DifficultyWindowBlocks
+	if window < 2 || uint64(len(history)) < window {
+		return previousDifficulty
+	}
+
+	nextHeight := tip.Height + 1
+	if nextHeight%window != 0 {
+		return previousDifficulty
+	}
+
+	first := history[len(history)-int(window)]
+	if first == nil {
+		return previousDifficulty
+	}
+
+	intervals := window - 1
+	targetSpan := int64(intervals) * config.TargetBlockTimeSeconds
+	elapsed := tip.Timestamp - first.Timestamp
+	return retargetDifficulty(previousDifficulty, targetSpan, elapsed)
+}
+
+func retargetDifficulty(previousDifficulty uint64, targetSpan, elapsed int64) uint64 {
+	if previousDifficulty == 0 {
+		previousDifficulty = 1
+	}
+	if targetSpan <= 0 {
+		return previousDifficulty
+	}
+
+	clamp := config.DifficultyAdjustmentClamp
+	if clamp < 1 {
+		clamp = 1
+	}
+
+	minElapsed := targetSpan / int64(clamp)
+	if minElapsed < 1 {
+		minElapsed = 1
+	}
+	maxElapsed := targetSpan * int64(clamp)
 
 	if elapsed < minElapsed {
 		elapsed = minElapsed
@@ -116,20 +168,20 @@ func NextDifficulty(previousDifficulty uint64, previousTimestamp, candidateTimes
 
 	next := new(big.Int).Mul(
 		new(big.Int).SetUint64(previousDifficulty),
-		big.NewInt(config.TargetBlockTimeSeconds),
+		big.NewInt(targetSpan),
 	)
 	next.Div(next, big.NewInt(elapsed))
 	if next.Sign() < 1 {
-		return 1
+		next.SetUint64(1)
 	}
 
 	max := new(big.Int).Mul(
 		new(big.Int).SetUint64(previousDifficulty),
-		new(big.Int).SetUint64(config.DifficultyAdjustmentClamp),
+		new(big.Int).SetUint64(clamp),
 	)
 	min := new(big.Int).Div(
 		new(big.Int).SetUint64(previousDifficulty),
-		new(big.Int).SetUint64(config.DifficultyAdjustmentClamp),
+		new(big.Int).SetUint64(clamp),
 	)
 	if min.Sign() < 1 {
 		min.SetUint64(1)
@@ -144,6 +196,5 @@ func NextDifficulty(previousDifficulty uint64, previousTimestamp, candidateTimes
 	if !next.IsUint64() {
 		return math.MaxUint64
 	}
-
 	return next.Uint64()
 }
