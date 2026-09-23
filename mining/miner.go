@@ -71,68 +71,18 @@ func MineBlock(
 		})
 	}
 
-	sort.Slice(candidates, func(i, j int) bool {
-		cmp := compareFeeRate(candidates[i], candidates[j])
-		if cmp != 0 {
-			return cmp > 0
-		}
-		return candidates[i].tx.TransactionID < candidates[j].tx.TransactionID
-	})
-
-	selected := make([]*transaction.Transaction, 0, len(candidates))
-	var selectedFees uint64
-
-	for _, candidate := range candidates {
-		prospective := append(
-			append([]*transaction.Transaction(nil), selected...),
-			candidate.tx,
-		)
-		fees, err := chain.CalculateFees(prospective)
-		if err != nil {
-			// A direct caller may supply conflicts even though the mempool
-			// policy forbids them. Keep the higher-priority set already chosen.
-			continue
-		}
-		if math.MaxUint64-reward < fees {
-			return nil, fmt.Errorf(
-				"coinbase reward overflow: subsidy=%d fees=%d",
-				reward,
-				fees,
-			)
-		}
-
-		coinbase, err := transaction.NewCoinbase(
-			height,
-			minerAddress,
-			reward+fees,
-			timestamp,
-		)
-		if err != nil {
-			return nil, err
-		}
-		blockTransactions := make(
-			[]*transaction.Transaction,
-			0,
-			len(prospective)+1,
-		)
-		blockTransactions = append(blockTransactions, coinbase)
-		blockTransactions = append(blockTransactions, prospective...)
-
-		sizeProbe := block.New(
-			height,
-			tip.BlockHash,
-			timestamp,
-			tip.Difficulty,
-			0,
-			blockTransactions,
-			"",
-		)
-		if sizeProbe.SerializedSize() > block.MaxSerializedSize {
-			continue
-		}
-
-		selected = prospective
-		selectedFees = fees
+	selected, selectedFees, err := selectTransactions(
+		chain,
+		tip,
+		height,
+		minerAddress,
+		timestamp,
+		reward,
+		candidates,
+		block.MaxSerializedSize,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	if math.MaxUint64-reward < selectedFees {
@@ -157,6 +107,79 @@ func MineBlock(
 	blockTransactions = append(blockTransactions, selected...)
 
 	return chain.Append(timestamp, blockTransactions)
+}
+
+func selectTransactions(
+	chain *blockchain.Blockchain,
+	tip *block.Block,
+	height uint64,
+	minerAddress string,
+	timestamp int64,
+	reward uint64,
+	candidates []transactionCandidate,
+	maxBlockBytes int,
+) ([]*transaction.Transaction, uint64, error) {
+	ordered := append([]transactionCandidate(nil), candidates...)
+	sort.Slice(ordered, func(i, j int) bool {
+		cmp := compareFeeRate(ordered[i], ordered[j])
+		if cmp != 0 {
+			return cmp > 0
+		}
+		return ordered[i].tx.TransactionID < ordered[j].tx.TransactionID
+	})
+
+	selected := make([]*transaction.Transaction, 0, len(ordered))
+	var selectedFees uint64
+	for _, candidate := range ordered {
+		prospective := append(
+			append([]*transaction.Transaction(nil), selected...),
+			candidate.tx,
+		)
+		fees, err := chain.CalculateFees(prospective)
+		if err != nil {
+			continue
+		}
+		if math.MaxUint64-reward < fees {
+			return nil, 0, fmt.Errorf(
+				"coinbase reward overflow: subsidy=%d fees=%d",
+				reward,
+				fees,
+			)
+		}
+
+		coinbase, err := transaction.NewCoinbase(
+			height,
+			minerAddress,
+			reward+fees,
+			timestamp,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+		blockTransactions := make(
+			[]*transaction.Transaction,
+			0,
+			len(prospective)+1,
+		)
+		blockTransactions = append(blockTransactions, coinbase)
+		blockTransactions = append(blockTransactions, prospective...)
+		sizeProbe := block.New(
+			height,
+			tip.BlockHash,
+			timestamp,
+			tip.Difficulty,
+			0,
+			blockTransactions,
+			"",
+		)
+		if sizeProbe.SerializedSize() > maxBlockBytes {
+			continue
+		}
+
+		selected = prospective
+		selectedFees = fees
+	}
+	return selected, selectedFees, nil
 }
 
 func compareFeeRate(a, b transactionCandidate) int {
