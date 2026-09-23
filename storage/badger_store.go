@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"path/filepath"
 	"sort"
@@ -208,11 +209,16 @@ func (s *BadgerStore) Save(blocks []*block.Block) error {
 		if err != nil {
 			return err
 		}
-		target, err := consensus.TargetHex(genesis.Difficulty)
+		target, targetValue, err := blockTargetAndWork(genesis)
 		if err != nil {
 			return err
 		}
-		work, err := consensus.BlockWork(genesis.Difficulty)
+		var work *big.Int
+		if genesis.Version == block.VersionV2 {
+			work, err = consensus.BlockWorkTarget(targetValue)
+		} else {
+			work, err = consensus.BlockWork(genesis.Difficulty)
+		}
 		if err != nil {
 			return err
 		}
