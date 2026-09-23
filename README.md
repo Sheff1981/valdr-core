@@ -22,9 +22,13 @@ VALDR is a standalone cryptocurrency and blockchain project. `main` preserves th
 
 Stable baseline: **Day 14 - VALDR Devnet v0.1 final integration**.
 
-Completed v0.2 milestone: **Block Explorer**.
+Completed v0.2 milestones:
 
-Active v0.2 milestone: **Seed-node bootstrap**.
+- **Block Explorer**;
+- **Seed-node bootstrap**;
+- **Windowed difficulty adjustment**.
+
+Next v0.2 milestone: **Transaction fees**.
 
 Implemented through Day 14:
 
@@ -113,6 +117,34 @@ After a successful seed connection, VALDR uses the existing `get_peers / peers` 
 The local three-node Devnet now boots Node B through Node A as a seed and Node C through Node B as a seed. Therefore the existing smoke and final integration tests exercise the seed bootstrap path with real `valdrd` processes.
 
 No public seed hostname or IP is hard-coded yet. Public seed deployment belongs with the later public test-node infrastructure milestone; inventing an endpoint before that infrastructure exists would make the client configuration incorrect.
+
+## VALDR v0.2 - Difficulty adjustment
+
+The v0.1 master specification requires an improved difficulty algorithm in v0.2 but does not freeze its exact formula. The current `valdr-v0.2-dev` candidate makes that formula explicit:
+
+- target block interval remains **60 seconds**;
+- retarget window is **10 confirmed blocks**;
+- difficulty changes only at next-block heights **10, 20, 30, ...**;
+- the calculation uses only already-confirmed block timestamps, not the candidate block timestamp;
+- the measured window spans 9 block intervals;
+- the measured span is clamped to **1/4x .. 4x** of the target span;
+- one retarget may change difficulty by at most **1/4x .. 4x**;
+- between retarget boundaries, the previous difficulty is retained;
+- difficulty never drops below 1.
+
+Example: if blocks 1 through 9 arrive every 15 seconds, block 10 requires difficulty 4 instead of difficulty 1.
+
+This is a **consensus change** from the v0.1 per-block simplified adjustment. Benefits are lower block-to-block oscillation and reduced influence from a single timestamp. The compatibility risk is that a persisted v0.1 devnet history mined with the old rule can fail replay under the v0.2 rule if its stored difficulty diverges. Before any public testnet, the exact window/clamp formula and the migration/reset rule must be frozen in a new VALDR master specification (v0.2 or later).
+
+Automated coverage includes:
+
+- stable, fast and slow 10-block windows;
+- 4x increase/decrease clamps;
+- no retarget between boundaries;
+- no retarget before a complete window;
+- blockchain acceptance of the new difficulty at height 10;
+- blockchain rejection of the old difficulty at the height-10 boundary;
+- the full three-node Devnet, final v0.1 integration scenario, and Explorer integration.
 
 ## Day 9 P2P data propagation
 
