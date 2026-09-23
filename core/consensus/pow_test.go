@@ -64,17 +64,49 @@ func TestRejectsHashAboveTarget(t *testing.T) {
 	}
 }
 
-func TestNextDifficulty(t *testing.T) {
-	if got := NextDifficulty(1, 1000, 1060); got != 1 {
-		t.Fatalf("60-second interval difficulty = %d, want 1", got)
+func TestNextDifficultyUsesConfirmedWindow(t *testing.T) {
+	if got := NextDifficulty(nil); got != config.GenesisDifficulty {
+		t.Fatalf("empty history difficulty = %d, want %d", got, config.GenesisDifficulty)
 	}
-	if got := NextDifficulty(1, 1000, 1030); got != 2 {
-		t.Fatalf("30-second interval difficulty = %d, want 2", got)
+
+	stable := difficultyHistory(10, 8, 60)
+	if got := NextDifficulty(stable); got != 8 {
+		t.Fatalf("stable window difficulty = %d, want 8", got)
 	}
-	if got := NextDifficulty(8, 1000, 1120); got != 4 {
-		t.Fatalf("120-second interval difficulty = %d, want 4", got)
+
+	fast := difficultyHistory(10, 8, 15)
+	if got := NextDifficulty(fast); got != 32 {
+		t.Fatalf("fast window difficulty = %d, want clamp at 32", got)
 	}
-	if got := NextDifficulty(8, 1000, 1001); got != 32 {
-		t.Fatalf("very fast interval difficulty = %d, want clamp at 32", got)
+
+	slow := difficultyHistory(10, 8, 240)
+	if got := NextDifficulty(slow); got != 2 {
+		t.Fatalf("slow window difficulty = %d, want clamp at 2", got)
 	}
+}
+
+func TestNextDifficultyHoldsBetweenWindowBoundaries(t *testing.T) {
+	history := difficultyHistory(11, 32, 1)
+	if got := NextDifficulty(history); got != 32 {
+		t.Fatalf("non-boundary difficulty = %d, want 32", got)
+	}
+}
+
+func TestNextDifficultyNeedsCompleteWindow(t *testing.T) {
+	history := difficultyHistory(9, 7, 1)
+	if got := NextDifficulty(history); got != 7 {
+		t.Fatalf("short history difficulty = %d, want 7", got)
+	}
+}
+
+func difficultyHistory(count int, difficulty uint64, interval int64) []*block.Block {
+	history := make([]*block.Block, 0, count)
+	for i := 0; i < count; i++ {
+		history = append(history, &block.Block{
+			Height:     uint64(i),
+			Timestamp:  config.GenesisTimestamp + int64(i)*interval,
+			Difficulty: difficulty,
+		})
+	}
+	return history
 }
