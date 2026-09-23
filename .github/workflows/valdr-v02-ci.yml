@@ -21,6 +21,14 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
+
+      - name: Resolve module lock
+        run: |
+          go mod tidy
+          echo "-----BEGIN VALDR GO SUM-----"
+          cat go.sum
+          echo "-----END VALDR GO SUM-----"
 
       - name: Build
         run: go build ./...
