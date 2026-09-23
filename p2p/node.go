@@ -885,6 +885,7 @@ func (n *Node) handleGetPeersV2(peerID string) error {
 func (n *Node) sendV2To(peerID string, messageType V2MessageType, value any) error {
 	n.mu.RLock()
 	pc, exists := n.conns[peerID]
+	peer := n.peers[peerID]
 	n.mu.RUnlock()
 	if !exists {
 		return fmt.Errorf("peer %q not connected", peerID)
@@ -895,7 +896,7 @@ func (n *Node) sendV2To(peerID string, messageType V2MessageType, value any) err
 	return WriteV2Frame(
 		pc.conn,
 		n.networkProfile,
-		uint16(n.peers[peerID].ProtocolVersion),
+		uint16(peer.ProtocolVersion),
 		messageType,
 		value,
 	)
