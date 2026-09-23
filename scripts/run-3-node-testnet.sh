@@ -17,9 +17,18 @@ cleanup(){
 }
 trap cleanup EXIT
 
-"$BIN" -datadir="$D/n1" -port=37333 -rpcport=37332 "${COMMON[@]}"
-"$BIN" -datadir="$D/n2" -port=37334 -rpcport=37342 -connect=127.0.0.1:37333 "${COMMON[@]}"
-"$BIN" -datadir="$D/n3" -port=37335 -rpcport=37352 -connect=127.0.0.1:37333 "${COMMON[@]}"
+start_node() {
+  local name="$1"; shift
+  if ! "$BIN" "$@"; then
+    echo "=== $name startup failed ===" >&2
+    find "$D/$name" -name debug.log -type f -maxdepth 3 -print -exec tail -n 250 {} \; >&2 || true
+    exit 1
+  fi
+}
+
+start_node n1 -datadir="$D/n1" -port=37333 -rpcport=37332 "${COMMON[@]}"
+start_node n2 -datadir="$D/n2" -port=37334 -rpcport=37342 -connect=127.0.0.1:37333 "${COMMON[@]}"
+start_node n3 -datadir="$D/n3" -port=37335 -rpcport=37352 -connect=127.0.0.1:37333 "${COMMON[@]}"
 
 C1=("$CLI" -testnet4 -datadir="$D/n1" -rpcport=37332)
 C2=("$CLI" -testnet4 -datadir="$D/n2" -rpcport=37342)
