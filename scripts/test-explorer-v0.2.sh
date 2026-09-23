@@ -52,6 +52,21 @@ json_field() {
   '
 }
 
+json_last_field() {
+  local field="$1"
+  awk -v key="\"$field\":" '
+    $1 == key {
+      gsub(/[",]/, "", $2)
+      value = $2
+    }
+    END {
+      if (value != "") {
+        print value
+      }
+    }
+  '
+}
+
 
 assert_contains() {
   local label="$1"
@@ -128,7 +143,7 @@ log "mining one live block for explorer"
   --pid-file "$VALDR_DEVNET_DIR/explorer-miner.pid" >/dev/null
 
 block_json="$("$VALDR_CLI" block get --node "http://$HOST:$NODE_A_RPC" 1)"
-txid="$(printf '%s\n' "$block_json" | json_field transaction_id)"
+txid="$(printf '%s\n' "$block_json" | json_last_field transaction_id)"
 if [[ -z "$txid" ]]; then
   log "failed to parse coinbase transaction ID"
   exit 1
