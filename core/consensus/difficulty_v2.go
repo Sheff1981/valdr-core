@@ -22,6 +22,7 @@ var (
 
 type V2DifficultyHeader struct {
 	Height               uint64
+	BlockHash            string
 	Timestamp            int64
 	Target               *big.Int
 	SpecialMinDifficulty bool
@@ -43,6 +44,93 @@ func TargetHexV2(target *big.Int) (string, error) {
 		return "", ErrInvalidTarget
 	}
 	return fmt.Sprintf("%064x", target), nil
+}
+
+func ParseTargetHexV2(value string) (*big.Int, error) {
+	raw, err := block.DecodeTarget(value)
+	if err != nil {
+		return nil, ErrInvalidTarget
+	}
+	target := new(big.Int).SetBytes(raw)
+	if target.Sign() <= 0 || target.BitLen() > 256 {
+		return nil, ErrInvalidTarget
+	}
+	return target, nil
+}
+
+// ValidateHeaderV2 validates a non-Genesis header using only already accepted
+// header history. No transaction/body data is required.
+func ValidateHeaderV2(
+	header block.Header,
+	history []V2DifficultyHeader,
+	profile config.NetworkProfile,
+	localSystemTime int64,
+) (bool, error) {
+	if header.Version != block.VersionV2 || header.Difficulty != 0 {
+		return false, fmt.Errorf("%w: block version/difficulty", ErrInvalidDifficultyHistory)
+	}
+	if header.ChainID != profile.ChainID {
+		return false, fmt.Errorf(
+			"%w: got %q want %q",
+			ErrWrongChainID,
+			header.ChainID,
+			profile.ChainID,
+		)
+	}
+	if len(history) == 0 {
+		return false, ErrInvalidDifficultyHistory
+	}
+	parent := history[len(history)-1]
+	if header.Height != parent.Height+1 ||
+		parent.BlockHash == "" ||
+		header.PreviousBlockHash != parent.BlockHash {
+		return false, fmt.Errorf("%w: header linkage", ErrInvalidDifficultyHistory)
+	}
+
+	target, err := ParseTargetHexV2(header.Target)
+	if err != nil {
+		return false, err
+	}
+	powLimit, err := PowLimitForProfile(profile)
+	if err != nil {
+		return false, err
+	}
+	if target.Cmp(powLimit) > 0 {
+		return false, ErrInvalidTarget
+	}
+	if err := ValidateTimestampV2(
+		history,
+		header.Timestamp,
+		localSystemTime,
+		profile,
+	); err != nil {
+		return false, err
+	}
+	expected, special, err := NextTargetV2(
+		history,
+		header.Timestamp,
+		profile,
+	)
+	if err != nil {
+		return false, err
+	}
+	if target.Cmp(expected) != 0 {
+		return false, fmt.Errorf(
+			"%w: got target=%064x want=%064x",
+			ErrInvalidDifficultyHistory,
+			target,
+			expected,
+		)
+	}
+
+	expectedHash := header.CalculateHash()
+	if expectedHash == "" || header.BlockHash != expectedHash {
+		return false, ErrInvalidHash
+	}
+	if err := ValidatePoWTarget(header.BlockHash, target); err != nil {
+		return false, err
+	}
+	return special, nil
 }
 
 func RetargetV2(
