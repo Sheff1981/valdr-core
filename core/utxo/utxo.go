@@ -34,6 +34,11 @@ type UTXO struct {
 	Recipient     string `json:"recipient"`
 }
 
+type Outpoint struct {
+	TransactionID string `json:"transaction_id"`
+	OutputIndex   uint32 `json:"output_index"`
+}
+
 type Set struct {
 	entries map[string]UTXO
 }
@@ -259,6 +264,37 @@ func (s *Set) ApplyBlockTransactions(
 		return fmt.Errorf("%w: %s", ErrUTXOAlreadyExists, key)
 	}
 	working.entries[key] = item
+
+	s.entries = working.entries
+	return nil
+}
+
+// ApplyUndo disconnects one previously validated block atomically.
+// created are outputs produced by that block; spent are the UTXOs it consumed.
+func (s *Set) ApplyUndo(spent []UTXO, created []Outpoint) error {
+	if s == nil {
+		return ErrInvalidUTXO
+	}
+	working := s.clone()
+
+	for _, outpoint := range created {
+		key := outpointKey(outpoint.TransactionID, outpoint.OutputIndex)
+		if _, exists := working.entries[key]; !exists {
+			return fmt.Errorf("%w while undoing created output: %s", ErrUTXONotFound, key)
+		}
+		delete(working.entries, key)
+	}
+
+	for _, item := range spent {
+		if err := validateUTXO(item); err != nil {
+			return err
+		}
+		key := outpointKey(item.TransactionID, item.OutputIndex)
+		if _, exists := working.entries[key]; exists {
+			return fmt.Errorf("%w while undoing spent output: %s", ErrUTXOAlreadyExists, key)
+		}
+		working.entries[key] = item
+	}
 
 	s.entries = working.entries
 	return nil
