@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/block"
@@ -63,6 +64,8 @@ type chainNode struct {
 	block       *block.Block
 	parent      *chainNode
 	chainwork   *big.Int
+	target      *big.Int
+	specialMinDifficulty bool
 	utxos       []utxo.UTXO
 	undoSpent   []utxo.UTXO
 	undoCreated []utxo.Outpoint
@@ -75,8 +78,10 @@ type ChainUpdate struct {
 }
 
 type Blockchain struct {
-	mu     sync.RWMutex
-	blocks []*block.Block
+	mu      sync.RWMutex
+	profile config.NetworkProfile
+	now     func() time.Time
+	blocks  []*block.Block
 	utxos  *utxo.Set
 	nodes  map[string]*chainNode
 	tip    *chainNode
@@ -84,25 +89,81 @@ type Blockchain struct {
 }
 
 func New() *Blockchain {
-	genesis := block.NewGenesis()
-	work, err := consensus.AddWork(nil, genesis.Difficulty)
+	profile, err := config.ResolveNetworkProfile(config.NetworkLegacyV01)
 	if err != nil {
-		panic(fmt.Sprintf("VALDR genesis chainwork: %v", err))
+		panic(err)
 	}
+	chain, err := NewForProfile(profile)
+	if err != nil {
+		panic(err)
+	}
+	return chain
+}
+
+func NewForProfile(profile config.NetworkProfile) (*Blockchain, error) {
+	return newForProfile(profile, time.Now)
+}
+
+func newForProfile(
+	profile config.NetworkProfile,
+	now func() time.Time,
+) (*Blockchain, error) {
+	if now == nil {
+		now = time.Now
+	}
+	genesis, err := block.NewGenesisForProfile(profile)
+	if err != nil {
+		return nil, err
+	}
+
+	var target *big.Int
+	var work *big.Int
+	switch genesis.Version {
+	case block.VersionLegacy:
+		target, err = consensus.TargetForDifficulty(genesis.Difficulty)
+		if err == nil {
+			work, err = consensus.AddWork(nil, genesis.Difficulty)
+		}
+	case block.VersionV2:
+		target, err = consensus.ParseTargetHexV2(genesis.Target)
+		if err == nil {
+			work, err = consensus.AddTargetWork(nil, target)
+		}
+	default:
+		err = fmt.Errorf("unsupported Genesis version %d", genesis.Version)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("VALDR genesis chainwork: %w", err)
+	}
+
 	node := &chainNode{
 		block:     genesis,
 		chainwork: work,
+		target:    target,
 		utxos:     nil,
 	}
 	return &Blockchain{
-		blocks: []*block.Block{genesis},
-		utxos:  utxo.NewEmpty(),
-		nodes:  map[string]*chainNode{genesis.BlockHash: node},
-		tip:    node,
-	}
+		profile: profile,
+		now:     now,
+		blocks:  []*block.Block{genesis},
+		utxos:   utxo.NewEmpty(),
+		nodes:   map[string]*chainNode{genesis.BlockHash: node},
+		tip:     node,
+	}, nil
 }
 
 func NewPersistent(store BlockStore) (*Blockchain, error) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkLegacyV01)
+	if err != nil {
+		return nil, err
+	}
+	return NewPersistentForProfile(store, profile)
+}
+
+func NewPersistentForProfile(
+	store BlockStore,
+	profile config.NetworkProfile,
+) (*Blockchain, error) {
 	if store == nil {
 		return nil, ErrNilBlockStore
 	}
@@ -111,7 +172,10 @@ func NewPersistent(store BlockStore) (*Blockchain, error) {
 		return nil, err
 	}
 
-	bc := New()
+	bc, err := NewForProfile(profile)
+	if err != nil {
+		return nil, err
+	}
 	if len(loaded) == 0 {
 		if err := store.Save(bc.blocks); err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrPersistence, err)
@@ -120,11 +184,12 @@ func NewPersistent(store BlockStore) (*Blockchain, error) {
 		return bc, nil
 	}
 
-	expectedGenesis := block.NewGenesis()
+	expectedGenesis := bc.blocks[0]
 	storedGenesis := loaded[0]
 	if storedGenesis == nil ||
 		storedGenesis.Height != 0 ||
-		storedGenesis.ChainID != config.ChainID ||
+		storedGenesis.ChainID != profile.ChainID ||
+		storedGenesis.Version != expectedGenesis.Version ||
 		storedGenesis.BlockHash != expectedGenesis.BlockHash ||
 		storedGenesis.CalculateHash() != expectedGenesis.BlockHash {
 		return nil, ErrInvalidStoredChain
@@ -181,6 +246,12 @@ func NewPersistent(store BlockStore) (*Blockchain, error) {
 
 	bc.store = store
 	return bc, nil
+}
+
+func (bc *Blockchain) Profile() config.NetworkProfile {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	return bc.profile
 }
 
 func (bc *Blockchain) Len() int {
