@@ -29,7 +29,29 @@ Stage 2 adds the master-spec network profiles for legacy v0.1, `devnet2` and `te
 
 The existing v0.1-compatible runtime remains the default while chainwork/reorg and headers-first synchronization are still pending. v2 block/transaction/header data messages are intentionally not activated yet; they belong to later v0.2 stages and are not silently routed through the legacy `get_block` synchronizer.
 
-**Stage 3 is not started.** Next master-spec milestone: chainwork, side branches, undo data and atomic reorganization.
+**Stage 3 — Chainwork + side branches + reorganization: implemented and CI-verified.**
+
+The active branch is selected by greatest cumulative chainwork, where each block contributes `floor(2^256 / (target + 1))`. Equal chainwork keeps the current active tip. Valid competing branches remain stored and queryable.
+
+A heavier competing branch triggers the master-spec reorganization sequence: find the common ancestor, disconnect the old branch through per-block UTXO undo data, connect the new branch through normal transaction/coinbase validation, then atomically switch Badger active indexes, UTXO state, height mapping, confirmed transaction index and `meta/chainwork`. Disconnected blocks remain retained as side-branch blocks and survive restart.
+
+**Stage 4 is not started.** Next master-spec milestone: Difficulty v2 and timestamp rules.
+
+## Stage 3 chainwork/reorg gate
+
+Stage 3 adds:
+
+- deterministic block-work and cumulative-chainwork calculation;
+- side-branch retention instead of rejecting every non-tip parent;
+- greatest-chainwork active-tip selection;
+- equal-work stability (the current tip wins ties);
+- atomic UTXO undo for block disconnect;
+- normal block validation when reconnecting the winning branch;
+- Badger persistence for side blocks, per-header target/chainwork and undo records;
+- atomic reorg updates of `height/*`, `tx/*`, `utxo/*`, active tip/height and `meta/chainwork`;
+- restart reconstruction of both the active chain and retained side branches.
+
+The Stage 3 competing-chain test builds two valid branches from the same Genesis, verifies that equal cumulative work does not switch the tip, extends the side branch until it becomes heavier, verifies balances after undo/reconnect, then reopens Badger and verifies the same winning tip and retained disconnected branch.
 
 ## Stage 2 protocol gate
 
