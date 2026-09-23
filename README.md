@@ -20,149 +20,151 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 
 ## Development status
 
-Completed milestone: **Day 8 - P2P Node A ↔ Node B**.
+Completed milestone: **Day 9 - P2P data propagation and basic synchronization**.
 
-Implemented through Day 8:
+Implemented through Day 9:
 
-- block model, fixed Genesis and local blockchain;
-- Proof of Work with nonce search, target validation and simplified difficulty;
-- ECDSA P-256 keys, canonical VALDR addresses and digital signatures;
-- local wallet creation and signed payments;
-- typed UTXO transactions and transaction IDs;
+- fixed Genesis, blocks, Proof of Work and difficulty;
+- wallet keys, addresses, signatures and signed payments;
 - UTXO balances, spending and double-spend protection;
 - coinbase and 50 VDR mining reward;
-- local mine -> receive -> send -> mine flow;
-- TCP P2P listener and outbound connection;
-- bounded length-prefixed P2P framing;
-- Node A ↔ Node B handshake;
-- chain ID validation;
-- P2P protocol-version validation;
-- self-connection rejection;
-- duplicate-peer rejection;
-- exchange and recording of each peer's latest block height;
-- inbound/outbound peer tracking.
+- TCP P2P handshake and peer tracking;
+- block broadcast;
+- transaction broadcast;
+- peer discovery;
+- missing-block requests by height;
+- sequential basic blockchain synchronization;
+- in-memory mempool for valid unconfirmed transactions;
+- mempool duplicate and unconfirmed-input conflict protection;
+- confirmed transaction removal and stale mempool pruning;
+- thread-safe blockchain access for concurrent P2P readers.
 
-## P2P v0.1 - Day 8
+## Day 9 P2P data propagation
 
-Day 8 intentionally implements only peer transport and connection establishment.
-
-A node is configured with:
-
-```text
-node_id
-listen_address
-chain_id
-protocol_version
-height_provider
-```
-
-A connection begins with a framed JSON `hello` message carrying:
-
-```text
-type
-protocol_version
-chain_id
-node_id
-listen_address
-height
-```
-
-The frame format is:
+The v0.1 wire transport remains length-prefixed JSON:
 
 ```text
 4-byte big-endian payload length
 JSON payload
 ```
 
-Handshake payloads are size-limited. A peer is accepted only when:
+Maximum P2P frame payload is currently 4 MiB.
 
-- the message is a valid VALDR hello;
-- `chain_id` matches the local network;
-- P2P protocol versions match;
-- the remote node ID is valid and is not the local node ID;
-- the peer is not already connected;
-- the remote listen address is syntactically valid.
-
-After a successful handshake both nodes retain peer metadata including the remote latest block height.
-
-The Day 8 test uses real loopback TCP sockets and verifies:
+Supported message types:
 
 ```text
-Node A height=7
-      |
-      | TCP + VALDR hello
-      v
-Node B height=3
+hello
+transaction
+block
+get_block
+get_peers
+peers
 ```
 
-After connection:
+### Basic synchronization
+
+A peer advertises its latest block height during the handshake.
+
+When a node sees that a peer is ahead, it requests exactly the next missing height:
 
 ```text
-Node A sees Node B at height 3
-Node B sees Node A at height 7
+Node B height 0
+Node A height 2
+
+B -> A: get_block(1)
+A -> B: block(1)
+B validates and appends block(1)
+B -> A: get_block(2)
+A -> B: block(2)
+B validates and appends block(2)
 ```
 
-### Deliberately deferred to Day 9
+Every received block passes the existing blockchain validation path: height/linkage, difficulty, Merkle root, block hash, PoW, coinbase and UTXO validation.
 
-The following are not implemented by Day 8:
+The basic synchronizer does not silently accept alternate history. If a block at an already-confirmed height has a different hash, v0.1 reports an unsupported fork/reorganization instead of replacing the local chain. Full fork-choice and reorganization rules are not defined in the current master specification.
 
-- block broadcast;
-- transaction broadcast;
-- peer discovery;
-- missing-block requests;
-- blockchain synchronization.
+### Block broadcast
 
-Those are the next milestone in the master specification.
+A node may broadcast only a block already present in its local validated chain. Receiving peers validate and append the block before relaying it further.
+
+Transactions confirmed by an accepted block are removed from mempool. Remaining mempool transactions are revalidated against the new confirmed UTXO state and stale/conflicting transactions are removed.
+
+### Transaction broadcast and mempool
+
+Before a local or remote transaction enters mempool:
+
+1. the transaction structure, signature and transaction ID must validate;
+2. the confirmed blockchain UTXO state must allow the spend;
+3. the same transaction ID must not already exist in mempool;
+4. no existing unconfirmed transaction may already use the same input.
+
+Accepted transactions are relayed to other connected peers. Duplicate relays are ignored after mempool deduplication.
+
+Current v0.1 mempool does not support spending outputs of another still-unconfirmed mempool transaction; validation is against confirmed UTXO state.
+
+### Peer discovery
+
+Connected peers exchange known `node_id + listen_address` pairs through `get_peers` / `peers`.
+
+Discovered peers are stored as connection candidates. Day 9 does not automatically build a three-node synchronized topology; the full Node A + Node B + Node C same-chain scenario is reserved for Day 10.
+
+## Day 9 automated network scenario
+
+The test suite verifies with real loopback TCP sockets:
+
+```text
+Node A: Genesis -> Block 1 -> Block 2
+Node B: Genesis
+
+Node B connects to Node A
+        ↓
+B requests Block 1
+        ↓
+B validates Block 1
+        ↓
+B requests Block 2
+        ↓
+A and B have the same height and hashes
+        ↓
+A broadcasts a signed payment
+        ↓
+B stores it in mempool
+        ↓
+A mines Block 3 containing the payment
+        ↓
+A broadcasts Block 3
+        ↓
+B validates Block 3
+        ↓
+payment removed from both mempools
+        ↓
+A and B have the same confirmed tip and balances
+```
+
+A separate discovery test connects B to C, then A to B, and verifies that A learns C's address through B. It does **not** claim the Day 10 three-node blockchain convergence milestone.
 
 ## Coinbase and mining reward v0.1
 
-VALDR v0.1 allows new VDR only through the block coinbase transaction.
-
-Current reward:
+Only a validated block coinbase may create new VDR.
 
 ```text
 50 VDR = 5,000,000,000 val
 ```
 
-Coinbase is required at transaction index zero of each non-genesis block and the reward is validated by consensus.
-
 ## UTXO Engine v0.1
 
-Normal signed transactions preserve value:
+Normal transactions preserve value:
 
 ```text
 sum(inputs) == sum(outputs)
 ```
 
-Only a validated block coinbase may create new value. Spent outpoints are removed, preventing a second spend. Block transaction application is atomic.
-
-## Transaction Engine v0.1
-
-A normal transaction contains:
-
-```text
-version
-inputs[]
-outputs[]
-timestamp
-public_key
-signature
-transaction_id
-```
-
-The signature covers chain ID, version, timestamp, inputs, outputs and public key. The transaction ID is:
-
-```text
-SHA-256(canonical signed transaction bytes)
-```
+Fees are not part of the 14-day MVP.
 
 ## Wallet and cryptography v0.1
 
 ```text
 signature: ECDSA P-256 over SHA-256(message)
-public key: uncompressed P-256 point, hex encoded
-address payload: first 20 bytes of SHA-256(public_key)
-checksum: first 4 bytes of SHA-256(chain_id || payload)
 address: VDR1 + canonical Base32(payload || checksum)
 ```
 
@@ -179,13 +181,9 @@ The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second
 
 - chain ID: `valdr-devnet-1`
 - timestamp: `1790121600` (2026-09-23 00:00:00 UTC)
-- version: `1`
-- difficulty field: `1`
-- nonce field: `0`
-- message: `VALDR genesis block | valdr-devnet-1 | 2026-09-23`
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-Not implemented yet: P2P data propagation/synchronization, persistent blockchain storage, RPC behavior, final halving interval, and the final three-node devnet scenario.
+Not implemented yet: the Day 10 full three-node same-chain scenario, persistent blockchain storage, RPC behavior, final halving interval, and full fork/reorganization policy.
 
 ## Build and test
 
@@ -196,7 +194,7 @@ go test ./...
 
 ## Archived Bitcoin Core experiment
 
-The previous Bitcoin Core 31.1 / C++ experiment is not the active v0.1 architecture. It is preserved unchanged on branch `archive/bitcoin-core-experiment-0.5.0` at commit `bd32a30c698056ac601a6553e74169724a56e6ac`.
+The previous Bitcoin Core / C++ experiment is not the active v0.1 architecture. It is preserved unchanged on branch `archive/bitcoin-core-experiment-0.5.0` at commit `bd32a30c698056ac601a6553e74169724a56e6ac`.
 
 Legacy files such as `consensus/valdr-consensus.json` remain historical artifacts and are not the active Go v0.1 protocol configuration.
 

@@ -3,6 +3,7 @@ package blockchain
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/block"
@@ -24,6 +25,7 @@ var (
 )
 
 type Blockchain struct {
+	mu     sync.RWMutex
 	blocks []*block.Block
 	utxos  *utxo.Set
 }
@@ -36,10 +38,23 @@ func New() *Blockchain {
 }
 
 func (bc *Blockchain) Len() int {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return len(bc.blocks)
 }
 
+func (bc *Blockchain) Height() uint64 {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	if len(bc.blocks) == 0 {
+		return 0
+	}
+	return bc.blocks[len(bc.blocks)-1].Height
+}
+
 func (bc *Blockchain) Tip() *block.Block {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	if len(bc.blocks) == 0 {
 		return nil
 	}
@@ -47,6 +62,8 @@ func (bc *Blockchain) Tip() *block.Block {
 }
 
 func (bc *Blockchain) BlockAt(height uint64) (*block.Block, bool) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	if height >= uint64(len(bc.blocks)) {
 		return nil, false
 	}
@@ -54,15 +71,35 @@ func (bc *Blockchain) BlockAt(height uint64) (*block.Block, bool) {
 }
 
 func (bc *Blockchain) Balance(address string) (uint64, error) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.utxos.Balance(address)
 }
 
 func (bc *Blockchain) UTXOs(address string) ([]utxo.UTXO, error) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.utxos.List(address)
 }
 
 func (bc *Blockchain) UTXOSnapshot() []utxo.UTXO {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.utxos.Snapshot()
+}
+
+// ValidateTransaction verifies a normal transaction against the current
+// confirmed UTXO state without mutating the blockchain.
+func (bc *Blockchain) ValidateTransaction(tx *transaction.Transaction) error {
+	bc.mu.RLock()
+	snapshot := bc.utxos.Snapshot()
+	bc.mu.RUnlock()
+
+	working, err := utxo.New(snapshot)
+	if err != nil {
+		return err
+	}
+	return working.ApplyTransaction(tx)
 }
 
 // Append mines and appends a candidate whose transaction list already contains
@@ -71,10 +108,13 @@ func (bc *Blockchain) Append(
 	timestamp int64,
 	transactions []*transaction.Transaction,
 ) (*block.Block, error) {
-	tip := bc.Tip()
-	if tip == nil {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	if len(bc.blocks) == 0 {
 		return nil, errors.New("blockchain has no genesis block")
 	}
+	tip := bc.blocks[len(bc.blocks)-1]
 
 	difficulty := consensus.NextDifficulty(tip.Difficulty, tip.Timestamp, timestamp)
 	candidate := block.New(
@@ -90,7 +130,7 @@ func (bc *Blockchain) Append(
 	if err := consensus.Mine(candidate); err != nil {
 		return nil, err
 	}
-	if err := bc.AddBlock(candidate); err != nil {
+	if err := bc.addBlockLocked(candidate); err != nil {
 		return nil, err
 	}
 
@@ -98,6 +138,12 @@ func (bc *Blockchain) Append(
 }
 
 func (bc *Blockchain) AddBlock(candidate *block.Block) error {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	return bc.addBlockLocked(candidate)
+}
+
+func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 	if candidate == nil {
 		return ErrNilBlock
 	}
@@ -105,10 +151,11 @@ func (bc *Blockchain) AddBlock(candidate *block.Block) error {
 		return fmt.Errorf("%w: got %q want %q", ErrWrongChainID, candidate.ChainID, config.ChainID)
 	}
 
-	tip := bc.Tip()
-	if tip == nil {
+	if len(bc.blocks) == 0 {
 		return errors.New("blockchain has no genesis block")
 	}
+	tip := bc.blocks[len(bc.blocks)-1]
+
 	if candidate.Height != tip.Height+1 {
 		return fmt.Errorf("%w: got %d want %d", ErrInvalidHeight, candidate.Height, tip.Height+1)
 	}
