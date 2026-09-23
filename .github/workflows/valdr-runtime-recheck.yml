@@ -1,0 +1,50 @@
+name: VALDR Runtime Recheck
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - "scripts/**"
+      - ".github/workflows/valdr-runtime-recheck.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout current VALDR test scripts
+        uses: actions/checkout@v4
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libevent-2.1-7t64 libboost-thread1.83.0 libsqlite3-0 libzmq5
+
+      - name: Download last compiled 0.5.0 binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: valdr-core-0.5.0-linux-x86_64-unsigned
+          path: release/bin
+          repository: Sheff1981/valdr-core
+          run-id: 35827276983
+          github-token: ${{ github.token }}
+
+      - name: Verify compiled binaries
+        run: |
+          chmod +x release/bin/valdrd release/bin/valdr-cli
+          (cd release/bin && sha256sum -c SHA256SUMS)
+          release/bin/valdrd --version
+
+      - name: Three-node TESTNET and 1 VLD transfer
+        run: bash scripts/run-3-node-testnet.sh
+
+      - name: Wallet backup/restore
+        run: bash scripts/wallet-recovery-qa.sh
+
+      - name: Exchange deep reorg
+        run: bash scripts/exchange-reorg-qa.sh
