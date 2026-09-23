@@ -52,6 +52,18 @@ json_field() {
   '
 }
 
+
+assert_contains() {
+  local label="$1"
+  local body="$2"
+  local needle="$3"
+  if [[ "$body" != *"$needle"* ]]; then
+    log "$label missing expected text: $needle"
+    printf '%s\n' "$body" >&2
+    return 1
+  fi
+}
+
 wait_url() {
   local url="$1"
   local deadline=$((SECONDS + WAIT_TIMEOUT))
@@ -126,25 +138,25 @@ log "starting explorer against live valdrd"
 start_explorer
 
 health="$(curl --fail --silent --show-error "http://$HOST:$EXPLORER_PORT/healthz")"
-printf '%s\n' "$health" | grep -q '"status":"ok"'
-printf '%s\n' "$health" | grep -q '"height":1'
+assert_contains "health" "$health" '"status":"ok"'
+assert_contains "health" "$health" '"height":1'
 
 overview="$(curl --fail --silent --show-error "http://$HOST:$EXPLORER_PORT/")"
-printf '%s\n' "$overview" | grep -q 'VALDR Explorer'
-printf '%s\n' "$overview" | grep -q 'valdr-devnet-1'
+assert_contains "overview" "$overview" 'VALDR Explorer'
+assert_contains "overview" "$overview" 'valdr-devnet-1'
 
 block_page="$(curl --fail --silent --show-error "http://$HOST:$EXPLORER_PORT/block/1")"
-printf '%s\n' "$block_page" | grep -q 'Block 1'
-printf '%s\n' "$block_page" | grep -q "$txid"
+assert_contains "block page" "$block_page" 'Block 1'
+assert_contains "block page" "$block_page" "$txid"
 
 tx_page="$(curl --fail --silent --show-error "http://$HOST:$EXPLORER_PORT/tx/$txid")"
-printf '%s\n' "$tx_page" | grep -q "$txid"
-printf '%s\n' "$tx_page" | grep -q 'Confirmed in'
+assert_contains "transaction page" "$tx_page" "$txid"
+assert_contains "transaction page" "$tx_page" 'Confirmed in'
 
 address_page="$(curl --fail --silent --show-error "http://$HOST:$EXPLORER_PORT/address/$address")"
-printf '%s\n' "$address_page" | grep -q '50 VDR'
-printf '%s\n' "$address_page" | grep -q 'Confirmed activity'
-printf '%s\n' "$address_page" | grep -q "$txid"
+assert_contains "address page" "$address_page" '50 VDR'
+assert_contains "address page" "$address_page" 'Confirmed activity'
+assert_contains "address page" "$address_page" "$txid"
 
 if [[ ! -s "$EXPLORER_INDEX" ]]; then
   log "persistent explorer index was not created"
@@ -156,7 +168,7 @@ stop_explorer
 start_explorer
 
 address_after_restart="$(curl --fail --silent --show-error "http://$HOST:$EXPLORER_PORT/address/$address")"
-printf '%s\n' "$address_after_restart" | grep -q '50 VDR'
-printf '%s\n' "$address_after_restart" | grep -q "$txid"
+assert_contains "address page after restart" "$address_after_restart" '50 VDR'
+assert_contains "address page after restart" "$address_after_restart" "$txid"
 
 log "PASS: live node + block + tx + address history + persistent explorer restart"
