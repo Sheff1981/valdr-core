@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -20,6 +21,7 @@ const defaultExplorerAddress = "127.0.0.1:7331"
 func main() {
 	listen := flag.String("listen", defaultExplorerAddress, "HTTP listen address")
 	node := flag.String("node", "http://127.0.0.1:7332", "VALDR node RPC endpoint")
+	indexFile := flag.String("index-file", defaultIndexFile(), "persistent explorer index file; empty disables persistence")
 	version := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -28,7 +30,7 @@ func main() {
 		return
 	}
 
-	explorerServer, err := explorer.New(rpc.NewClient(*node))
+	explorerServer, err := explorer.NewWithIndex(rpc.NewClient(*node), *indexFile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -59,4 +61,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func defaultIndexFile() string {
+	if override := os.Getenv("VALDR_EXPLORER_INDEX_FILE"); override != "" {
+		return override
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".valdr", "explorer-index.json")
 }
