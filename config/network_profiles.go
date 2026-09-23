@@ -10,6 +10,12 @@ const (
 	NetworkLegacyV01 = "legacy-v0.1"
 	NetworkDevnetV02 = "devnet2"
 	NetworkTestnetV02 = "testnet"
+
+	DevnetV02GenesisTimestamp = int64(1790121600)
+	DevnetV02GenesisTarget = "000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+	DevnetV02GenesisNonce = uint64(5229)
+	DevnetV02GenesisMessage = "VALDR genesis block | valdr-devnet-2 | 2026-09-23"
+	DevnetV02GenesisHash = "0009d92e50db69eae0e654399ab73cbc6baf5161105712466c045286db8a2231"
 )
 
 var ErrUnknownNetworkProfile = errors.New("unknown VALDR network profile")
@@ -17,6 +23,12 @@ var ErrUnknownNetworkProfile = errors.New("unknown VALDR network profile")
 type NetworkProfile struct {
 	Name                   string
 	ChainID                string
+	BlockVersion           uint32
+	GenesisTimestamp       int64
+	GenesisTarget          string
+	GenesisNonce           uint64
+	GenesisMessage         string
+	GenesisHash            string
 	ProtocolMin            uint16
 	ProtocolMax            uint16
 	P2PPort                uint16
@@ -47,6 +59,11 @@ func ResolveNetworkProfile(name string) (NetworkProfile, error) {
 		return NetworkProfile{
 			Name:                   NetworkLegacyV01,
 			ChainID:                "valdr-devnet-1",
+			BlockVersion:           1,
+			GenesisTimestamp:       GenesisTimestamp,
+			GenesisNonce:           GenesisNonce,
+			GenesisMessage:         GenesisMessage,
+			GenesisHash:            GenesisBlockHash,
 			ProtocolMin:            1,
 			ProtocolMax:            1,
 			P2PPort:                7333,
@@ -60,6 +77,12 @@ func ResolveNetworkProfile(name string) (NetworkProfile, error) {
 		return NetworkProfile{
 			Name:                   NetworkDevnetV02,
 			ChainID:                "valdr-devnet-2",
+			BlockVersion:           2,
+			GenesisTimestamp:       DevnetV02GenesisTimestamp,
+			GenesisTarget:          DevnetV02GenesisTarget,
+			GenesisNonce:           DevnetV02GenesisNonce,
+			GenesisMessage:         DevnetV02GenesisMessage,
+			GenesisHash:            DevnetV02GenesisHash,
 			ProtocolMin:            2,
 			ProtocolMax:            2,
 			P2PPort:                7333,
@@ -79,6 +102,7 @@ func ResolveNetworkProfile(name string) (NetworkProfile, error) {
 		return NetworkProfile{
 			Name:                   NetworkTestnetV02,
 			ChainID:                "valdr-testnet-1",
+			BlockVersion:           2,
 			ProtocolMin:            2,
 			ProtocolMax:            2,
 			P2PPort:                17333,
