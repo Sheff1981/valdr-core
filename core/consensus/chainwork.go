@@ -22,11 +22,30 @@ func BlockWork(difficulty uint64) (*big.Int, error) {
 	if denominator.Sign() <= 0 {
 		return nil, ErrInvalidDifficulty
 	}
+	return BlockWorkTarget(target)
+}
+
+func BlockWorkTarget(target *big.Int) (*big.Int, error) {
+	if target == nil || target.Sign() <= 0 || target.BitLen() > 256 {
+		return nil, ErrInvalidTarget
+	}
+	denominator := new(big.Int).Add(new(big.Int).Set(target), big.NewInt(1))
 	work := new(big.Int).Div(new(big.Int).Set(twoTo256), denominator)
 	if work.Sign() <= 0 {
-		return nil, fmt.Errorf("%w: zero block work", ErrInvalidDifficulty)
+		return nil, fmt.Errorf("%w: zero block work", ErrInvalidTarget)
 	}
 	return work, nil
+}
+
+func AddTargetWork(parent, target *big.Int) (*big.Int, error) {
+	blockWork, err := BlockWorkTarget(target)
+	if err != nil {
+		return nil, err
+	}
+	if parent == nil {
+		return blockWork, nil
+	}
+	return new(big.Int).Add(new(big.Int).Set(parent), blockWork), nil
 }
 
 func AddWork(parent *big.Int, difficulty uint64) (*big.Int, error) {
