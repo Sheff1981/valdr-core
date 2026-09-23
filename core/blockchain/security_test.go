@@ -86,7 +86,7 @@ func TestSecurityRejectsDuplicateConfirmedTransaction(t *testing.T) {
 		3,
 		tip.BlockHash,
 		timestamp,
-		consensus.NextDifficulty(tip.Difficulty, tip.Timestamp, timestamp),
+		consensus.NextDifficulty(chain.blocks),
 		0,
 		[]*transaction.Transaction{
 			testCoinbase(t, 3, minerWallet.Address, timestamp),
@@ -147,7 +147,7 @@ func TestSecurityRejectsDuplicateTransactionInsideBlock(t *testing.T) {
 		2,
 		tip.BlockHash,
 		timestamp,
-		consensus.NextDifficulty(tip.Difficulty, tip.Timestamp, timestamp),
+		consensus.NextDifficulty(chain.blocks),
 		0,
 		[]*transaction.Transaction{
 			testCoinbase(t, 2, minerWallet.Address, timestamp),
@@ -178,11 +178,7 @@ func TestSecurityRejectsTamperedNonce(t *testing.T) {
 		1,
 		chain.Tip().BlockHash,
 		timestamp,
-		consensus.NextDifficulty(
-			chain.Tip().Difficulty,
-			chain.Tip().Timestamp,
-			timestamp,
-		),
+		consensus.NextDifficulty(chain.blocks),
 		0,
 		[]*transaction.Transaction{
 			testCoinbase(t, 1, miner, timestamp),
@@ -256,7 +252,7 @@ func TestSecurityRejectsCreationOutsideCoinbaseAtomically(t *testing.T) {
 		2,
 		tip.BlockHash,
 		timestamp,
-		consensus.NextDifficulty(tip.Difficulty, tip.Timestamp, timestamp),
+		consensus.NextDifficulty(chain.blocks),
 		0,
 		[]*transaction.Transaction{
 			testCoinbase(t, 2, minerWallet.Address, timestamp),
@@ -367,7 +363,7 @@ func TestSecurityRejectsDoubleSpendWithinBlockAtomically(t *testing.T) {
 		2,
 		tip.BlockHash,
 		timestamp,
-		consensus.NextDifficulty(tip.Difficulty, tip.Timestamp, timestamp),
+		consensus.NextDifficulty(chain.blocks),
 		0,
 		[]*transaction.Transaction{
 			testCoinbase(t, 2, owner.Address, timestamp),
