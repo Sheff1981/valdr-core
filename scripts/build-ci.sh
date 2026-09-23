@@ -16,7 +16,7 @@ python3 "$ROOT/tools/apply_valdr_testnet.py" "$SRC"
 
 cmake -S "$SRC" -B "$SRC/build"   -DBUILD_GUI=OFF   -DBUILD_TESTS=OFF   -DBUILD_BENCH=OFF   -DENABLE_IPC=OFF   -DWITH_ZMQ=ON   -DCMAKE_BUILD_TYPE=Release
 
-cmake --build "$SRC/build" -j"${JOBS:-2}"
+cmake --build "$SRC/build" --target bitcoind bitcoin-cli -j"${JOBS:-2}"
 
 cp "$SRC/build/bin/bitcoind" "$ROOT/release/bin/valdrd"
 cp "$SRC/build/bin/bitcoin-cli" "$ROOT/release/bin/valdr-cli"
