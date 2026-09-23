@@ -20,7 +20,10 @@ const (
 	TargetHexLength   = 64
 )
 
-var ErrInvalidTargetEncoding = errors.New("invalid v2 block target encoding")
+var (
+	ErrInvalidTargetEncoding = errors.New("invalid v2 block target encoding")
+	ErrGenesisNotFrozen      = errors.New("network Genesis is not frozen")
+)
 
 type Block struct {
 	Version           uint32                     `json:"version"`
@@ -124,6 +127,48 @@ func NewGenesis() *Block {
 	b.Version = config.GenesisVersion
 	b.BlockHash = b.CalculateHash()
 	return b
+}
+
+func NewGenesisForProfile(profile config.NetworkProfile) (*Block, error) {
+	switch profile.BlockVersion {
+	case VersionLegacy:
+		if profile.ChainID != config.ChainID ||
+			profile.GenesisHash != config.GenesisBlockHash {
+			return nil, ErrGenesisNotFrozen
+		}
+		return NewGenesis(), nil
+	case VersionV2:
+		if profile.GenesisTarget == "" ||
+			profile.GenesisHash == "" ||
+			profile.GenesisTimestamp <= 0 ||
+			profile.GenesisMessage == "" {
+			return nil, ErrGenesisNotFrozen
+		}
+		genesis, err := NewV2(
+			0,
+			"",
+			profile.GenesisTimestamp,
+			profile.GenesisTarget,
+			profile.GenesisNonce,
+			nil,
+			profile.ChainID,
+			profile.GenesisMessage,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if genesis.BlockHash != profile.GenesisHash {
+			return nil, fmt.Errorf(
+				"%w: computed=%s frozen=%s",
+				ErrGenesisNotFrozen,
+				genesis.BlockHash,
+				profile.GenesisHash,
+			)
+		}
+		return genesis, nil
+	default:
+		return nil, ErrGenesisNotFrozen
+	}
 }
 
 func (b *Block) Header() Header {
