@@ -73,7 +73,7 @@ func (s *BadgerStore) CommitCandidate(
 	if err != nil {
 		return err
 	}
-	target, err := consensus.TargetHex(candidate.Difficulty)
+	target, _, err := blockTargetAndWork(candidate)
 	if err != nil {
 		return err
 	}
@@ -292,15 +292,11 @@ func writeActiveChainTxn(txn *badger.Txn, activeChain []*block.Block) (*big.Int,
 		if candidate == nil {
 			return nil, ErrStorageStateMismatch
 		}
-		var err error
-		cumulative, err = consensus.AddWork(cumulative, candidate.Difficulty)
+		target, nextWork, err := blockTargetAndCumulativeWork(candidate, cumulative)
 		if err != nil {
 			return nil, err
 		}
-		target, err := consensus.TargetHex(candidate.Difficulty)
-		if err != nil {
-			return nil, err
-		}
+		cumulative = nextWork
 		rawHeader, err := json.Marshal(headerRecord{
 			Parent: candidate.PreviousBlockHash,
 			Height: candidate.Height,
@@ -353,15 +349,11 @@ func writeActiveChainHeadersOnlyTxn(
 		if candidate == nil {
 			return nil, ErrStorageStateMismatch
 		}
-		var err error
-		cumulative, err = consensus.AddWork(cumulative, candidate.Difficulty)
+		target, nextWork, err := blockTargetAndCumulativeWork(candidate, cumulative)
 		if err != nil {
 			return nil, err
 		}
-		target, err := consensus.TargetHex(candidate.Difficulty)
-		if err != nil {
-			return nil, err
-		}
+		cumulative = nextWork
 		rawHeader, err := json.Marshal(headerRecord{
 			Parent: candidate.PreviousBlockHash,
 			Height: candidate.Height,
@@ -440,6 +432,45 @@ func markAllHeadersSideTxn(txn *badger.Txn) error {
 		}
 	}
 	return nil
+}
+
+func blockTargetAndWork(candidate *block.Block) (string, *big.Int, error) {
+	if candidate == nil {
+		return "", nil, ErrStorageStateMismatch
+	}
+	if candidate.Version == block.VersionV2 {
+		target, err := consensus.ParseTargetHexV2(candidate.Target)
+		if err != nil {
+			return "", nil, err
+		}
+		return candidate.Target, target, nil
+	}
+	targetHex, err := consensus.TargetHex(candidate.Difficulty)
+	if err != nil {
+		return "", nil, err
+	}
+	target, err := consensus.TargetForDifficulty(candidate.Difficulty)
+	if err != nil {
+		return "", nil, err
+	}
+	return targetHex, target, nil
+}
+
+func blockTargetAndCumulativeWork(
+	candidate *block.Block,
+	parentWork *big.Int,
+) (string, *big.Int, error) {
+	targetHex, target, err := blockTargetAndWork(candidate)
+	if err != nil {
+		return "", nil, err
+	}
+	var cumulative *big.Int
+	if candidate.Version == block.VersionV2 {
+		cumulative, err = consensus.AddTargetWork(parentWork, target)
+	} else {
+		cumulative, err = consensus.AddWork(parentWork, candidate.Difficulty)
+	}
+	return targetHex, cumulative, err
 }
 
 func deletePrefixTxn(txn *badger.Txn, prefix []byte) error {
