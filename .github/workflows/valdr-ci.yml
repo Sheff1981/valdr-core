@@ -27,3 +27,9 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      - name: Validate devnet script
+        run: bash -n ./scripts/start-devnet.sh
+
+      - name: Smoke test local three-node devnet
+        run: ./scripts/start-devnet.sh smoke

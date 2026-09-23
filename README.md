@@ -20,9 +20,9 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 
 ## Development status
 
-Completed milestone: **Day 12 - security checks and invalid-data hardening**.
+Completed milestone: **Day 13 - automated three-node devnet startup and smoke test**.
 
-Implemented through Day 12:
+Implemented through Day 13:
 
 - fixed Genesis, blocks, Proof of Work and difficulty;
 - wallet keys, addresses, signatures and signed payments;
@@ -43,7 +43,9 @@ Implemented through Day 12:
 - RPC queries for status, blocks, transactions, balances, mempool, peers and mining info;
 - RPC transaction submission;
 - RPC-backed valdr-cli status/block/tx/balance/send/peers/mempool/mining commands;
-- valdrd init/start/status/version command surface.
+- valdrd init/start/status/version command surface;
+- `scripts/start-devnet.sh` for build/start/status/stop/smoke of a local three-node devnet;
+- CI smoke test that starts three real `valdrd` processes and verifies RPC/P2P health.
 
 ## Day 9 P2P data propagation
 
@@ -345,6 +347,79 @@ Day 12 does not replace the earlier consensus/UTXO validation. Existing tests co
 
 No new cryptographic algorithm or consensus architecture is introduced by Day 12.
 
+## Day 13 automated devnet startup
+
+The master-plan Day 13 startup entrypoint is:
+
+```bash
+./scripts/start-devnet.sh
+```
+
+The script builds `valdrd` and `valdr-cli`, initializes three local data directories, starts three real node processes and connects them in this topology:
+
+```text
+Node A <-> Node B <-> Node C
+```
+
+Default local ports:
+
+```text
+Node A: P2P 7333 / RPC 7332
+Node B: P2P 7433 / RPC 7432
+Node C: P2P 7533 / RPC 7532
+```
+
+The generated runtime directory is `.valdr-devnet/` and is ignored by Git.
+
+Supported operations:
+
+```bash
+./scripts/start-devnet.sh start
+./scripts/start-devnet.sh status
+./scripts/start-devnet.sh stop
+./scripts/start-devnet.sh smoke
+```
+
+A normal `start` does not return success until all three RPC endpoints answer and the expected peer topology is visible:
+
+```text
+Node A peers = 1
+Node B peers = 2
+Node C peers = 1
+```
+
+The script also verifies that all three nodes report:
+
+- chain ID `valdr-devnet-1`;
+- the same confirmed height;
+- the same confirmed tip hash.
+
+If startup fails partway through, already-started nodes are stopped instead of leaving a partial devnet running.
+
+### CI automation
+
+The GitHub Actions pipeline now runs:
+
+```bash
+go build ./...
+go test ./...
+bash -n ./scripts/start-devnet.sh
+./scripts/start-devnet.sh smoke
+```
+
+The smoke mode uses an isolated temporary runtime directory, starts the three node processes, verifies the network, then terminates the processes and removes the temporary directory.
+
+### Day 14 blockers kept explicit
+
+Day 13 proves automated node startup and health, but it does not claim the final v0.1 scenario.
+
+Two mandatory master-spec capabilities still need to be closed before Day 14 can be declared complete:
+
+1. **persistent blockchain storage** — the master specification requires the blockchain to survive node restart instead of existing only in RAM;
+2. **real miner command/integration** — the current `valdr-miner` binary is still only a version stub, so the final user-facing `mine -> send -> mine` scenario cannot yet be driven through the actual binaries.
+
+These are implementation gaps against the existing master specification, not changes to its architecture.
+
 ## Coinbase and mining reward v0.1
 
 Only a validated block coinbase may create new VDR.
@@ -385,7 +460,7 @@ The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second
 - timestamp: `1790121600` (2026-09-23 00:00:00 UTC)
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-Not implemented yet: persistent blockchain storage, final halving interval, full fork/reorganization policy, and the Day 13 automated devnet startup/final test pass.
+Not implemented yet: persistent blockchain storage, a real user-facing miner command/integration, final halving interval, full fork/reorganization policy, and the Day 14 final integration/fix pass.
 
 ## Build and test
 
