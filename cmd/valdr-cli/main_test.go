@@ -152,6 +152,7 @@ func TestRPCBackedCLIStatusBalanceSendAndQueries(t *testing.T) {
 			"--from", "alice",
 			"--to", bob.Address,
 			"--amount", "10",
+			"--fee", "1",
 		},
 		&out,
 		&errOut,
@@ -168,6 +169,18 @@ func TestRPCBackedCLIStatusBalanceSendAndQueries(t *testing.T) {
 	}
 	if pool.Len() != 1 {
 		t.Fatalf("mempool length = %d, want 1", pool.Len())
+	}
+
+	pendingTxs := pool.Transactions()
+	if len(pendingTxs) != 1 {
+		t.Fatalf("pending transaction count = %d, want 1", len(pendingTxs))
+	}
+	var outputTotal uint64
+	for _, output := range pendingTxs[0].Outputs {
+		outputTotal += output.Amount
+	}
+	if outputTotal != 49*config.AtomicUnitsPerVDR {
+		t.Fatalf("fee transaction outputs = %d, want 49 VDR", outputTotal)
 	}
 
 	out.Reset()
