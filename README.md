@@ -1,3 +1,13 @@
+## Stage 7 implementation note — target encoding must be frozen
+
+The master specification requires headers-first synchronization to validate header continuity, PoW, timestamp and **Difficulty v2** before downloading block bodies. It also requires exact big-int targets and stores `target` in `header/<hash>`.
+
+The current frozen v0.1 `Block` header, however, contains only `difficulty uint64`; it has no exact 256-bit target or compact-target field. Arbitrary v0.2 retarget results cannot be represented losslessly by the legacy integer multiplier.
+
+Therefore full Devnet2/Testnet header validation cannot be declared consensus-complete until the master-TZ freezes one representation, for example an exact 32-byte target or a separately specified compact-target encoding, and includes that field in the hashed canonical header. This is a consensus-format change relative to v0.1, so it must not be invented silently in code.
+
+Transport/locator/header-batch scaffolding can be developed independently, but activation of v0.2 header consensus is blocked on this specification decision.
+
 # VALDR Core
 
 VALDR is a standalone cryptocurrency and blockchain project.
@@ -47,7 +57,32 @@ Normal transactions now use the v0.2 implicit fee rule `fee = input_total - outp
 
 Consensus size limits are enforced at 100,000 canonical bytes per transaction and 1,000,000 canonical bytes per block. Oversized blocks are rejected before PoW/UTXO validation, and wallet-side signing refuses to finish an oversized transaction.
 
-**Stage 6 is not started.** Next master-spec milestone: mempool policy, fee-rate ordering and post-connect/disconnect revalidation.
+**Stage 6 — Mempool policy + miner template selection: implemented and CI-verified.**
+
+The mempool is bounded to 64 MiB of canonical transaction bytes with 72-hour expiry. Testnet profile compiles a 1 val/byte minimum relay fee. RBF remains disabled: a second unconfirmed spend of the same outpoint is rejected, and spending a mempool parent is not relayed in v0.2. Eviction is exact fee-rate ascending then oldest; mining order is exact fee-rate descending then txid.
+
+Node admission calculates the real implicit fee against the active UTXO set. After active-chain connect/reorg the pool is revalidated, confirmed transactions are removed, and valid non-coinbase transactions from disconnected blocks can be reconsidered. Miner template selection uses fee-rate order and skips transactions that would exceed the 1,000,000-byte block limit.
+
+**Stage 7 is not completed.** Next master-spec milestone: headers-first full synchronization. Before activating v0.2 header consensus on Devnet2/Testnet, the block-header representation of the exact v2 PoW target must be frozen explicitly; see the Stage 7 implementation note below.
+
+## Stage 6 mempool/miner-policy gate
+
+Stage 6 implements:
+
+- 64 MiB mempool serialized-byte cap;
+- 72-hour arrival-time expiry;
+- Testnet 1 val/byte minimum relay policy;
+- RBF disabled via second-unconfirmed-spend rejection;
+- no unconfirmed-parent relay;
+- deterministic eviction: lowest exact fee-rate, then oldest, then txid;
+- deterministic miner order: highest exact fee-rate, then txid;
+- fee-rate comparison with integer 128-bit cross-products, never float;
+- active-UTXO fee calculation at local/P2P admission;
+- revalidation after active-chain changes;
+- reconsideration of valid non-coinbase disconnected transactions;
+- miner block-template byte-limit enforcement before PoW.
+
+RPC mempool listing remains txid-sorted for a stable query surface; mining uses the separate fee-rate ordered snapshot.
 
 ## Stage 5 fees/size gate
 
