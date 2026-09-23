@@ -33,4 +33,9 @@ func TestVALDRAddress(t *testing.T) {
 	if ValidateAddress(bad) {
 		t.Fatalf("modified address %q validated", bad)
 	}
+
+	lowercaseBody := config.AddressPrefix + strings.ToLower(strings.TrimPrefix(address, config.AddressPrefix))
+	if lowercaseBody != address && ValidateAddress(lowercaseBody) {
+		t.Fatalf("non-canonical address %q validated", lowercaseBody)
+	}
 }

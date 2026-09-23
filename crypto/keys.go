@@ -116,8 +116,16 @@ func ValidateAddress(address string) bool {
 	}
 
 	body := strings.TrimPrefix(address, config.AddressPrefix)
-	raw, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(strings.ToUpper(body))
+	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
+	raw, err := encoding.DecodeString(body)
 	if err != nil || len(raw) != addressHashBytes+addressChecksumBytes {
+		return false
+	}
+
+	// Require one canonical textual representation. Without this check,
+	// alternate values in unused trailing Base32 bits can decode to the
+	// same payload and checksum.
+	if encoding.EncodeToString(raw) != body {
 		return false
 	}
 
