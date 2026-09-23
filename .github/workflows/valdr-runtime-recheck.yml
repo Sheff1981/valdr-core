@@ -23,7 +23,7 @@ jobs:
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libevent-2.1-7t64 libboost-thread1.83.0 libsqlite3-0 libzmq5
+          sudo apt-get install -y libevent-dev libboost-dev libsqlite3-dev libzmq3-dev
 
       - name: Download last compiled 0.5.0 binaries
         uses: actions/download-artifact@v4
