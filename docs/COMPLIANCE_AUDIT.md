@@ -1,24 +1,10 @@
 # VALDR v0.1 compliance audit
 
-Baseline reviewed: `main` at `bd32a30c698056ac601a6553e74169724a56e6ac`.
 Master specification: `VALDR_Master_TZ_v0.1_14_days.pdf`, dated 23 September 2026.
 
-## Material divergences found
+## Archived experimental line
 
-| Area | Existing experimental line | Master specification v0.1 | Disposition |
-| --- | --- | --- | --- |
-| Implementation | Bitcoin Core 31.1 / C++ overlay | Own VALDR implementation in Go | Go implementation is the active v0.1 line. |
-| Ticker | `VLD` | `VDR` | Use `VDR` in v0.1. |
-| Stage | `0.5.0 PUBLIC TESTNET` | 14-day devnet MVP v0.1 | Return active development to devnet v0.1. |
-| PoW hash | SHA-256d | SHA-256 for MVP | Implement the master specification when PoW is reached. |
-| Block target | 600 seconds | 60 seconds | Use 60 seconds for devnet v0.1. |
-| Address naming | `tvld` / VLD-oriented parameters | Working prefix `VDR` | Use VDR-oriented naming in v0.1. |
-| DAA | ASERTI3-2d candidate | Simplified difficulty adjustment allowed for MVP | Do not carry ASERT into v0.1 unless the master specification is revised. |
-| Build path | Fetch and patch upstream Bitcoin Core | `go build ./...` from a clean clone | Go build is the readiness gate. |
-
-## Preservation of the experiment
-
-The previous Bitcoin Core/C++ experiment is preserved unchanged on branch:
+The previous Bitcoin Core/C++ experiment remains preserved unchanged on:
 
 `archive/bitcoin-core-experiment-0.5.0`
 
@@ -26,8 +12,93 @@ Archive point:
 
 `bd32a30c698056ac601a6553e74169724a56e6ac`
 
-No experimental result is treated as proof that the Go-based VALDR v0.1 stages are implemented or tested.
+It is not the active VALDR v0.1 architecture.
 
-## Current implementation boundary
+## Active v0.1 disposition
 
-Day 1 only: project skeleton, module metadata, binary entry-point skeletons, package skeletons, documentation, and a metadata test. Blockchain, Genesis, PoW, wallet, transactions, UTXO, P2P, mining, storage implementation, and RPC behavior are not implemented yet.
+| Area | Master specification v0.1 | Active VALDR v0.1 |
+| --- | --- | --- |
+| Implementation | Own VALDR blockchain, Go primary | Go standalone implementation |
+| Coin / ticker | VALDR / VDR | VALDR / VDR |
+| Atomic unit | 1 VDR = 100,000,000 val | Implemented |
+| Chain ID | valdr-devnet-1 | Implemented |
+| Block / Genesis | Fixed Genesis + local chain | Implemented and tested |
+| Proof of Work | SHA-256 MVP, nonce/target/difficulty | Implemented and tested |
+| Wallet | private/public key, VDR address, signatures | Implemented and tested |
+| Transactions | UTXO inputs/outputs/signatures/txid | Implemented and tested |
+| UTXO | balance/spend/create/double-spend protection | Implemented and tested |
+| Coinbase | initial 50 VDR reward | Implemented and tested |
+| P2P | peers, blocks, transactions, missing blocks, sync | Implemented basic v0.1 sync |
+| Mempool | valid unconfirmed transactions | Implemented and tested |
+| Three nodes | same confirmed state | Implemented and tested |
+| RPC / CLI | status, block, tx, balance, send, peers, mining | Implemented |
+| Miner | start/status/stop | Implemented; node executes PoW through mineBlock RPC |
+| Storage | blockchain must survive restart | Implemented and final integration-tested |
+| Security checks | required MVP invalid-data checks | Implemented and regression-tested |
+| Logging | NODE/P2P/BLOCK/TX/MINER/MEMPOOL/SYNC/ERROR | Implemented category prefixes |
+| Day 13 | start-devnet.sh | Implemented and CI smoke-tested |
+| Day 14 | mine/send/mine/sync/final balance | Implemented as executable final integration test |
+
+## Storage implementation note
+
+The master specification identifies LevelDB or BadgerDB as preferred embedded storage choices.
+
+VALDR Devnet v0.1 uses a dependency-free atomic on-disk snapshot at:
+
+`<data>/blockchain.json`
+
+The snapshot is written through a temporary `0600` file, synchronized, and atomically renamed. On node startup, persisted blocks are replayed through the normal consensus and UTXO validation pipeline.
+
+This is a deliberate implementation choice relative to the specification's preference, not a change to blockchain architecture or protocol formats.
+
+Benefits:
+
+- no third-party database dependency in the first devnet;
+- simple clean-clone build;
+- deterministic full-chain validation during restart;
+- atomic replacement of the confirmed snapshot.
+
+Risks / limitations:
+
+- O(chain size) rewrite for each confirmed block;
+- unsuitable for a large public chain;
+- a LevelDB/Badger-style indexed backend should replace it before scale testing.
+
+The master specification does not need a version bump for this v0.1 choice because LevelDB/BadgerDB are listed as preferred options rather than mandatory wire/consensus requirements.
+
+## Parameters intentionally not frozen by the master specification
+
+The exact halving interval is explicitly deferred until block-speed and economic testing. VALDR v0.1 therefore keeps the initial 50 VDR devnet reward without inventing a new halving schedule.
+
+A full fork-choice / chain reorganization policy is also not introduced by the 14-day MVP. Basic synchronization rejects conflicting confirmed history instead of silently replacing it.
+
+These are future protocol-specification items and are not represented as completed mainnet behavior.
+
+## VALDR Devnet v0.1 readiness gate
+
+The repository readiness gate is:
+
+```bash
+go build ./...
+go test ./...
+bash -n ./scripts/start-devnet.sh
+bash -n ./scripts/test-devnet-v0.1.sh
+./scripts/start-devnet.sh smoke
+./scripts/test-devnet-v0.1.sh
+```
+
+The final integration script proves:
+
+```text
+3 nodes online
+wallet A + wallet B
+mine 50 VDR to A
+A sends 10 VDR to B
+transaction propagates
+mine confirming block
+all nodes synchronize
+same balances on all nodes
+stop all nodes
+restart all nodes
+same height / tip / transaction / balances remain
+```

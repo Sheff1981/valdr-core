@@ -20,9 +20,9 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 
 ## Development status
 
-Completed milestone: **Day 13 - automated three-node devnet startup and smoke test**.
+Completed milestone: **Day 14 - VALDR Devnet v0.1 final integration**.
 
-Implemented through Day 13:
+Implemented through Day 14:
 
 - fixed Genesis, blocks, Proof of Work and difficulty;
 - wallet keys, addresses, signatures and signed payments;
@@ -45,7 +45,11 @@ Implemented through Day 13:
 - RPC-backed valdr-cli status/block/tx/balance/send/peers/mempool/mining commands;
 - valdrd init/start/status/version command surface;
 - `scripts/start-devnet.sh` for build/start/status/stop/smoke of a local three-node devnet;
-- CI smoke test that starts three real `valdrd` processes and verifies RPC/P2P health.
+- CI smoke test that starts three real `valdrd` processes and verifies RPC/P2P health;
+- persistent on-disk blockchain state with validated replay and UTXO reconstruction;
+- real `valdr-miner start/status/stop` command surface;
+- structured NODE/P2P/BLOCK/TX/MINER/MEMPOOL/SYNC/ERROR logs;
+- final executable three-node mine/send/mine/sync/restart/persistence test.
 
 ## Day 9 P2P data propagation
 
@@ -282,9 +286,7 @@ valdrd status
 valdrd version
 ```
 
-`valdrd start` starts the existing in-memory blockchain, mempool, P2P transport and local RPC server in one process. Repeated `--peer host:port` flags may be used for outbound P2P connections.
-
-Important current limitation: the `--data` directory stores node metadata only. Blockchain persistence to an embedded database is not yet implemented, so a restarted Day 11 node still starts from Genesis. This limitation is intentionally not hidden.
+`valdrd start` starts the blockchain, mempool, P2P transport and local RPC server in one process. Repeated `--peer host:port` flags may be used for outbound P2P connections. The confirmed blockchain is loaded from and persisted to `<data>/blockchain.json`; startup replays persisted blocks through normal consensus/UTXO validation before serving RPC/P2P.
 
 ### Explorer-ready data
 
@@ -409,16 +411,116 @@ bash -n ./scripts/start-devnet.sh
 
 The smoke mode uses an isolated temporary runtime directory, starts the three node processes, verifies the network, then terminates the processes and removes the temporary directory.
 
-### Day 14 blockers kept explicit
+### Day 14 readiness
 
-Day 13 proves automated node startup and health, but it does not claim the final v0.1 scenario.
+The Day 13 startup gate is retained. Day 14 adds the final user-facing integration and persistence checks described below.
 
-Two mandatory master-spec capabilities still need to be closed before Day 14 can be declared complete:
+## Day 14 VALDR Devnet v0.1
 
-1. **persistent blockchain storage** — the master specification requires the blockchain to survive node restart instead of existing only in RAM;
-2. **real miner command/integration** — the current `valdr-miner` binary is still only a version stub, so the final user-facing `mine -> send -> mine` scenario cannot yet be driven through the actual binaries.
+The final executable integration entrypoint is:
 
-These are implementation gaps against the existing master specification, not changes to its architecture.
+```bash
+./scripts/test-devnet-v0.1.sh
+```
+
+It uses the built binaries, not in-process mocks:
+
+```text
+3 valdrd processes online
+        ↓
+wallet A created
+wallet B created
+        ↓
+valdr-miner mines 50 VDR to A
+        ↓
+all nodes synchronize Block 1
+        ↓
+A sends 10 VDR to B through valdr-cli
+        ↓
+transaction broadcasts into all three mempools
+        ↓
+valdr-miner mines the confirming block
+        ↓
+all nodes synchronize Block 2
+        ↓
+B = 10 VDR on A, B and C
+A = 90 VDR on A, B and C
+        ↓
+all three nodes stop
+        ↓
+all three nodes restart from the same data directories
+        ↓
+height, tip hash, confirmed transaction and balances are preserved
+```
+
+### Persistent blockchain
+
+Each node stores confirmed chain state at:
+
+```text
+<data>/blockchain.json
+```
+
+v0.1 persistence uses a dependency-free atomic snapshot:
+
+1. encode the complete validated chain to a temporary file;
+2. file mode `0600`;
+3. `fsync` the temporary file;
+4. atomically rename it over the previous snapshot.
+
+On startup the node loads the file, checks the canonical Genesis and replays every stored non-Genesis block through the existing block/PoW/coinbase/UTXO validation path. UTXO state is reconstructed from the validated history.
+
+If persistence fails before the atomic rename, the candidate block is rolled back from RAM so confirmed in-memory and on-disk state do not diverge.
+
+The master specification names LevelDB or BadgerDB as **preferred** MVP choices. v0.1 deliberately uses the atomic file backend to keep the first devnet dependency-free. This does not change block, transaction, consensus or network formats. The tradeoff is O(chain size) rewrite cost per confirmed block, so a database backend should replace it before a larger public testnet.
+
+### Miner
+
+`valdr-miner` is now functional:
+
+```bash
+valdr-miner start \
+  --node http://127.0.0.1:7332 \
+  --reward-address VDR1... \
+  --blocks 1
+
+valdr-miner status --node http://127.0.0.1:7332
+valdr-miner stop
+```
+
+The miner controller calls the node's v0.1 `mineBlock` RPC extension. The node selects its current mempool, builds coinbase + candidate block, executes the existing Proof of Work, commits the block to persistent storage, removes confirmed mempool transactions and broadcasts the block to peers.
+
+`--blocks 0` means continuous mining until the miner receives SIGINT/SIGTERM. A protected PID file backs the `status/stop` process controls.
+
+### Structured logging
+
+Runtime events use the master-spec category prefixes:
+
+```text
+[NODE]
+[P2P]
+[BLOCK]
+[TX]
+[MINER]
+[MEMPOOL]
+[SYNC]
+[ERROR]
+```
+
+### CI readiness gate
+
+Every candidate now executes:
+
+```bash
+go build ./...
+go test ./...
+bash -n ./scripts/start-devnet.sh
+bash -n ./scripts/test-devnet-v0.1.sh
+./scripts/start-devnet.sh smoke
+./scripts/test-devnet-v0.1.sh
+```
+
+A commit is not considered VALDR Devnet v0.1-ready unless all of these pass.
 
 ## Coinbase and mining reward v0.1
 
@@ -460,13 +562,15 @@ The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second
 - timestamp: `1790121600` (2026-09-23 00:00:00 UTC)
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-Not implemented yet: persistent blockchain storage, a real user-facing miner command/integration, final halving interval, full fork/reorganization policy, and the Day 14 final integration/fix pass.
+Intentionally not frozen in v0.1: the exact halving interval (the master specification defers it until block-speed/economic testing) and a full fork/reorganization policy. Those protocol refinements must be specified before a later public testnet/mainnet.
 
 ## Build and test
 
 ```bash
 go build ./...
 go test ./...
+./scripts/start-devnet.sh smoke
+./scripts/test-devnet-v0.1.sh
 ```
 
 ## Archived Bitcoin Core experiment
