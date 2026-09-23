@@ -23,6 +23,7 @@ var (
 	ErrWrongChainID               = errors.New("wrong chain id")
 	ErrInvalidDifficulty          = errors.New("invalid difficulty")
 	ErrInvalidPoW                 = errors.New("invalid proof of work")
+	ErrBlockTooLarge              = errors.New("block exceeds consensus serialized-size limit")
 	ErrInvalidTransaction         = errors.New("invalid block transaction")
 	ErrDuplicateBlock             = errors.New("duplicate block")
 	ErrDuplicateTransaction       = errors.New("duplicate confirmed transaction")
@@ -250,6 +251,20 @@ func (bc *Blockchain) ValidateTransaction(tx *transaction.Transaction) error {
 	return working.ApplyTransaction(tx)
 }
 
+// CalculateFees validates normal transactions against the current active UTXO
+// view and returns their total implicit fee without mutating the chain.
+func (bc *Blockchain) CalculateFees(transactions []*transaction.Transaction) (uint64, error) {
+	bc.mu.RLock()
+	snapshot := bc.utxos.Snapshot()
+	bc.mu.RUnlock()
+
+	working, err := utxo.New(snapshot)
+	if err != nil {
+		return 0, err
+	}
+	return working.ApplyTransactionsWithFees(transactions)
+}
+
 // Append mines and appends a candidate on the current active tip.
 func (bc *Blockchain) Append(
 	timestamp int64,
@@ -393,6 +408,27 @@ func (bc *Blockchain) validateCandidateLocked(
 	candidate *block.Block,
 	parent *chainNode,
 ) (*utxo.Set, error) {
+	if candidate.SerializedSize() > block.MaxSerializedSize {
+		return nil, fmt.Errorf(
+			"%w: got %d max %d",
+			ErrBlockTooLarge,
+			candidate.SerializedSize(),
+			block.MaxSerializedSize,
+		)
+	}
+	for index, tx := range candidate.Transactions {
+		if tx != nil && tx.SerializedSize() > transaction.MaxSerializedSize {
+			return nil, fmt.Errorf(
+				"%w: transaction %d: %w: got %d max %d",
+				ErrInvalidTransaction,
+				index,
+				transaction.ErrTransactionTooLarge,
+				tx.SerializedSize(),
+				transaction.MaxSerializedSize,
+			)
+		}
+	}
+
 	expectedDifficulty := consensus.NextDifficulty(
 		parent.block.Difficulty,
 		parent.block.Timestamp,
