@@ -55,39 +55,39 @@ type BadgerStore struct {
 }
 
 type StorageInfo struct {
-	SchemaVersion   uint32 \`json:"schema_version"\`
-	Network         string \`json:"network"\`
-	GenesisHash     string \`json:"genesis_hash"\`
-	ActiveTip       string \`json:"active_tip"\`
-	Height          uint64 \`json:"height"\`
-	UTXOHash        string \`json:"utxo_hash"\`
-	MigrationStatus string \`json:"migration_status,omitempty"\`
+	SchemaVersion   uint32 `json:"schema_version"`
+	Network         string `json:"network"`
+	GenesisHash     string `json:"genesis_hash"`
+	ActiveTip       string `json:"active_tip"`
+	Height          uint64 `json:"height"`
+	UTXOHash        string `json:"utxo_hash"`
+	MigrationStatus string `json:"migration_status,omitempty"`
 }
 
 type headerRecord struct {
-	Parent      string \`json:"parent"\`
-	Height      uint64 \`json:"height"\`
-	Difficulty  uint64 \`json:"difficulty"\`
-	Status      string \`json:"status"\`
-	Target      string \`json:"target,omitempty"\`
-	Chainwork   string \`json:"chainwork,omitempty"\`
+	Parent      string `json:"parent"`
+	Height      uint64 `json:"height"`
+	Difficulty  uint64 `json:"difficulty"`
+	Status      string `json:"status"`
+	Target      string `json:"target,omitempty"`
+	Chainwork   string `json:"chainwork,omitempty"`
 }
 
 type transactionRecord struct {
-	BlockHeight uint64                   \`json:"block_height"\`
-	BlockHash   string                   \`json:"block_hash"\`
-	Index       uint32                   \`json:"index"\`
-	Transaction *transaction.Transaction \`json:"transaction"\`
+	BlockHeight uint64                   `json:"block_height"`
+	BlockHash   string                   `json:"block_hash"`
+	Index       uint32                   `json:"index"`
+	Transaction *transaction.Transaction `json:"transaction"`
 }
 
 type undoRecord struct {
-	Spent   []utxo.UTXO \`json:"spent"\`
-	Created []Outpoint  \`json:"created"\`
+	Spent   []utxo.UTXO `json:"spent"`
+	Created []Outpoint  `json:"created"`
 }
 
 type Outpoint struct {
-	TransactionID string \`json:"transaction_id"\`
-	OutputIndex   uint32 \`json:"output_index"\`
+	TransactionID string `json:"transaction_id"`
+	OutputIndex   uint32 `json:"output_index"`
 }
 
 func BadgerPath(dataDir string) string {

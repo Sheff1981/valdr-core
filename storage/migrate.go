@@ -14,14 +14,14 @@ import (
 var ErrUnsupportedMigrationNetwork = errors.New("unsupported v0.1 migration network")
 
 type MigrationReport struct {
-	SourceDataDir     string \`json:"source_data_dir"\`
-	TargetDatabase    string \`json:"target_database"\`
-	Network           string \`json:"network"\`
-	Height            uint64 \`json:"height"\`
-	TipHash           string \`json:"tip_hash"\`
-	ConfirmedTxCount  int    \`json:"confirmed_tx_count"\`
-	UTXOHash          string \`json:"utxo_hash"\`
-	OriginalPreserved bool   \`json:"original_preserved"\`
+	SourceDataDir     string `json:"source_data_dir"`
+	TargetDatabase    string `json:"target_database"`
+	Network           string `json:"network"`
+	Height            uint64 `json:"height"`
+	TipHash           string `json:"tip_hash"`
+	ConfirmedTxCount  int    `json:"confirmed_tx_count"`
+	UTXOHash          string `json:"utxo_hash"`
+	OriginalPreserved bool   `json:"original_preserved"`
 }
 
 func MigrateV01(sourceDataDir, network string) (MigrationReport, error) {
