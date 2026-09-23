@@ -11,7 +11,7 @@ B="$Q/b"
 rm -rf "$Q"
 mkdir -p "$A" "$B"
 PORTA=38341
-PORTB=38342
+PORTB=38343
 RPCA=38351
 RPCB=38352
 
@@ -21,7 +21,7 @@ cleanup(){
 }
 trap cleanup EXIT
 
-"$DAEMON" -testnet4 -datadir="$A" -port=$PORTA -rpcport=$RPCA -server=1 -listen=1 -dnsseed=0 -fixedseeds=0 -fallbackfee=0.00001 -daemonwait
+"$DAEMON" -testnet4 -datadir="$A" -port=$PORTA -rpcport=$RPCA -server=1 -listen=1 -listenonion=0 -natpmp=0 -dnsseed=0 -fixedseeds=0 -fallbackfee=0.00001 -daemonwait
 "$DAEMON" -testnet4 -datadir="$B" -port=$PORTB -rpcport=$RPCB -server=1 -listen=1 -dnsseed=0 -fixedseeds=0 -fallbackfee=0.00001 -daemonwait
 
 Acli(){ "$CLI" -testnet4 -datadir="$A" -rpcport=$RPCA "$@"; }
