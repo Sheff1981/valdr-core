@@ -41,7 +41,66 @@ The v0.2 profiles compile the 60-second target interval, 60-block retarget inter
 
 All v2 target arithmetic uses integer/big-int math. The frozen v0.1 runtime keeps its legacy per-block difficulty function; the v2 rules are isolated to the v0.2 network profiles.
 
-**Stage 5 is not started.** Next master-spec milestone: fees + consensus block/transaction size limits.
+**Stage 5 — Fees + consensus block/transaction size limits: implemented and CI-verified.**
+
+Normal transactions now use the v0.2 implicit fee rule `fee = input_total - output_total`; overspend remains invalid. Block validation totals transaction fees before checking the coinbase. Coinbase may claim any positive amount up to `subsidy(height) + block fees`, so under-claim is valid and the unclaimed value is not created. The miner claims subsidy plus the exact fees of its selected transaction set.
+
+Consensus size limits are enforced at 100,000 canonical bytes per transaction and 1,000,000 canonical bytes per block. Oversized blocks are rejected before PoW/UTXO validation, and wallet-side signing refuses to finish an oversized transaction.
+
+**Stage 6 is not started.** Next master-spec milestone: mempool policy, fee-rate ordering and post-connect/disconnect revalidation.
+
+## Stage 5 fees/size gate
+
+Stage 5 implements and tests:
+
+- implicit normal-transaction fees in `val`: `inputs - outputs`;
+- overspend rejection when outputs exceed inputs;
+- block fee accumulation on the branch UTXO view;
+- coinbase maximum claim = subsidy + block fees;
+- valid coinbase under-claim;
+- miner coinbase construction with exact available fees;
+- 100,000-byte transaction consensus limit;
+- 1,000,000-byte block consensus limit;
+- deterministic golden vectors for transaction and block canonical serialization.
+
+Canonical integer encoding is big-endian. Lengths/counts are unsigned 64-bit values.
+
+Canonical transaction bytes are:
+
+```text
+chain_id length + chain_id
+version uint32
+timestamp uint64
+input_count uint64
+  repeated: previous_txid length + bytes, output_index uint32
+output_count uint64
+  repeated: amount uint64, recipient length + bytes
+public_key length + bytes
+signature length + bytes
+```
+
+`transaction_id` is derived as SHA-256 of those bytes and is not included in its own serialization.
+
+Canonical block-size bytes are:
+
+```text
+existing HeaderBytes:
+  version uint32
+  height uint64
+  previous_block_hash length + bytes
+  merkle_root length + bytes
+  timestamp uint64
+  difficulty uint64
+  nonce uint64
+  chain_id length + bytes
+  extra_data length + bytes
+transaction_count uint64
+  repeated: transaction_length uint64 + canonical transaction bytes
+```
+
+`block_hash` is derived from the existing header bytes and is not included in block-size serialization.
+
+**Master-TZ clarification:** v0.2 requires canonical serialization to be documented and covered by golden vectors, but does not itself spell out the exact byte layout for size accounting. The implementation above freezes that layout without changing the existing transaction-ID or block-hash algorithms. This byte layout should be copied into the next master-TZ revision before Public Testnet so independent implementations use identical size accounting.
 
 ## Stage 4 difficulty/timestamp gate
 
