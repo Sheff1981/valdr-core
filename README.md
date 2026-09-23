@@ -1,6 +1,6 @@
 # VALDR Core
 
-VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 implementation follows `VALDR_Master_TZ_v0.1_14_days.pdf`.
+VALDR is a standalone cryptocurrency and blockchain project. `main` preserves the tested VALDR Devnet v0.1 baseline from `VALDR_Master_TZ_v0.1_14_days.pdf`. Active v0.2 development is isolated on `valdr-v0.2-dev`.
 
 ## Protocol identity
 
@@ -20,7 +20,7 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 
 ## Development status
 
-Completed milestone: **Day 14 - VALDR Devnet v0.1 final integration**.
+Stable baseline: **Day 14 - VALDR Devnet v0.1 final integration**.\n\nActive milestone: **VALDR v0.2 - Block Explorer, slice 1**.
 
 Implemented through Day 14:
 
@@ -50,6 +50,31 @@ Implemented through Day 14:
 - real `valdr-miner start/status/stop` command surface;
 - structured NODE/P2P/BLOCK/TX/MINER/MEMPOOL/SYNC/ERROR logs;
 - final executable three-node mine/send/mine/sync/restart/persistence test.
+
+## VALDR v0.2 - Block Explorer slice 1
+
+The first v0.2 change follows section 30 of the master specification and adds a read-only web explorer without changing consensus, block/transaction formats, P2P, mining, or wallet rules.
+
+New binary:
+
+```bash
+go run ./cmd/valdr-explorer \
+  --node http://127.0.0.1:7332 \
+  --listen 127.0.0.1:7331
+```
+
+Current explorer routes:
+
+- `/` - network status and the latest blocks;
+- `/block/<height-or-hash>` - block details and transaction links;
+- `/tx/<txid>` - confirmed/mempool transaction details;
+- `/address/<VDR-address>` - confirmed address balance;
+- `/search?q=...` - height/hash/txid/address lookup;
+- `/healthz` - node-backed health response.
+
+The explorer uses the existing node RPC only and keeps private keys outside the process. It adds basic browser security headers and server timeouts.
+
+This is **slice 1**, not the completed "full explorer" milestone: address transaction history and a persistent explorer index are still pending.
 
 ## Day 9 P2P data propagation
 
