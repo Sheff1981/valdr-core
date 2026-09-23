@@ -38,3 +38,20 @@ func TestInitCommand(t *testing.T) {
 		t.Fatalf("init output missing chain id: %s", out.String())
 	}
 }
+
+func TestUniqueAddressesPreservesFirstOccurrence(t *testing.T) {
+	got := uniqueAddresses([]string{
+		"127.0.0.1:7333",
+		"127.0.0.1:7433",
+		"127.0.0.1:7333",
+	})
+	want := []string{"127.0.0.1:7333", "127.0.0.1:7433"}
+	if len(got) != len(want) {
+		t.Fatalf("unique addresses len=%d want=%d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unique addresses[%d]=%q want=%q", i, got[i], want[i])
+		}
+	}
+}
