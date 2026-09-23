@@ -32,6 +32,7 @@ type NetworkProfile struct {
 	MedianTimePastWindow   int
 	MaxFutureBlockSeconds  int64
 	MinDifficultyAfterSeconds int64
+	MinRelayFeePerByte     uint64
 	Public                 bool
 }
 
@@ -93,6 +94,7 @@ func ResolveNetworkProfile(name string) (NetworkProfile, error) {
 			MedianTimePastWindow:   11,
 			MaxFutureBlockSeconds:  2 * 60 * 60,
 			MinDifficultyAfterSeconds: 10 * 60,
+			MinRelayFeePerByte:     1,
 			Public:                 true,
 		}, nil
 	default:
