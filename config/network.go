@@ -12,6 +12,7 @@ const (
 	TargetBlockTimeSeconds    = int64(60)
 	PowLimitLeadingZeroBits   = uint(12)
 	DifficultyAdjustmentClamp = uint64(4)
+	DifficultyWindowBlocks     = uint64(10)
 	InitialMiningRewardVDR    = uint64(50)
 	InitialMiningReward       = InitialMiningRewardVDR * AtomicUnitsPerVDR
 	MaxSupplyVDR              = uint64(21_000_000)
