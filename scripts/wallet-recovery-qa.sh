@@ -14,7 +14,7 @@ RPC=38451
 cleanup(){ "$CLI" -testnet4 -datadir="$D/node" -rpcport=$RPC stop >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-"$DAEMON" -testnet4 -datadir="$D/node" -port=$PORT -rpcport=$RPC -server=1 -listen=0 -dnsseed=0 -fixedseeds=0 -fallbackfee=0.00001 -daemonwait
+"$DAEMON" -testnet4 -datadir="$D/node" -port=$PORT -rpcport=$RPC -server=1 -listen=0 -listenonion=0 -natpmp=0 -dnsseed=0 -fixedseeds=0 -fallbackfee=0.00001 -daemonwait
 C(){ "$CLI" -testnet4 -datadir="$D/node" -rpcport=$RPC "$@"; }
 
 C createwallet original >/dev/null
