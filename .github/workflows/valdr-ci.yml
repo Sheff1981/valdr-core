@@ -31,6 +31,19 @@ jobs:
       - name: Build VALDR Core from pinned Bitcoin Core 31.1 commit
         run: bash scripts/build-ci.sh
 
+      - name: Preserve compiled binaries before runtime gates
+        run: |
+          mkdir -p ci-artifacts
+          cp release/bin/valdrd release/bin/valdr-cli release/bin/SHA256SUMS ci-artifacts/
+          release/bin/valdrd --version | tee ci-artifacts/version.txt
+
+      - name: Upload compiled VALDR Core binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: valdr-core-0.5.0-linux-x86_64-unsigned
+          path: ci-artifacts/
+          if-no-files-found: error
+
       - name: Run 3-node TESTNET sync and 1 VLD transfer
         run: bash scripts/run-3-node-testnet.sh
 
@@ -40,15 +53,3 @@ jobs:
       - name: Exchange deep-reorg gate
         run: bash scripts/exchange-reorg-qa.sh
 
-      - name: Stage unsigned CI artifacts
-        run: |
-          mkdir -p ci-artifacts
-          cp release/bin/valdrd release/bin/valdr-cli release/bin/SHA256SUMS ci-artifacts/
-          release/bin/valdrd --version | tee ci-artifacts/version.txt
-
-      - name: Upload unsigned VALDR Core binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: valdr-core-0.5.0-linux-x86_64-unsigned
-          path: ci-artifacts/
-          if-no-files-found: error
