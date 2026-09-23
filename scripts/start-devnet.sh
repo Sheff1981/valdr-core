@@ -213,14 +213,14 @@ start_devnet() {
   fi
 
   start_node node-b "$NODE_B_P2P" "$NODE_B_RPC" \
-    --peer "$HOST:$NODE_A_P2P"
+    --seed "$HOST:$NODE_A_P2P"
   if ! wait_rpc node-b "$NODE_B_RPC"; then
     stop_devnet
     return 1
   fi
 
   start_node node-c "$NODE_C_P2P" "$NODE_C_RPC" \
-    --peer "$HOST:$NODE_B_P2P"
+    --seed "$HOST:$NODE_B_P2P"
   if ! wait_rpc node-c "$NODE_C_RPC"; then
     stop_devnet
     return 1
