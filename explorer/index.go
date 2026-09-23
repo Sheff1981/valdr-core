@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/Sheff1981/valdr-core/config"
-	"github.com/Sheff1981/valdr-core/core/transaction"
 	"github.com/Sheff1981/valdr-core/rpc"
 )
 
@@ -308,4 +307,3 @@ func (i *Index) saveLocked() error {
 	return os.Chmod(i.path, 0o600)
 }
 
-var _ = transaction.CoinbasePreviousTransactionID
