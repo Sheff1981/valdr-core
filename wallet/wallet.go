@@ -100,12 +100,26 @@ func (w *Wallet) Sign(message []byte) ([]byte, error) {
 	return valdrcrypto.Sign(key, message)
 }
 
-// CreateTransaction selects this wallet's UTXOs, creates change when needed,
-// and signs a normal zero-fee v0.1 transaction.
+// CreateTransaction preserves the v0.1 zero-fee API.
 func (w *Wallet) CreateTransaction(
 	available []utxo.UTXO,
 	recipient string,
 	amount uint64,
+	timestamp int64,
+) (*transaction.Transaction, error) {
+	return w.CreateTransactionWithFee(available, recipient, amount, 0, timestamp)
+}
+
+// CreateTransactionWithFee selects this wallet's UTXOs, creates change after
+// reserving the requested fee, and signs a normal transaction.
+//
+// Fee is implicit: selected inputs - outputs. It is therefore committed by the
+// transaction signature/ID without adding a new field to the transaction format.
+func (w *Wallet) CreateTransactionWithFee(
+	available []utxo.UTXO,
+	recipient string,
+	amount uint64,
+	fee uint64,
 	timestamp int64,
 ) (*transaction.Transaction, error) {
 	if amount == 0 {
@@ -117,6 +131,10 @@ func (w *Wallet) CreateTransaction(
 	if _, err := w.Private(); err != nil {
 		return nil, err
 	}
+	if math.MaxUint64-amount < fee {
+		return nil, ErrWalletValueOverflow
+	}
+	required := amount + fee
 
 	candidates := make([]utxo.UTXO, 0, len(available))
 	for _, item := range available {
@@ -142,12 +160,12 @@ func (w *Wallet) CreateTransaction(
 			PreviousTransactionID: item.TransactionID,
 			OutputIndex:           item.OutputIndex,
 		})
-		if selected >= amount {
+		if selected >= required {
 			break
 		}
 	}
 
-	if selected < amount {
+	if selected < required {
 		return nil, ErrInsufficientFunds
 	}
 
@@ -155,9 +173,9 @@ func (w *Wallet) CreateTransaction(
 		Amount:    amount,
 		Recipient: recipient,
 	}}
-	if selected > amount {
+	if selected > required {
 		outputs = append(outputs, transaction.Output{
-			Amount:    selected - amount,
+			Amount:    selected - required,
 			Recipient: w.Address,
 		})
 	}
