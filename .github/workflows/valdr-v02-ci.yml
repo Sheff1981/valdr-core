@@ -40,5 +40,8 @@ jobs:
       - name: Chainwork and reorg gate
         run: go test ./core/consensus ./core/blockchain ./storage
 
+      - name: Difficulty v2 and timestamp gate
+        run: go test ./config ./core/consensus
+
       - name: Three-node runtime smoke
         run: ./scripts/start-devnet.sh smoke
