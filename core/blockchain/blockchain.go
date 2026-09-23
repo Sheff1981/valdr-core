@@ -59,10 +59,12 @@ type ForkAwareBlockStore interface {
 }
 
 type chainNode struct {
-	block     *block.Block
-	parent    *chainNode
-	chainwork *big.Int
-	utxos     []utxo.UTXO
+	block       *block.Block
+	parent      *chainNode
+	chainwork   *big.Int
+	utxos       []utxo.UTXO
+	undoSpent   []utxo.UTXO
+	undoCreated []utxo.Outpoint
 }
 
 type Blockchain struct {
@@ -317,23 +319,36 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 		return err
 	}
 	after := afterSet.Snapshot()
+	undoSpent, undoCreated := diffUTXOForUndo(parent.utxos, after)
 	chainwork, err := consensus.AddWork(parent.chainwork, candidate.Difficulty)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidDifficulty, err)
 	}
 
 	newNode := &chainNode{
-		block:     candidate,
-		parent:    parent,
-		chainwork: chainwork,
-		utxos:     after,
+		block:       candidate,
+		parent:      parent,
+		chainwork:   chainwork,
+		utxos:       after,
+		undoSpent:   undoSpent,
+		undoCreated: undoCreated,
 	}
 	becomesActive := bc.tip == nil || chainwork.Cmp(bc.tip.chainwork) > 0
 	var activeChain []*block.Block
 	var activeUTXO []utxo.UTXO
+	finalActiveSet := afterSet
 	if becomesActive {
 		activeChain = activePath(newNode)
-		activeUTXO = after
+		if bc.tip != nil && parent != bc.tip {
+			finalActiveSet, err = bc.reorganizeUTXOLocked(newNode)
+			if err != nil {
+				return err
+			}
+			if !sameUTXO(finalActiveSet.Snapshot(), after) {
+				return fmt.Errorf("%w: reorg UTXO result differs from validated branch state", ErrInvalidStoredChain)
+			}
+		}
+		activeUTXO = finalActiveSet.Snapshot()
 	}
 
 	if bc.store != nil {
@@ -369,7 +384,7 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 	if becomesActive {
 		bc.blocks = activeChain
 		bc.tip = newNode
-		bc.utxos = afterSet
+		bc.utxos = finalActiveSet
 	}
 	return nil
 }
@@ -473,4 +488,116 @@ func activePath(tip *chainNode) []*block.Block {
 		path[len(reversed)-1-i] = reversed[i]
 	}
 	return path
+}
+
+func (bc *Blockchain) reorganizeUTXOLocked(newTip *chainNode) (*utxo.Set, error) {
+	if bc.tip == nil || newTip == nil {
+		return nil, ErrInvalidStoredChain
+	}
+
+	oldAncestors := make(map[string]*chainNode)
+	for node := bc.tip; node != nil; node = node.parent {
+		oldAncestors[node.block.BlockHash] = node
+	}
+
+	var ancestor *chainNode
+	for node := newTip; node != nil; node = node.parent {
+		if _, ok := oldAncestors[node.block.BlockHash]; ok {
+			ancestor = node
+			break
+		}
+	}
+	if ancestor == nil {
+		return nil, ErrInvalidStoredChain
+	}
+
+	working, err := utxo.New(bc.utxos.Snapshot())
+	if err != nil {
+		return nil, err
+	}
+	for node := bc.tip; node != ancestor; node = node.parent {
+		if node == nil {
+			return nil, ErrInvalidStoredChain
+		}
+		if err := working.ApplyUndo(node.undoSpent, node.undoCreated); err != nil {
+			return nil, fmt.Errorf("disconnect block %s: %w", node.block.BlockHash, err)
+		}
+	}
+
+	connect := make([]*chainNode, 0)
+	for node := newTip; node != ancestor; node = node.parent {
+		if node == nil {
+			return nil, ErrInvalidStoredChain
+		}
+		connect = append(connect, node)
+	}
+	for left, right := 0, len(connect)-1; left < right; left, right = left+1, right-1 {
+		connect[left], connect[right] = connect[right], connect[left]
+	}
+	for _, node := range connect {
+		if err := working.ApplyBlockTransactions(
+			node.block.Height,
+			node.block.Transactions,
+			consensus.BlockReward(node.block.Height),
+		); err != nil {
+			return nil, fmt.Errorf("connect block %s: %w", node.block.BlockHash, err)
+		}
+	}
+	return working, nil
+}
+
+func diffUTXOForUndo(before, after []utxo.UTXO) ([]utxo.UTXO, []utxo.Outpoint) {
+	beforeMap := make(map[string]utxo.UTXO, len(before))
+	afterMap := make(map[string]utxo.UTXO, len(after))
+	key := func(item utxo.UTXO) string {
+		return fmt.Sprintf("%s:%d", item.TransactionID, item.OutputIndex)
+	}
+	for _, item := range before {
+		beforeMap[key(item)] = item
+	}
+	for _, item := range after {
+		afterMap[key(item)] = item
+	}
+
+	spent := make([]utxo.UTXO, 0)
+	for k, item := range beforeMap {
+		if _, exists := afterMap[k]; !exists {
+			spent = append(spent, item)
+		}
+	}
+	sort.Slice(spent, func(i, j int) bool {
+		if spent[i].TransactionID == spent[j].TransactionID {
+			return spent[i].OutputIndex < spent[j].OutputIndex
+		}
+		return spent[i].TransactionID < spent[j].TransactionID
+	})
+
+	created := make([]utxo.Outpoint, 0)
+	for k, item := range afterMap {
+		if _, exists := beforeMap[k]; !exists {
+			created = append(created, utxo.Outpoint{
+				TransactionID: item.TransactionID,
+				OutputIndex:   item.OutputIndex,
+			})
+		}
+	}
+	sort.Slice(created, func(i, j int) bool {
+		if created[i].TransactionID == created[j].TransactionID {
+			return created[i].OutputIndex < created[j].OutputIndex
+		}
+		return created[i].TransactionID < created[j].TransactionID
+	})
+	return spent, created
+}
+
+func sameUTXO(left, right []utxo.UTXO) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
