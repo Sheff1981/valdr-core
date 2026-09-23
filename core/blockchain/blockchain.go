@@ -157,6 +157,22 @@ func (bc *Blockchain) ValidateTransaction(tx *transaction.Transaction) error {
 	return working.ApplyTransaction(tx)
 }
 
+// TransactionFees validates a candidate normal-transaction batch against a
+// confirmed UTXO snapshot and returns the total fee without mutating the chain.
+func (bc *Blockchain) TransactionFees(
+	transactions []*transaction.Transaction,
+) (uint64, error) {
+	bc.mu.RLock()
+	snapshot := bc.utxos.Snapshot()
+	bc.mu.RUnlock()
+
+	working, err := utxo.New(snapshot)
+	if err != nil {
+		return 0, err
+	}
+	return working.ApplyTransactionsWithFees(transactions)
+}
+
 // Append mines and appends a candidate whose transaction list already contains
 // its coinbase transaction at index zero. The mining package constructs it.
 func (bc *Blockchain) Append(
