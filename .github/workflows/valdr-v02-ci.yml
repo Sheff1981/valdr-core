@@ -43,5 +43,8 @@ jobs:
       - name: Difficulty v2 and timestamp gate
         run: go test ./config ./core/consensus
 
+      - name: Fees and consensus size gate
+        run: go test ./core/transaction ./core/block ./core/utxo ./core/blockchain ./mining
+
       - name: Three-node runtime smoke
         run: ./scripts/start-devnet.sh smoke
