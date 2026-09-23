@@ -80,7 +80,7 @@ The explorer maintains a separate confirmed-chain index. It resolves transaction
 Explorer acceptance also has a live integration gate:
 
 ```bash
-./scripts/test-explorer-v0.2.sh
+bash ./scripts/test-explorer-v0.2.sh
 ```
 
 That scenario starts the real three-node Devnet, mines a block, runs `valdr-explorer` against `valdrd`, verifies network/block/transaction/address pages, confirms the persistent index is created, restarts the Explorer, and verifies indexed history again.
