@@ -26,9 +26,10 @@ Completed v0.2 milestones:
 
 - **Block Explorer**;
 - **Seed-node bootstrap**;
-- **Windowed difficulty adjustment**.
+- **Windowed difficulty adjustment**;
+- **Transaction fees**.
 
-Next v0.2 milestone: **Transaction fees**.
+Next v0.2 milestone: **Mempool policy**.
 
 Implemented through Day 14:
 
@@ -145,6 +146,42 @@ Automated coverage includes:
 - blockchain acceptance of the new difficulty at height 10;
 - blockchain rejection of the old difficulty at the height-10 boundary;
 - the full three-node Devnet, final v0.1 integration scenario, and Explorer integration.
+
+## VALDR v0.2 - Transaction fees
+
+The v0.1 transaction format is preserved: there is no separate serialized `fee` field. VALDR derives the fee from UTXO value conservation:
+
+```text
+fee = sum(inputs) - sum(outputs)
+```
+
+Consensus rules in `valdr-v0.2-dev`:
+
+- `sum(outputs) > sum(inputs)` remains invalid;
+- `sum(outputs) == sum(inputs)` is a valid zero-fee transaction;
+- `sum(outputs) < sum(inputs)` is valid and the difference is the transaction fee;
+- fees from all normal transactions in a block are summed atomically;
+- coinbase must claim exactly `block subsidy + total transaction fees`;
+- fees do not increase monetary supply: normal transactions remove the fee from spendable outputs and coinbase transfers the same value to the miner;
+- overflow in fee aggregation or coinbase value is rejected.
+
+Wallet/CLI support:
+
+```bash
+valdr-cli send \
+  --node http://127.0.0.1:7332 \
+  --wallet-dir ~/.valdr/wallets \
+  --from alice \
+  --to VDR1... \
+  --amount 10 \
+  --fee 0.1
+```
+
+`--fee` defaults to `0` in this milestone. A minimum relay fee, fee-rate prioritization, eviction rules, and mempool limits belong to the following **mempool policy** milestone rather than the consensus fee primitive.
+
+This is a v0.2 consensus extension. Existing v0.1 zero-fee blocks remain valid under the fee rule, but fee-paying v0.2 blocks are not valid under the old v0.1 exact-value/coinbase rules. The exact fee derivation and miner-claim rule should therefore be frozen in the next VALDR master specification before public testnet.
+
+Automated coverage verifies implicit fee calculation, wallet change after fee reservation, exact coinbase fee claims, rejection of an incorrect fee coinbase, CLI `--fee`, and end-to-end sender -> miner value transfer through RPC/mining.
 
 ## Day 9 P2P data propagation
 
