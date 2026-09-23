@@ -34,5 +34,8 @@ jobs:
       - name: Storage v2 and migration gate
         run: go test ./storage ./core/blockchain ./cmd/valdrd
 
+      - name: Network profiles and P2P v2 gate
+        run: go test ./config ./p2p
+
       - name: Three-node runtime smoke
         run: ./scripts/start-devnet.sh smoke
