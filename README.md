@@ -35,7 +35,33 @@ The active branch is selected by greatest cumulative chainwork, where each block
 
 A heavier competing branch triggers the master-spec reorganization sequence: find the common ancestor, disconnect the old branch through per-block UTXO undo data, connect the new branch through normal transaction/coinbase validation, then atomically switch Badger active indexes, UTXO state, height mapping, confirmed transaction index and `meta/chainwork`. Disconnected blocks remain retained as side-branch blocks and survive restart.
 
-**Stage 4 is not started.** Next master-spec milestone: Difficulty v2 and timestamp rules.
+**Stage 4 — Difficulty v2 + timestamp rules: implemented and CI-verified.**
+
+The v0.2 profiles compile the 60-second target interval, 60-block retarget interval, 3,600-second target timespan, 900..14,400-second clamp, MTP-11 rule and +2-hour future-time limit. Testnet additionally enables the 10-minute min-difficulty escape and deterministic recovery to the last non-special target.
+
+All v2 target arithmetic uses integer/big-int math. The frozen v0.1 runtime keeps its legacy per-block difficulty function; the v2 rules are isolated to the v0.2 network profiles.
+
+**Stage 5 is not started.** Next master-spec milestone: fees + consensus block/transaction size limits.
+
+## Stage 4 difficulty/timestamp gate
+
+The Stage 4 consensus module implements:
+
+- exact 256-bit PoW targets from the compiled network PoW limit;
+- a 60-block retarget boundary and 3,600-second target timespan;
+- deterministic integer `new_target = old_target * actual_timespan / target_timespan`;
+- 900-second lower and 14,400-second upper timespan clamps;
+- network PoW-limit bounding;
+- Median-Time-Past over the previous 11 available branch headers;
+- strict `candidate timestamp > MTP`;
+- rejection above local system time + 2 hours;
+- Testnet min-difficulty after more than 10 minutes without a block;
+- the next normal Testnet block returning to the last non-special target;
+- target-based PoW validation/mining helpers for later devnet2/testnet activation.
+
+Golden tests pin exact target hex values, clamps, MTP rejects, future-time rejects, Testnet escape/recovery and retarget behavior.
+
+**Implementation clarification:** the master spec fixes the 60-block window and formula but does not explicitly name the two timestamp endpoints used for `actual_timespan`. The implementation freezes the boundary as: for candidate height divisible by 60, use the first and last timestamps in the preceding 60 accepted headers. This keeps the retarget a pure function of already accepted history. This endpoint convention should be added explicitly to the next master-TZ revision before Public Testnet so independent implementations cannot interpret the window differently.
 
 ## Stage 3 chainwork/reorg gate
 
