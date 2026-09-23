@@ -354,19 +354,66 @@ func (bc *Blockchain) Append(
 		return nil, errors.New("blockchain has no genesis block")
 	}
 	tip := bc.tip.block
-	difficulty := consensus.NextDifficulty(tip.Difficulty, tip.Timestamp, timestamp)
-	candidate := block.New(
-		tip.Height+1,
-		tip.BlockHash,
-		timestamp,
-		difficulty,
-		0,
-		transactions,
-		"",
-	)
-	if err := consensus.Mine(candidate); err != nil {
-		return nil, err
+	var candidate *block.Block
+
+	if bc.profile.BlockVersion == block.VersionV2 {
+		history := v2DifficultyHistory(bc.tip)
+		if err := consensus.ValidateTimestampV2(
+			history,
+			timestamp,
+			bc.now().UTC().Unix(),
+			bc.profile,
+		); err != nil {
+			return nil, err
+		}
+		target, _, err := consensus.NextTargetV2(
+			history,
+			timestamp,
+			bc.profile,
+		)
+		if err != nil {
+			return nil, err
+		}
+		targetHex, err := consensus.TargetHexV2(target)
+		if err != nil {
+			return nil, err
+		}
+		candidate, err = block.NewV2(
+			tip.Height+1,
+			tip.BlockHash,
+			timestamp,
+			targetHex,
+			0,
+			transactions,
+			bc.profile.ChainID,
+			"",
+		)
+		if err != nil {
+			return nil, err
+		}
+		if err := consensus.MineTarget(candidate, target); err != nil {
+			return nil, err
+		}
+	} else {
+		difficulty := consensus.NextDifficulty(
+			tip.Difficulty,
+			tip.Timestamp,
+			timestamp,
+		)
+		candidate = block.New(
+			tip.Height+1,
+			tip.BlockHash,
+			timestamp,
+			difficulty,
+			0,
+			transactions,
+			"",
+		)
+		if err := consensus.Mine(candidate); err != nil {
+			return nil, err
+		}
 	}
+
 	if err := bc.addBlockLocked(candidate); err != nil {
 		return nil, err
 	}
@@ -398,8 +445,13 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 	if candidate == nil {
 		return ErrNilBlock
 	}
-	if candidate.ChainID != config.ChainID {
-		return fmt.Errorf("%w: got %q want %q", ErrWrongChainID, candidate.ChainID, config.ChainID)
+	if candidate.ChainID != bc.profile.ChainID {
+		return fmt.Errorf(
+			"%w: got %q want %q",
+			ErrWrongChainID,
+			candidate.ChainID,
+			bc.profile.ChainID,
+		)
 	}
 	if candidate.BlockHash != "" &&
 		candidate.BlockHash == candidate.CalculateHash() {
@@ -427,7 +479,30 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 	}
 	after := afterSet.Snapshot()
 	undoSpent, undoCreated := diffUTXOForUndo(parent.utxos, after)
-	chainwork, err := consensus.AddWork(parent.chainwork, candidate.Difficulty)
+
+	var (
+		target     *big.Int
+		chainwork  *big.Int
+		specialMin bool
+	)
+	if candidate.Version == block.VersionV2 {
+		target, err = consensus.ParseTargetHexV2(candidate.Target)
+		if err == nil {
+			_, specialMin, err = consensus.NextTargetV2(
+				v2DifficultyHistory(parent),
+				candidate.Timestamp,
+				bc.profile,
+			)
+		}
+		if err == nil {
+			chainwork, err = consensus.AddTargetWork(parent.chainwork, target)
+		}
+	} else {
+		target, err = consensus.TargetForDifficulty(candidate.Difficulty)
+		if err == nil {
+			chainwork, err = consensus.AddWork(parent.chainwork, candidate.Difficulty)
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidDifficulty, err)
 	}
@@ -436,6 +511,8 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 		block:       candidate,
 		parent:      parent,
 		chainwork:   chainwork,
+		target:      target,
+		specialMinDifficulty: specialMin,
 		utxos:       after,
 		undoSpent:   undoSpent,
 		undoCreated: undoCreated,
@@ -521,17 +598,12 @@ func (bc *Blockchain) validateCandidateLocked(
 		}
 	}
 
-	expectedDifficulty := consensus.NextDifficulty(
-		parent.block.Difficulty,
-		parent.block.Timestamp,
-		candidate.Timestamp,
-	)
-	if candidate.Difficulty != expectedDifficulty {
+	if candidate.Version != bc.profile.BlockVersion {
 		return nil, fmt.Errorf(
-			"%w: got %d want %d",
+			"%w: block version got %d want %d",
 			ErrInvalidDifficulty,
-			candidate.Difficulty,
-			expectedDifficulty,
+			candidate.Version,
+			bc.profile.BlockVersion,
 		)
 	}
 
@@ -548,11 +620,36 @@ func (bc *Blockchain) validateCandidateLocked(
 			expectedMerkleRoot,
 		)
 	}
-	if candidate.BlockHash != candidate.CalculateHash() {
-		return nil, ErrInvalidHash
-	}
-	if err := consensus.ValidatePoW(candidate); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidPoW, err)
+
+	if candidate.Version == block.VersionV2 {
+		if _, err := consensus.ValidateHeaderV2(
+			candidate.Header(),
+			v2DifficultyHistory(parent),
+			bc.profile,
+			bc.now().UTC().Unix(),
+		); err != nil {
+			return nil, err
+		}
+	} else {
+		expectedDifficulty := consensus.NextDifficulty(
+			parent.block.Difficulty,
+			parent.block.Timestamp,
+			candidate.Timestamp,
+		)
+		if candidate.Difficulty != expectedDifficulty {
+			return nil, fmt.Errorf(
+				"%w: got %d want %d",
+				ErrInvalidDifficulty,
+				candidate.Difficulty,
+				expectedDifficulty,
+			)
+		}
+		if candidate.BlockHash != candidate.CalculateHash() {
+			return nil, ErrInvalidHash
+		}
+		if err := consensus.ValidatePoW(candidate); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidPoW, err)
+		}
 	}
 
 	working, err := utxo.New(parent.utxos)
@@ -568,6 +665,28 @@ func (bc *Blockchain) validateCandidateLocked(
 		return nil, fmt.Errorf("%w: %w", ErrInvalidTransaction, err)
 	}
 	return working, nil
+}
+
+func v2DifficultyHistory(tip *chainNode) []consensus.V2DifficultyHeader {
+	if tip == nil {
+		return nil
+	}
+	reversed := make([]*chainNode, 0, tip.block.Height+1)
+	for node := tip; node != nil; node = node.parent {
+		reversed = append(reversed, node)
+	}
+	history := make([]consensus.V2DifficultyHeader, 0, len(reversed))
+	for i := len(reversed) - 1; i >= 0; i-- {
+		node := reversed[i]
+		history = append(history, consensus.V2DifficultyHeader{
+			Height:               node.block.Height,
+			BlockHash:            node.block.BlockHash,
+			Timestamp:            node.block.Timestamp,
+			Target:               new(big.Int).Set(node.target),
+			SpecialMinDifficulty: node.specialMinDifficulty,
+		})
+	}
+	return history
 }
 
 func validateTransactionUniquenessOnBranch(
