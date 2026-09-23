@@ -136,6 +136,10 @@ func (tx *Transaction) Sign(key *ecdsa.PrivateKey) error {
 	}
 
 	tx.Signature = hex.EncodeToString(signature)
+	if tx.SerializedSize() > MaxSerializedSize {
+		tx.Signature = ""
+		return fmt.Errorf("%w: got %d max %d", ErrTransactionTooLarge, tx.SerializedSize(), MaxSerializedSize)
+	}
 	tx.TransactionID = tx.CalculateID()
 	return nil
 }
