@@ -265,3 +265,98 @@ func TestRejectsTransactionWithMissingUTXO(t *testing.T) {
 		t.Fatalf("chain length = %d after rejected block, want 1", chain.Len())
 	}
 }
+
+func TestDifficultyRetargetBoundary(t *testing.T) {
+	chain := New()
+	miner := testMinerAddress(t)
+
+	for height := uint64(1); height < config.DifficultyWindowBlocks; height++ {
+		timestamp := config.GenesisTimestamp + int64(height)*15
+		candidate, err := chain.Append(
+			timestamp,
+			[]*transaction.Transaction{
+				testCoinbase(t, height, miner, timestamp),
+			},
+		)
+		if err != nil {
+			t.Fatalf("append block %d: %v", height, err)
+		}
+		if candidate.Difficulty != config.GenesisDifficulty {
+			t.Fatalf(
+				"block %d difficulty = %d, want %d before retarget boundary",
+				height,
+				candidate.Difficulty,
+				config.GenesisDifficulty,
+			)
+		}
+	}
+
+	if got := consensus.NextDifficulty(chain.blocks); got != 4 {
+		t.Fatalf("height 10 expected difficulty = %d, want 4", got)
+	}
+
+	height := config.DifficultyWindowBlocks
+	timestamp := config.GenesisTimestamp + int64(height)*15
+	candidate, err := chain.Append(
+		timestamp,
+		[]*transaction.Transaction{
+			testCoinbase(t, height, miner, timestamp),
+		},
+	)
+	if err != nil {
+		t.Fatalf("append retarget block: %v", err)
+	}
+	if candidate.Height != height || candidate.Difficulty != 4 {
+		t.Fatalf(
+			"retarget block height=%d difficulty=%d, want height=%d difficulty=4",
+			candidate.Height,
+			candidate.Difficulty,
+			height,
+		)
+	}
+	if err := consensus.ValidatePoW(candidate); err != nil {
+		t.Fatalf("retarget block PoW: %v", err)
+	}
+}
+
+func TestRejectsOldDifficultyAtRetargetBoundary(t *testing.T) {
+	chain := New()
+	miner := testMinerAddress(t)
+
+	for height := uint64(1); height < config.DifficultyWindowBlocks; height++ {
+		timestamp := config.GenesisTimestamp + int64(height)*15
+		if _, err := chain.Append(
+			timestamp,
+			[]*transaction.Transaction{
+				testCoinbase(t, height, miner, timestamp),
+			},
+		); err != nil {
+			t.Fatalf("append block %d: %v", height, err)
+		}
+	}
+
+	height := config.DifficultyWindowBlocks
+	timestamp := config.GenesisTimestamp + int64(height)*15
+	candidate := block.New(
+		height,
+		chain.Tip().BlockHash,
+		timestamp,
+		config.GenesisDifficulty,
+		0,
+		[]*transaction.Transaction{
+			testCoinbase(t, height, miner, timestamp),
+		},
+		"",
+	)
+	if err := consensus.Mine(candidate); err != nil {
+		t.Fatal(err)
+	}
+
+	err := chain.AddBlock(candidate)
+	if !errors.Is(err, ErrInvalidDifficulty) {
+		t.Fatalf("retarget boundary error = %v, want ErrInvalidDifficulty", err)
+	}
+	if chain.Height() != height-1 {
+		t.Fatalf("height = %d after rejected boundary block, want %d", chain.Height(), height-1)
+	}
+}
