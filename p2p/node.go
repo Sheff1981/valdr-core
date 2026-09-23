@@ -124,7 +124,11 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 
 	pool := cfg.Mempool
 	if pool == nil {
-		pool = mempool.New()
+		poolConfig := mempool.Config{}
+		if cfg.EnableV2 && cfg.NetworkProfile != nil {
+			poolConfig.MinRelayFeePerByte = cfg.NetworkProfile.MinRelayFeePerByte
+		}
+		pool = mempool.NewWithConfig(poolConfig)
 	}
 
 	handshakeTimeout := cfg.HandshakeTimeout
@@ -276,14 +280,19 @@ func (n *Node) MempoolTransactions() []*transaction.Transaction {
 	return n.mempool.Transactions()
 }
 
+func (n *Node) MempoolTransactionsForMining() []*transaction.Transaction {
+	return n.mempool.MiningTransactions()
+}
+
 func (n *Node) BroadcastTransaction(tx *transaction.Transaction) error {
 	if n.blockchain == nil {
 		return ErrDataLayerUnavailable
 	}
-	if err := n.blockchain.ValidateTransaction(tx); err != nil {
+	fees, err := n.blockchain.CalculateFees([]*transaction.Transaction{tx})
+	if err != nil {
 		return err
 	}
-	if err := n.mempool.Add(tx); err != nil {
+	if err := n.mempool.AddWithFee(tx, fees); err != nil {
 		return err
 	}
 	logging.Printf(logging.CategoryTX, "accepted local txid=%s", tx.TransactionID)
@@ -308,7 +317,7 @@ func (n *Node) BroadcastBlock(candidate *block.Block) error {
 	}
 
 	n.mempool.RemoveBlockTransactions(candidate.Transactions)
-	n.pruneMempool()
+	n.revalidateMempool()
 	logging.Printf(
 		logging.CategoryBlock,
 		"broadcast height=%d hash=%s",
@@ -480,10 +489,11 @@ func (n *Node) handleTransaction(peerID string, tx *transaction.Transaction) err
 	if n.blockchain == nil {
 		return ErrDataLayerUnavailable
 	}
-	if err := n.blockchain.ValidateTransaction(tx); err != nil {
+	fees, err := n.blockchain.CalculateFees([]*transaction.Transaction{tx})
+	if err != nil {
 		return err
 	}
-	if err := n.mempool.Add(tx); err != nil {
+	if err := n.mempool.AddWithFee(tx, fees); err != nil {
 		if errors.Is(err, mempool.ErrDuplicateTransaction) {
 			return nil
 		}
@@ -528,7 +538,8 @@ func (n *Node) handleBlock(peerID string, candidate *block.Block) error {
 		return n.requestBlock(peerID, current+1)
 	}
 
-	if err := n.blockchain.AddBlock(candidate); err != nil {
+	update, err := n.blockchain.AddBlockWithUpdate(candidate)
+	if err != nil {
 		return err
 	}
 	logging.Printf(
@@ -538,8 +549,7 @@ func (n *Node) handleBlock(peerID string, candidate *block.Block) error {
 		candidate.BlockHash,
 		peerID,
 	)
-	n.mempool.RemoveBlockTransactions(candidate.Transactions)
-	n.pruneMempool()
+	n.applyMempoolChainUpdate(update)
 
 	if err := n.broadcastExcept(peerID, blockMessage{
 		Type:  messageTypeBlock,
@@ -630,15 +640,56 @@ func (n *Node) afterPeerConnected(peerID string, peerHeight uint64) {
 	}
 }
 
-func (n *Node) pruneMempool() {
+func (n *Node) revalidateMempool() {
 	if n.blockchain == nil {
 		return
 	}
-	for _, tx := range n.mempool.Transactions() {
-		if err := n.blockchain.ValidateTransaction(tx); err != nil {
-			n.mempool.Remove(tx.TransactionID)
+	removed := n.mempool.Revalidate(func(tx *transaction.Transaction) (uint64, error) {
+		return n.blockchain.CalculateFees([]*transaction.Transaction{tx})
+	})
+	if removed > 0 {
+		logging.Printf(
+			logging.CategoryMempool,
+			"revalidated removed=%d size=%d",
+			removed,
+			n.mempool.Len(),
+		)
+	}
+}
+
+func (n *Node) applyMempoolChainUpdate(update blockchain.ChainUpdate) {
+	if !update.Activated {
+		return
+	}
+
+	for _, connected := range update.Connected {
+		if connected != nil {
+			n.mempool.RemoveBlockTransactions(connected.Transactions)
 		}
 	}
+
+	// Revalidate survivors first against the new active UTXO view so old
+	// conflicts do not prevent legitimate disconnected transactions returning.
+	n.revalidateMempool()
+
+	for _, disconnected := range update.Disconnected {
+		if disconnected == nil {
+			continue
+		}
+		for _, tx := range disconnected.Transactions {
+			if tx == nil || tx.IsCoinbase() {
+				continue
+			}
+			_ = n.mempool.Reconsider(
+				tx,
+				func(candidate *transaction.Transaction) (uint64, error) {
+					return n.blockchain.CalculateFees([]*transaction.Transaction{candidate})
+				},
+			)
+		}
+	}
+
+	n.revalidateMempool()
 }
 
 func (n *Node) requestBlock(peerID string, height uint64) error {
