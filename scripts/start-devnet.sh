@@ -23,6 +23,7 @@ START_TIMEOUT_SECONDS="${VALDR_DEVNET_START_TIMEOUT:-20}"
 
 VALDRD="$BIN_DIR/valdrd"
 VALDR_CLI="$BIN_DIR/valdr-cli"
+VALDR_MINER="$BIN_DIR/valdr-miner"
 
 mkdir -p "$BIN_DIR" "$RUN_DIR" "$LOG_DIR" "$DATA_DIR"
 
@@ -61,6 +62,7 @@ build_binaries() {
     cd "$ROOT_DIR"
     go build -o "$VALDRD" ./cmd/valdrd
     go build -o "$VALDR_CLI" ./cmd/valdr-cli
+    go build -o "$VALDR_MINER" ./cmd/valdr-miner
   )
 }
 
@@ -306,6 +308,7 @@ cleanup_smoke() {
   DATA_DIR="$DEVNET_DIR/data"
   VALDRD="$BIN_DIR/valdrd"
   VALDR_CLI="$BIN_DIR/valdr-cli"
+  VALDR_MINER="$BIN_DIR/valdr-miner"
 
   stop_devnet || true
   rm -rf "$SMOKE_DIR"
@@ -323,6 +326,7 @@ smoke_test() {
   DATA_DIR="$DEVNET_DIR/data"
   VALDRD="$BIN_DIR/valdrd"
   VALDR_CLI="$BIN_DIR/valdr-cli"
+  VALDR_MINER="$BIN_DIR/valdr-miner"
   mkdir -p "$BIN_DIR" "$RUN_DIR" "$LOG_DIR" "$DATA_DIR"
 
   log "running isolated smoke test in $DEVNET_DIR"

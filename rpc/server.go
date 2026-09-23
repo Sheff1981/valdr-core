@@ -7,11 +7,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/blockchain"
 	"github.com/Sheff1981/valdr-core/core/consensus"
 	"github.com/Sheff1981/valdr-core/core/transaction"
+	"github.com/Sheff1981/valdr-core/logging"
+	"github.com/Sheff1981/valdr-core/mining"
 	"github.com/Sheff1981/valdr-core/p2p"
 )
 
@@ -25,8 +29,9 @@ var (
 )
 
 type Server struct {
-	chain *blockchain.Blockchain
-	node  *p2p.Node
+	chain  *blockchain.Blockchain
+	node   *p2p.Node
+	mineMu sync.Mutex
 }
 
 func NewServer(chain *blockchain.Blockchain, node *p2p.Node) (*Server, error) {
@@ -223,9 +228,72 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 		}
 		return s.chain.UTXOs(params.Address)
 
+	case MethodMineBlock:
+		var params MineBlockParams
+		if err := decodeParams(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.mineBlock(params)
+
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrMethodNotFound, method)
 	}
+}
+
+func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
+	s.mineMu.Lock()
+	defer s.mineMu.Unlock()
+
+	tip := s.chain.Tip()
+	if tip == nil {
+		return MineBlockResult{}, ErrNotFound
+	}
+
+	timestamp := time.Now().UTC().Unix()
+	if timestamp <= tip.Timestamp {
+		timestamp = tip.Timestamp + 1
+	}
+
+	transactions := s.node.MempoolTransactions()
+	candidate, err := mining.MineBlock(
+		s.chain,
+		params.RewardAddress,
+		timestamp,
+		transactions,
+	)
+	if err != nil {
+		logging.Printf(logging.CategoryError, "mining failed error=%v", err)
+		return MineBlockResult{}, err
+	}
+
+	if err := s.node.BroadcastBlock(candidate); err != nil {
+		logging.Printf(
+			logging.CategoryError,
+			"block mined but broadcast failed height=%d hash=%s error=%v",
+			candidate.Height,
+			candidate.BlockHash,
+			err,
+		)
+		return MineBlockResult{}, err
+	}
+
+	reward := consensus.BlockReward(candidate.Height)
+	logging.Printf(
+		logging.CategoryMiner,
+		"block found height=%d hash=%s reward_address=%s txs=%d",
+		candidate.Height,
+		candidate.BlockHash,
+		params.RewardAddress,
+		len(candidate.Transactions),
+	)
+
+	return MineBlockResult{
+		Height:           candidate.Height,
+		BlockHash:        candidate.BlockHash,
+		RewardAddress:    params.RewardAddress,
+		RewardVal:        reward,
+		TransactionCount: len(candidate.Transactions),
+	}, nil
 }
 
 func decodeParams(raw json.RawMessage, target any) error {

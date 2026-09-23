@@ -19,6 +19,7 @@ const (
 	MethodSendTransaction = "sendTransaction"
 	MethodGetPeers        = "getPeers"
 	MethodGetMiningInfo   = "getMiningInfo"
+	MethodMineBlock       = "mineBlock"
 
 	// MethodGetUTXOs is a Day 11 helper used by valdr-cli send so transaction
 	// selection/signing stays local to the wallet and private keys never enter RPC.
@@ -60,6 +61,10 @@ type SendTransactionParams struct {
 	Transaction *transaction.Transaction `json:"transaction"`
 }
 
+type MineBlockParams struct {
+	RewardAddress string `json:"reward_address"`
+}
+
 type StatusResult struct {
 	Project      string `json:"project"`
 	Ticker       string `json:"ticker"`
@@ -93,6 +98,14 @@ type MiningInfoResult struct {
 	CurrentDifficulty      uint64 `json:"current_difficulty"`
 	BlockRewardVal         uint64 `json:"block_reward_val"`
 	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
+}
+
+type MineBlockResult struct {
+	Height           uint64 `json:"height"`
+	BlockHash        string `json:"block_hash"`
+	RewardAddress    string `json:"reward_address"`
+	RewardVal        uint64 `json:"reward_val"`
+	TransactionCount int    `json:"transaction_count"`
 }
 
 type BlockResult = block.Block

@@ -16,6 +16,7 @@ import (
 	"github.com/Sheff1981/valdr-core/core/blockchain"
 	"github.com/Sheff1981/valdr-core/core/mempool"
 	"github.com/Sheff1981/valdr-core/core/transaction"
+	"github.com/Sheff1981/valdr-core/logging"
 )
 
 const defaultHandshakeTimeout = 5 * time.Second
@@ -269,6 +270,8 @@ func (n *Node) BroadcastTransaction(tx *transaction.Transaction) error {
 	if err := n.mempool.Add(tx); err != nil {
 		return err
 	}
+	logging.Printf(logging.CategoryTX, "accepted local txid=%s", tx.TransactionID)
+	logging.Printf(logging.CategoryMempool, "size=%d", n.mempool.Len())
 	return n.broadcastExcept("", transactionMessage{
 		Type:        messageTypeTransaction,
 		Transaction: tx,
@@ -290,6 +293,12 @@ func (n *Node) BroadcastBlock(candidate *block.Block) error {
 
 	n.mempool.RemoveBlockTransactions(candidate.Transactions)
 	n.pruneMempool()
+	logging.Printf(
+		logging.CategoryBlock,
+		"broadcast height=%d hash=%s",
+		candidate.Height,
+		candidate.BlockHash,
+	)
 	return n.broadcastExcept("", blockMessage{
 		Type:  messageTypeBlock,
 		Block: candidate,
@@ -450,6 +459,8 @@ func (n *Node) handleTransaction(peerID string, tx *transaction.Transaction) err
 		}
 		return err
 	}
+	logging.Printf(logging.CategoryTX, "accepted txid=%s peer=%s", tx.TransactionID, peerID)
+	logging.Printf(logging.CategoryMempool, "size=%d", n.mempool.Len())
 
 	return n.broadcastExcept(peerID, transactionMessage{
 		Type:        messageTypeTransaction,
@@ -477,12 +488,26 @@ func (n *Node) handleBlock(peerID string, candidate *block.Block) error {
 	}
 
 	if candidate.Height > current+1 {
+		logging.Printf(
+			logging.CategorySync,
+			"missing height=%d peer=%s remote_height=%d",
+			current+1,
+			peerID,
+			candidate.Height,
+		)
 		return n.requestBlock(peerID, current+1)
 	}
 
 	if err := n.blockchain.AddBlock(candidate); err != nil {
 		return err
 	}
+	logging.Printf(
+		logging.CategoryBlock,
+		"accepted height=%d hash=%s peer=%s",
+		candidate.Height,
+		candidate.BlockHash,
+		peerID,
+	)
 	n.mempool.RemoveBlockTransactions(candidate.Transactions)
 	n.pruneMempool()
 
@@ -494,7 +519,9 @@ func (n *Node) handleBlock(peerID string, candidate *block.Block) error {
 	}
 
 	if n.peerHeight(peerID) > n.blockchain.Height() {
-		return n.requestBlock(peerID, n.blockchain.Height()+1)
+		next := n.blockchain.Height() + 1
+		logging.Printf(logging.CategorySync, "request height=%d peer=%s", next, peerID)
+		return n.requestBlock(peerID, next)
 	}
 	return nil
 }
@@ -711,6 +738,14 @@ func (n *Node) registerPeer(peer Peer, conn net.Conn) (*peerConnection, error) {
 	n.peers[peer.NodeID] = peer
 	n.conns[peer.NodeID] = pc
 	delete(n.discovered, peer.NodeID)
+	logging.Printf(
+		logging.CategoryP2P,
+		"peer connected node=%s address=%s inbound=%t height=%d",
+		peer.NodeID,
+		peer.Address,
+		peer.Inbound,
+		peer.Height,
+	)
 	return pc, nil
 }
 
@@ -725,6 +760,7 @@ func (n *Node) dropPeer(peerID string, expected *peerConnection) {
 
 	if exists && current == expected {
 		_ = current.conn.Close()
+		logging.Printf(logging.CategoryP2P, "peer disconnected node=%s", peerID)
 	}
 }
 

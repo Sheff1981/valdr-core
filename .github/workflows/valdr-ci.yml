@@ -28,8 +28,13 @@ jobs:
       - name: Test
         run: go test ./...
 
-      - name: Validate devnet script
-        run: bash -n ./scripts/start-devnet.sh
+      - name: Validate devnet scripts
+        run: |
+          bash -n ./scripts/start-devnet.sh
+          bash -n ./scripts/test-devnet-v0.1.sh
 
       - name: Smoke test local three-node devnet
         run: ./scripts/start-devnet.sh smoke
+
+      - name: Final VALDR v0.1 integration
+        run: ./scripts/test-devnet-v0.1.sh

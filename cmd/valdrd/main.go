@@ -18,8 +18,10 @@ import (
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/blockchain"
 	"github.com/Sheff1981/valdr-core/core/mempool"
+	"github.com/Sheff1981/valdr-core/logging"
 	"github.com/Sheff1981/valdr-core/p2p"
 	"github.com/Sheff1981/valdr-core/rpc"
+	"github.com/Sheff1981/valdr-core/storage"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
@@ -94,9 +96,22 @@ func initCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
+	blockStore, err := storage.NewFileStore(*dataDir)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	chain, err := blockchain.NewPersistent(blockStore)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+
 	return writeJSON(out, map[string]any{
-		"data":     *dataDir,
-		"chain_id": config.ChainID,
+		"data":             *dataDir,
+		"chain_id":         config.ChainID,
+		"blockchain_file":  blockStore.Path(),
+		"blockchain_height": chain.Height(),
 	}, errOut)
 }
 
@@ -148,7 +163,18 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
-	chain := blockchain.New()
+	blockStore, err := storage.NewFileStore(*dataDir)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		logging.Printf(logging.CategoryError, "storage init failed data=%s error=%v", *dataDir, err)
+		return 1
+	}
+	chain, err := blockchain.NewPersistent(blockStore)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		logging.Printf(logging.CategoryError, "blockchain load failed data=%s error=%v", *dataDir, err)
+		return 1
+	}
 	pool := mempool.New()
 	p2pAddress := *p2pHost + ":" + strconv.FormatUint(uint64(*p2pPort), 10)
 	node, err := p2p.NewNode(p2p.NodeConfig{
@@ -163,9 +189,19 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	}
 	if err := node.Start(); err != nil {
 		fmt.Fprintln(errOut, err)
+		logging.Printf(logging.CategoryError, "P2P start failed node=%s error=%v", *nodeID, err)
 		return 1
 	}
 	defer node.Close()
+	logging.Printf(
+		logging.CategoryNode,
+		"started node=%s chain=%s height=%d p2p=%s data=%s",
+		*nodeID,
+		config.ChainID,
+		chain.Height(),
+		node.Address(),
+		*dataDir,
+	)
 
 	for _, peerAddress := range peers {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -204,6 +240,8 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		"p2p_address": node.Address(),
 		"rpc_address": httpServer.Addr,
 		"data":        *dataDir,
+		"blockchain_file": blockStore.Path(),
+		"height":      chain.Height(),
 	}, errOut); err != 0 {
 		return err
 	}

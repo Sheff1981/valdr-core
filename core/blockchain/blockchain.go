@@ -24,12 +24,21 @@ var (
 	ErrInvalidTransaction   = errors.New("invalid block transaction")
 	ErrDuplicateBlock       = errors.New("duplicate block")
 	ErrDuplicateTransaction = errors.New("duplicate confirmed transaction")
+	ErrInvalidStoredChain   = errors.New("invalid stored blockchain")
+	ErrPersistence          = errors.New("blockchain persistence failed")
+	ErrNilBlockStore        = errors.New("block store is nil")
 )
+
+type BlockStore interface {
+	Load() ([]*block.Block, error)
+	Save([]*block.Block) error
+}
 
 type Blockchain struct {
 	mu     sync.RWMutex
 	blocks []*block.Block
 	utxos  *utxo.Set
+	store  BlockStore
 }
 
 func New() *Blockchain {
@@ -37,6 +46,50 @@ func New() *Blockchain {
 		blocks: []*block.Block{block.NewGenesis()},
 		utxos:  utxo.NewEmpty(),
 	}
+}
+
+func NewPersistent(store BlockStore) (*Blockchain, error) {
+	if store == nil {
+		return nil, ErrNilBlockStore
+	}
+
+	loaded, err := store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	bc := New()
+	if len(loaded) == 0 {
+		bc.store = store
+		if err := store.Save(bc.blocks); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrPersistence, err)
+		}
+		return bc, nil
+	}
+
+	expectedGenesis := block.NewGenesis()
+	storedGenesis := loaded[0]
+	if storedGenesis == nil ||
+		storedGenesis.Height != 0 ||
+		storedGenesis.ChainID != config.ChainID ||
+		storedGenesis.BlockHash != expectedGenesis.BlockHash ||
+		storedGenesis.CalculateHash() != expectedGenesis.BlockHash {
+		return nil, ErrInvalidStoredChain
+	}
+
+	for i := 1; i < len(loaded); i++ {
+		if err := bc.addBlockLocked(loaded[i]); err != nil {
+			return nil, fmt.Errorf(
+				"%w at height %d: %v",
+				ErrInvalidStoredChain,
+				i,
+				err,
+			)
+		}
+	}
+
+	bc.store = store
+	return bc, nil
 }
 
 func (bc *Blockchain) Len() int {
@@ -202,6 +255,7 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 	}
 
 	reward := consensus.BlockReward(candidate.Height)
+	utxoBefore := bc.utxos.Snapshot()
 	if err := bc.utxos.ApplyBlockTransactions(
 		candidate.Height,
 		candidate.Transactions,
@@ -211,6 +265,22 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 	}
 
 	bc.blocks = append(bc.blocks, candidate)
+	if bc.store != nil {
+		if err := bc.store.Save(bc.blocks); err != nil {
+			restored, restoreErr := utxo.New(utxoBefore)
+			if restoreErr != nil {
+				return fmt.Errorf(
+					"%w: save=%v rollback=%v",
+					ErrPersistence,
+					err,
+					restoreErr,
+				)
+			}
+			bc.utxos = restored
+			bc.blocks = bc.blocks[:len(bc.blocks)-1]
+			return fmt.Errorf("%w: %v", ErrPersistence, err)
+		}
+	}
 	return nil
 }
 
