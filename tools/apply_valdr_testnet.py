@@ -9,8 +9,35 @@ def sub(path,pat,repl,flags=0):
     p=root/path; s=p.read_text(encoding='utf-8'); out,n=re.subn(pat,repl,s,count=1,flags=flags)
     if n!=1: raise SystemExit(f'patch failed {path}: count={n}')
     p.write_text(out,encoding='utf-8'); print('patched',path)
-sub('src/chainparams.cpp',r'case ChainType::TESTNET:\n\s*return CChainParams::TestNet\(\);','case ChainType::TESTNET:\n        throw std::runtime_error("VALDR Core: inherited Bitcoin testnet3 is disabled; use -testnet4 for VALDR TESTNET");')
-sub('src/chainparams.cpp',r'case ChainType::SIGNET: \{.*?\n\s*\}','case ChainType::SIGNET:\n        throw std::runtime_error("VALDR Core: inherited Bitcoin signet is disabled");',re.S)
+# Fail closed only when users select inherited Bitcoin public test chains.
+# SetupServerArgs constructs parameter objects for every chain to format help text,
+# so CreateChainParams must remain valid for all enum values.
+p=root/'src/common/args.cpp'; s=p.read_text(encoding='utf-8')
+needle="""    if (chain_arg) {
+        if (auto parsed = ChainTypeFromString(*chain_arg)) return *parsed;
+        // Not a known string, so return original string
+        return *chain_arg;
+    }
+    if (fRegTest) return ChainType::REGTEST;
+    if (fSigNet) return ChainType::SIGNET;
+    if (fTestNet) return ChainType::TESTNET;
+    if (fTestNet4) return ChainType::TESTNET4;
+"""
+replacement="""    if (chain_arg) {
+        if (*chain_arg == "test") throw std::runtime_error("VALDR Core: inherited Bitcoin testnet3 is disabled; use -chain=testnet4");
+        if (*chain_arg == "signet") throw std::runtime_error("VALDR Core: inherited Bitcoin signet is disabled");
+        if (auto parsed = ChainTypeFromString(*chain_arg)) return *parsed;
+        // Not a known string, so return original string
+        return *chain_arg;
+    }
+    if (fRegTest) return ChainType::REGTEST;
+    if (fSigNet) throw std::runtime_error("VALDR Core: inherited Bitcoin signet is disabled");
+    if (fTestNet) throw std::runtime_error("VALDR Core: inherited Bitcoin testnet3 is disabled; use -testnet4");
+    if (fTestNet4) return ChainType::TESTNET4;
+"""
+if needle not in s: raise SystemExit('args.cpp chain selector anchor missing')
+p.write_text(s.replace(needle,replacement,1),encoding='utf-8')
+print('patched src/common/args.cpp')
 p=root/'src/consensus/params.h'; s=p.read_text(encoding='utf-8'); needle='    int64_t nPowTargetTimespan;\n'
 if needle not in s: raise SystemExit('params.h anchor missing')
 s=s.replace(needle,needle+'    bool fPowUseASERT{false};\n    int64_t nDAAHalfLife{172800};\n    int nASERTAnchorHeight{1};\n',1); p.write_text(s,encoding='utf-8')
