@@ -17,10 +17,11 @@ func TestV02NetworkProfiles(t *testing.T) {
 		magicHex   string
 		retarget   uint64
 		minEscape  int64
+		minRelay   uint64
 	}{
-		{NetworkLegacyV01, "valdr-devnet-1", 1, 7333, 7332, false, "db9ef71e", 0, 0},
-		{NetworkDevnetV02, "valdr-devnet-2", 2, 7333, 7332, false, "4b6638e3", 60, 0},
-		{NetworkTestnetV02, "valdr-testnet-1", 2, 17333, 17332, true, "614ac40e", 60, 600},
+		{NetworkLegacyV01, "valdr-devnet-1", 1, 7333, 7332, false, "db9ef71e", 0, 0, 0},
+		{NetworkDevnetV02, "valdr-devnet-2", 2, 7333, 7332, false, "4b6638e3", 60, 0, 0},
+		{NetworkTestnetV02, "valdr-testnet-1", 2, 17333, 17332, true, "614ac40e", 60, 600, 1},
 	}
 
 	for _, tt := range tests {
@@ -40,7 +41,8 @@ func TestV02NetworkProfiles(t *testing.T) {
 				profile.InitialSubsidyVDR != 50 ||
 				profile.PowLimitLeadingZeroBits != PowLimitLeadingZeroBits ||
 				profile.RetargetInterval != tt.retarget ||
-				profile.MinDifficultyAfterSeconds != tt.minEscape {
+				profile.MinDifficultyAfterSeconds != tt.minEscape ||
+				profile.MinRelayFeePerByte != tt.minRelay {
 				t.Fatalf("unexpected profile: %+v", profile)
 			}
 			if tt.retarget != 0 &&
