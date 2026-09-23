@@ -37,5 +37,8 @@ jobs:
       - name: Network profiles and P2P v2 gate
         run: go test ./config ./p2p
 
+      - name: Chainwork and reorg gate
+        run: go test ./core/consensus ./core/blockchain ./storage
+
       - name: Three-node runtime smoke
         run: ./scripts/start-devnet.sh smoke
