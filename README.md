@@ -9,21 +9,38 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 - Smallest unit: **val**
 - `1 VDR = 100,000,000 val`
 - Primary implementation language: **Go**
+- Devnet chain ID: **valdr-devnet-1**
 
 ## Development status
 
-Current active milestone: **Day 1 - project skeleton**.
+Completed milestone: **Day 2 - blockchain**.
 
-Implemented in Day 1:
+Implemented:
 
-- Go module and project directory structure;
-- skeleton entry points for `valdrd`, `valdr-cli`, and `valdr-miner`;
-- project identity constants;
-- package skeletons for the modules named by the master specification;
-- compliance audit against the previous experimental repository state;
-- basic metadata unit test.
+- Day 1 Go project skeleton and package structure;
+- VALDR `Block` model with the master-specification fields;
+- canonical block-header serialization;
+- single SHA-256 block hashing for the MVP;
+- deterministic Merkle root calculation for the Day 2 transaction placeholder data;
+- fixed VALDR devnet Genesis Block;
+- local in-memory blockchain with height, previous-hash, chain-ID and block-hash validation;
+- tested local chain: `Genesis -> Block 1 -> Block 2`.
 
-Not implemented yet: blockchain/Genesis, Proof of Work, wallet cryptography, transactions, UTXO engine, mining rewards, P2P synchronization, persistent blockchain storage, RPC behavior, and the final three-node devnet scenario.
+### Fixed devnet Genesis parameters
+
+- chain ID: `valdr-devnet-1`
+- timestamp: `1790121600` (2026-09-23 00:00:00 UTC)
+- version: `1`
+- difficulty placeholder: `1`
+- nonce placeholder: `0`
+- message: `VALDR genesis block | valdr-devnet-1 | 2026-09-23`
+- block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
+
+The difficulty and nonce fields exist in the block format, but Proof-of-Work target calculation, mining and PoW validation are **not implemented yet**. They belong to Day 3.
+
+Transactions are intentionally opaque placeholder strings in Day 2. The typed Transaction Engine is scheduled for Day 5.
+
+Not implemented yet: Proof of Work, wallet cryptography, typed transactions, UTXO engine, mining rewards, P2P synchronization, persistent blockchain storage, RPC behavior, and the final three-node devnet scenario.
 
 ## Build and test
 
