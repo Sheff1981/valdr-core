@@ -20,7 +20,7 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 
 ## Development status
 
-Completed milestone: **Day 9 - P2P data propagation and basic synchronization**.
+Completed milestone: **Day 10 - three-node confirmed-chain convergence**.
 
 Implemented through Day 9:
 
@@ -37,7 +37,8 @@ Implemented through Day 9:
 - in-memory mempool for valid unconfirmed transactions;
 - mempool duplicate and unconfirmed-input conflict protection;
 - confirmed transaction removal and stale mempool pruning;
-- thread-safe blockchain access for concurrent P2P readers.
+- thread-safe blockchain access for concurrent P2P readers;
+- three-node A ↔ B ↔ C integration with identical confirmed block hashes and balances.
 
 ## Day 9 P2P data propagation
 
@@ -143,6 +144,57 @@ A and B have the same confirmed tip and balances
 
 A separate discovery test connects B to C, then A to B, and verifies that A learns C's address through B. It does **not** claim the Day 10 three-node blockchain convergence milestone.
 
+## Day 10 three-node devnet integration
+
+Day 10 validates the master-spec minimum test network with three independent in-memory blockchains and three real loopback TCP P2P nodes.
+
+Topology:
+
+```text
+Node A <-> Node B <-> Node C
+```
+
+The automated scenario verifies:
+
+```text
+Node A mines Block 1 and Block 2
+        ↓
+Node B connects to A and synchronizes
+        ↓
+Node C connects to B and synchronizes through B
+        ↓
+A, B and C have identical block hashes at every confirmed height
+        ↓
+Node C broadcasts a signed 25 VDR payment
+        ↓
+C -> B -> A transaction relay
+        ↓
+all three mempools contain the same transaction
+        ↓
+Node A mines Block 3 containing the payment
+        ↓
+A -> B -> C block relay
+        ↓
+all three chains converge on the same Block 3
+        ↓
+confirmed transaction is removed from all three mempools
+        ↓
+all three nodes report the same balances
+```
+
+Expected final confirmed state in the test:
+
+```text
+height             = 3
+recipient balance  = 25 VDR
+miner balance      = 125 VDR
+mempool size       = 0 on A, B and C
+```
+
+The test compares every confirmed block hash from Genesis through the tip, not only the final height.
+
+Day 10 does not add RPC/CLI behavior. That is the next master-plan stage.
+
 ## Coinbase and mining reward v0.1
 
 Only a validated block coinbase may create new VDR.
@@ -183,7 +235,7 @@ The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second
 - timestamp: `1790121600` (2026-09-23 00:00:00 UTC)
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-Not implemented yet: the Day 10 full three-node same-chain scenario, persistent blockchain storage, RPC behavior, final halving interval, and full fork/reorganization policy.
+Not implemented yet: persistent blockchain storage, RPC/CLI behavior, final halving interval, and full fork/reorganization policy.
 
 ## Build and test
 
