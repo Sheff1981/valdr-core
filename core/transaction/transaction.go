@@ -17,6 +17,7 @@ import (
 
 const (
 	Version                       = uint32(1)
+	MaxSerializedSize             = 100_000
 	CoinbasePreviousTransactionID = "0000000000000000000000000000000000000000000000000000000000000000"
 )
 
@@ -32,6 +33,7 @@ var (
 	ErrInvalidPublicKey        = errors.New("invalid transaction public key")
 	ErrInvalidSignature        = errors.New("invalid transaction signature")
 	ErrInvalidTransactionID    = errors.New("invalid transaction id")
+	ErrTransactionTooLarge      = errors.New("transaction exceeds consensus serialized-size limit")
 	ErrCoinbaseRequiresBlock   = errors.New("coinbase transaction requires block context")
 	ErrInvalidCoinbase         = errors.New("invalid coinbase transaction")
 	ErrInvalidCoinbaseHeight   = errors.New("invalid coinbase block height")
@@ -166,6 +168,9 @@ func (tx *Transaction) Validate() error {
 	if err := tx.validateUnsigned(); err != nil {
 		return err
 	}
+	if tx.SerializedSize() > MaxSerializedSize {
+		return fmt.Errorf("%w: got %d max %d", ErrTransactionTooLarge, tx.SerializedSize(), MaxSerializedSize)
+	}
 	if tx.Signature == "" || !tx.VerifySignature() {
 		return ErrInvalidSignature
 	}
@@ -203,13 +208,16 @@ func (tx *Transaction) ValidateCoinbase(blockHeight, expectedReward uint64) erro
 	if len(tx.Outputs) != 1 {
 		return fmt.Errorf("%w: coinbase must have exactly one output", ErrInvalidCoinbase)
 	}
-	if expectedReward == 0 || tx.Outputs[0].Amount != expectedReward {
+	if expectedReward == 0 || tx.Outputs[0].Amount == 0 || tx.Outputs[0].Amount > expectedReward {
 		return fmt.Errorf(
-			"%w: got %d want %d",
+			"%w: got %d max %d",
 			ErrInvalidCoinbaseReward,
 			tx.Outputs[0].Amount,
 			expectedReward,
 		)
+	}
+	if tx.SerializedSize() > MaxSerializedSize {
+		return fmt.Errorf("%w: got %d max %d", ErrTransactionTooLarge, tx.SerializedSize(), MaxSerializedSize)
 	}
 	if !valdrcrypto.ValidateAddress(tx.Outputs[0].Recipient) {
 		return fmt.Errorf("%w: recipient", ErrInvalidCoinbase)
@@ -266,10 +274,24 @@ func (tx *Transaction) SigningBytes() []byte {
 }
 
 func (tx *Transaction) IDBytes() []byte {
+	return tx.CanonicalBytes()
+}
+
+// CanonicalBytes is the consensus serialization used for transaction IDs and
+// serialized-size limits. TransactionID itself is derived from these bytes and
+// is therefore not serialized into the canonical transaction.
+func (tx *Transaction) CanonicalBytes() []byte {
 	var buf bytes.Buffer
 	_, _ = buf.Write(tx.SigningBytes())
 	writeString(&buf, tx.Signature)
 	return buf.Bytes()
+}
+
+func (tx *Transaction) SerializedSize() int {
+	if tx == nil {
+		return 0
+	}
+	return len(tx.CanonicalBytes())
 }
 
 func (tx *Transaction) CalculateID() string {
