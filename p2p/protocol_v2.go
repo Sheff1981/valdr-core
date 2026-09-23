@@ -205,10 +205,16 @@ func NegotiateV2Hello(
 	}
 
 	minVersion := localMin
+	if profile.ProtocolMin > minVersion {
+		minVersion = profile.ProtocolMin
+	}
 	if remote.ProtocolMin > minVersion {
 		minVersion = remote.ProtocolMin
 	}
 	maxVersion := localMax
+	if profile.ProtocolMax < maxVersion {
+		maxVersion = profile.ProtocolMax
+	}
 	if remote.ProtocolMax < maxVersion {
 		maxVersion = remote.ProtocolMax
 	}
