@@ -10,7 +10,10 @@ import (
 	"github.com/Sheff1981/valdr-core/core/transaction"
 )
 
-const blockVersion = uint32(1)
+const (
+	blockVersion      = uint32(1)
+	MaxSerializedSize = 1_000_000
+)
 
 type Block struct {
 	Version           uint32                     `json:"version"`
@@ -84,6 +87,35 @@ func (b *Block) HeaderBytes() []byte {
 func (b *Block) CalculateHash() string {
 	digest := sha256.Sum256(b.HeaderBytes())
 	return hex.EncodeToString(digest[:])
+}
+
+// CanonicalBytes is the consensus serialization used only for block-size
+// accounting. BlockHash is derived from HeaderBytes and is not serialized.
+// Each transaction is length-prefixed so the stream is unambiguous.
+func (b *Block) CanonicalBytes() []byte {
+	if b == nil {
+		return nil
+	}
+	var buf bytes.Buffer
+	_, _ = buf.Write(b.HeaderBytes())
+	writeUint64(&buf, uint64(len(b.Transactions)))
+	for _, tx := range b.Transactions {
+		if tx == nil {
+			writeUint64(&buf, 0)
+			continue
+		}
+		raw := tx.CanonicalBytes()
+		writeUint64(&buf, uint64(len(raw)))
+		_, _ = buf.Write(raw)
+	}
+	return buf.Bytes()
+}
+
+func (b *Block) SerializedSize() int {
+	if b == nil {
+		return 0
+	}
+	return len(b.CanonicalBytes())
 }
 
 func CalculateMerkleRoot(transactions []*transaction.Transaction) string {
