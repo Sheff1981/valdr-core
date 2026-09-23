@@ -15,12 +15,11 @@ func (bc *Blockchain) BlockByHash(hash string) (*block.Block, bool) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 
-	for _, candidate := range bc.blocks {
-		if candidate.BlockHash == hash {
-			return candidate, true
-		}
+	node, ok := bc.nodes[hash]
+	if !ok || node == nil {
+		return nil, false
 	}
-	return nil, false
+	return node.block, true
 }
 
 func (bc *Blockchain) TransactionByID(transactionID string) (TransactionLocation, bool) {
