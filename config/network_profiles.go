@@ -24,6 +24,14 @@ type NetworkProfile struct {
 	AddressPrefix          string
 	TargetBlockTimeSeconds int64
 	InitialSubsidyVDR      uint64
+	PowLimitLeadingZeroBits uint
+	RetargetInterval       uint64
+	TargetTimespanSeconds  int64
+	MinRetargetTimespanSeconds int64
+	MaxRetargetTimespanSeconds int64
+	MedianTimePastWindow   int
+	MaxFutureBlockSeconds  int64
+	MinDifficultyAfterSeconds int64
 	Public                 bool
 }
 
@@ -45,6 +53,7 @@ func ResolveNetworkProfile(name string) (NetworkProfile, error) {
 			AddressPrefix:          "VDR1",
 			TargetBlockTimeSeconds: 60,
 			InitialSubsidyVDR:      50,
+			PowLimitLeadingZeroBits: PowLimitLeadingZeroBits,
 		}, nil
 	case NetworkDevnetV02:
 		return NetworkProfile{
@@ -57,6 +66,13 @@ func ResolveNetworkProfile(name string) (NetworkProfile, error) {
 			AddressPrefix:          "VDR1",
 			TargetBlockTimeSeconds: 60,
 			InitialSubsidyVDR:      50,
+			PowLimitLeadingZeroBits: PowLimitLeadingZeroBits,
+			RetargetInterval:       60,
+			TargetTimespanSeconds:  3600,
+			MinRetargetTimespanSeconds: 900,
+			MaxRetargetTimespanSeconds: 14400,
+			MedianTimePastWindow:   11,
+			MaxFutureBlockSeconds:  2 * 60 * 60,
 		}, nil
 	case NetworkTestnetV02:
 		return NetworkProfile{
@@ -69,6 +85,14 @@ func ResolveNetworkProfile(name string) (NetworkProfile, error) {
 			AddressPrefix:          "VDR1",
 			TargetBlockTimeSeconds: 60,
 			InitialSubsidyVDR:      50,
+			PowLimitLeadingZeroBits: PowLimitLeadingZeroBits,
+			RetargetInterval:       60,
+			TargetTimespanSeconds:  3600,
+			MinRetargetTimespanSeconds: 900,
+			MaxRetargetTimespanSeconds: 14400,
+			MedianTimePastWindow:   11,
+			MaxFutureBlockSeconds:  2 * 60 * 60,
+			MinDifficultyAfterSeconds: 10 * 60,
 			Public:                 true,
 		}, nil
 	default:
