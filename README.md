@@ -20,9 +20,9 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 
 ## Development status
 
-Completed milestone: **Day 11 - local RPC API + CLI integration**.
+Completed milestone: **Day 12 - security checks and invalid-data hardening**.
 
-Implemented through Day 9:
+Implemented through Day 12:
 
 - fixed Genesis, blocks, Proof of Work and difficulty;
 - wallet keys, addresses, signatures and signed payments;
@@ -288,6 +288,63 @@ Important current limitation: the `--data` directory stores node metadata only. 
 
 The existing block and transaction JSON returned by RPC exposes the fields required by the master specification for a later explorer: block height/hash/previous hash, transactions, transaction IDs, addresses, amounts, difficulty and timestamp.
 
+## Day 12 security checks
+
+The Day 12 pass maps the master-spec MVP security requirements to explicit rejection paths and regression tests.
+
+| Required check | Current VALDR v0.1 behavior |
+| --- | --- |
+| double spend | spent UTXO disappears; a second spend is rejected; two spends of one UTXO in the same block fail atomically |
+| bad signature | malformed, tampered-message and wrong-key ECDSA signatures are rejected |
+| negative amount | transaction output amount is `uint64`; negative JSON amounts cannot decode into the transaction type |
+| VDR creation outside coinbase | normal transactions require value conservation and cannot produce outputs above their confirmed inputs |
+| bad block hash | block hash must exactly equal SHA-256 of the current block header |
+| bad previous hash | candidate must reference the current confirmed tip |
+| bad nonce | changing nonce without the matching block hash is rejected |
+| bad PoW | a correctly encoded hash above the current target is rejected |
+| duplicate block | a previously confirmed valid block hash is explicitly rejected with `ErrDuplicateBlock` |
+| duplicate transaction | duplicate txids inside a block or replay of a confirmed txid are explicitly rejected with `ErrDuplicateTransaction` |
+| bad coinbase reward | coinbase output must equal the consensus reward for the block height |
+
+### Atomic rejection
+
+Security tests verify that invalid block processing does not partially mutate confirmed state.
+
+For example:
+
+```text
+confirmed 50 VDR UTXO
+        ↓
+forged normal tx outputs 50 VDR + 1 val
+        ↓
+block is mined but fails UTXO validation
+        ↓
+block height unchanged
+miner balance unchanged
+recipient balance remains 0
+```
+
+The same rollback property is tested for a two-transaction double spend inside one candidate block.
+
+### Existing checks retained
+
+Day 12 does not replace the earlier consensus/UTXO validation. Existing tests continue to cover:
+
+- wrong previous hash;
+- tampered Merkle root;
+- wrong difficulty;
+- PoW above target;
+- missing coinbase;
+- wrong coinbase reward;
+- missing UTXO;
+- wrong UTXO owner;
+- insufficient input value;
+- transaction ID tampering;
+- mempool duplicate transaction;
+- mempool unconfirmed-input conflict.
+
+No new cryptographic algorithm or consensus architecture is introduced by Day 12.
+
 ## Coinbase and mining reward v0.1
 
 Only a validated block coinbase may create new VDR.
@@ -328,7 +385,7 @@ The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second
 - timestamp: `1790121600` (2026-09-23 00:00:00 UTC)
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-Not implemented yet: persistent blockchain storage, final halving interval, full fork/reorganization policy, and the Day 12 security-hardening pass.
+Not implemented yet: persistent blockchain storage, final halving interval, full fork/reorganization policy, and the Day 13 automated devnet startup/final test pass.
 
 ## Build and test
 

@@ -21,7 +21,9 @@ var (
 	ErrWrongChainID       = errors.New("wrong chain id")
 	ErrInvalidDifficulty  = errors.New("invalid difficulty")
 	ErrInvalidPoW         = errors.New("invalid proof of work")
-	ErrInvalidTransaction = errors.New("invalid block transaction")
+	ErrInvalidTransaction   = errors.New("invalid block transaction")
+	ErrDuplicateBlock       = errors.New("duplicate block")
+	ErrDuplicateTransaction = errors.New("duplicate confirmed transaction")
 )
 
 type Blockchain struct {
@@ -151,6 +153,12 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 		return fmt.Errorf("%w: got %q want %q", ErrWrongChainID, candidate.ChainID, config.ChainID)
 	}
 
+	if candidate.BlockHash != "" &&
+		candidate.BlockHash == candidate.CalculateHash() &&
+		bc.hasBlockHashLocked(candidate.BlockHash) {
+		return fmt.Errorf("%w: %s", ErrDuplicateBlock, candidate.BlockHash)
+	}
+
 	if len(bc.blocks) == 0 {
 		return errors.New("blockchain has no genesis block")
 	}
@@ -171,6 +179,10 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 			candidate.Difficulty,
 			expectedDifficulty,
 		)
+	}
+
+	if err := bc.validateTransactionUniquenessLocked(candidate.Transactions); err != nil {
+		return err
 	}
 
 	expectedMerkleRoot := block.CalculateMerkleRoot(candidate.Transactions)
@@ -199,5 +211,50 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 	}
 
 	bc.blocks = append(bc.blocks, candidate)
+	return nil
+}
+
+
+func (bc *Blockchain) hasBlockHashLocked(hash string) bool {
+	for _, existing := range bc.blocks {
+		if existing != nil && existing.BlockHash == hash {
+			return true
+		}
+	}
+	return false
+}
+
+func (bc *Blockchain) validateTransactionUniquenessLocked(
+	transactions []*transaction.Transaction,
+) error {
+	seen := make(map[string]struct{}, len(transactions))
+	for _, tx := range transactions {
+		if tx == nil || tx.TransactionID == "" {
+			continue
+		}
+		if _, exists := seen[tx.TransactionID]; exists {
+			return fmt.Errorf(
+				"%w in candidate block: %s",
+				ErrDuplicateTransaction,
+				tx.TransactionID,
+			)
+		}
+		seen[tx.TransactionID] = struct{}{}
+
+		for _, existingBlock := range bc.blocks {
+			if existingBlock == nil {
+				continue
+			}
+			for _, existingTx := range existingBlock.Transactions {
+				if existingTx != nil && existingTx.TransactionID == tx.TransactionID {
+					return fmt.Errorf(
+						"%w: %s",
+						ErrDuplicateTransaction,
+						tx.TransactionID,
+					)
+				}
+			}
+		}
+	}
 	return nil
 }
