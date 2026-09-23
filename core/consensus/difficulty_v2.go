@@ -18,6 +18,7 @@ var (
 	ErrTimestampMedianPast       = errors.New("block timestamp is not greater than median-time-past")
 	ErrTimestampTooFarFuture     = errors.New("block timestamp is too far in the future")
 	ErrInvalidDifficultyHistory  = errors.New("invalid difficulty history")
+	ErrHeaderWrongChainID        = errors.New("header chain id does not match network profile")
 )
 
 type V2DifficultyHeader struct {
@@ -72,7 +73,7 @@ func ValidateHeaderV2(
 	if header.ChainID != profile.ChainID {
 		return false, fmt.Errorf(
 			"%w: got %q want %q",
-			ErrWrongChainID,
+			ErrHeaderWrongChainID,
 			header.ChainID,
 			profile.ChainID,
 		)
