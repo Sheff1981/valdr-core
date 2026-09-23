@@ -68,6 +68,12 @@ type chainNode struct {
 	undoCreated []utxo.Outpoint
 }
 
+type ChainUpdate struct {
+	Activated    bool
+	Disconnected []*block.Block
+	Connected    []*block.Block
+}
+
 type Blockchain struct {
 	mu     sync.RWMutex
 	blocks []*block.Block
@@ -297,9 +303,24 @@ func (bc *Blockchain) Append(
 }
 
 func (bc *Blockchain) AddBlock(candidate *block.Block) error {
+	_, err := bc.AddBlockWithUpdate(candidate)
+	return err
+}
+
+// AddBlockWithUpdate reports active-chain changes so policy layers can
+// revalidate/reconsider mempool transactions after connect or reorg.
+func (bc *Blockchain) AddBlockWithUpdate(candidate *block.Block) (ChainUpdate, error) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
-	return bc.addBlockLocked(candidate)
+
+	oldTip := bc.tip
+	if err := bc.addBlockLocked(candidate); err != nil {
+		return ChainUpdate{}, err
+	}
+	if oldTip == bc.tip {
+		return ChainUpdate{}, nil
+	}
+	return chainUpdateBetween(oldTip, bc.tip), nil
 }
 
 func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
@@ -580,6 +601,47 @@ func (bc *Blockchain) reorganizeUTXOLocked(newTip *chainNode) (*utxo.Set, error)
 		}
 	}
 	return working, nil
+}
+
+func chainUpdateBetween(oldTip, newTip *chainNode) ChainUpdate {
+	if newTip == nil || oldTip == newTip {
+		return ChainUpdate{}
+	}
+	if oldTip == nil {
+		return ChainUpdate{
+			Activated: true,
+			Connected: activePath(newTip),
+		}
+	}
+
+	oldAncestors := make(map[string]*chainNode)
+	for node := oldTip; node != nil; node = node.parent {
+		oldAncestors[node.block.BlockHash] = node
+	}
+
+	var ancestor *chainNode
+	for node := newTip; node != nil; node = node.parent {
+		if _, ok := oldAncestors[node.block.BlockHash]; ok {
+			ancestor = node
+			break
+		}
+	}
+	if ancestor == nil {
+		return ChainUpdate{}
+	}
+
+	update := ChainUpdate{Activated: true}
+	for node := oldTip; node != ancestor; node = node.parent {
+		update.Disconnected = append(update.Disconnected, node.block)
+	}
+	for node := newTip; node != ancestor; node = node.parent {
+		update.Connected = append(update.Connected, node.block)
+	}
+	for left, right := 0, len(update.Connected)-1; left < right; left, right = left+1, right-1 {
+		update.Connected[left], update.Connected[right] =
+			update.Connected[right], update.Connected[left]
+	}
+	return update
 }
 
 func diffUTXOForUndo(before, after []utxo.UTXO) ([]utxo.UTXO, []utxo.Outpoint) {
