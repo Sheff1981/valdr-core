@@ -160,3 +160,113 @@ func waitForPeerCount(t *testing.T, node *Node, want int) {
 	}
 	t.Fatalf("peer count = %d, want %d", node.PeerCount(), want)
 }
+
+func TestV2NodesHandshakeAndExchangeDiscovery(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nodeC := mustStartNode(t, NodeConfig{
+		NodeID:         "v2-node-c",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer nodeC.Close()
+
+	nodeB := mustStartNode(t, NodeConfig{
+		NodeID:         "v2-node-b",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer nodeB.Close()
+
+	ctxBC, cancelBC := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancelBC()
+	if err := nodeB.Connect(ctxBC, nodeC.Address()); err != nil {
+		t.Fatalf("v2 Node B -> C connect: %v", err)
+	}
+	waitForPeerCount(t, nodeB, 1)
+	waitForPeerCount(t, nodeC, 1)
+
+	nodeA := mustStartNode(t, NodeConfig{
+		NodeID:         "v2-node-a",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer nodeA.Close()
+
+	ctxAB, cancelAB := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancelAB()
+	if err := nodeA.Connect(ctxAB, nodeB.Address()); err != nil {
+		t.Fatalf("v2 Node A -> B connect: %v", err)
+	}
+	waitForPeerCount(t, nodeA, 1)
+
+	peer := nodeA.Peers()[0]
+	if peer.ProtocolVersion != 2 || peer.NodeID != "v2-node-b" {
+		t.Fatalf("unexpected v2 peer: %+v", peer)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, discovered := range nodeA.DiscoveredPeers() {
+			if discovered.NodeID == "v2-node-c" && discovered.Address == nodeC.Address() {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("v2 node A did not discover node C through node B")
+}
+
+func TestV2RejectsWrongNetworkMagic(t *testing.T) {
+	devnet, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testnet, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nodeA := mustStartNode(t, NodeConfig{
+		NodeID:         "v2-devnet",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &devnet,
+		EnableV2:       true,
+	})
+	defer nodeA.Close()
+
+	nodeB := mustStartNode(t, NodeConfig{
+		NodeID:         "v2-testnet",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &testnet,
+		EnableV2:       true,
+	})
+	defer nodeB.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = nodeA.Connect(ctx, nodeB.Address())
+	if !errors.Is(err, ErrV2WrongNetwork) {
+		t.Fatalf("Connect error=%v want ErrV2WrongNetwork", err)
+	}
+	if nodeA.PeerCount() != 0 {
+		t.Fatalf("devnet peer count=%d after wrong-network reject", nodeA.PeerCount())
+	}
+}
+
+func TestV2RequiresExplicitNetworkProfile(t *testing.T) {
+	_, err := NewNode(NodeConfig{
+		NodeID:        "v2-no-profile",
+		ListenAddress: "127.0.0.1:0",
+		EnableV2:      true,
+	})
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("NewNode error=%v want ErrInvalidConfig", err)
+	}
+}
