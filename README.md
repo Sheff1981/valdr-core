@@ -10,37 +10,57 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 - `1 VDR = 100,000,000 val`
 - Primary implementation language: **Go**
 - Devnet chain ID: **valdr-devnet-1**
+- Devnet target block time: **60 seconds**
 
 ## Development status
 
-Completed milestone: **Day 2 - blockchain**.
+Completed milestone: **Day 3 - Proof of Work**.
 
 Implemented:
 
 - Day 1 Go project skeleton and package structure;
-- VALDR `Block` model with the master-specification fields;
-- canonical block-header serialization;
-- single SHA-256 block hashing for the MVP;
-- deterministic Merkle root calculation for the Day 2 transaction placeholder data;
-- fixed VALDR devnet Genesis Block;
-- local in-memory blockchain with height, previous-hash, chain-ID and block-hash validation;
-- tested local chain: `Genesis -> Block 1 -> Block 2`.
+- Day 2 `Block`, single SHA-256 hashing, fixed Genesis Block and local blockchain;
+- nonce search over the block header;
+- 256-bit PoW target calculation;
+- integer difficulty multiplier;
+- PoW verification before a block is accepted;
+- simplified v0.1 difficulty adjustment around the 60-second block target;
+- local mined chain: `Genesis -> Block 1 -> Block 2`.
+
+## Proof of Work v0.1
+
+The master specification allows a simplified difficulty algorithm for the first devnet. The current v0.1 rule is:
+
+```text
+target = devnet_pow_limit / difficulty
+valid block: SHA-256(block_header) <= target
+```
+
+The devnet PoW limit uses 12 leading zero bits. Difficulty `1` therefore still performs a real nonce search while keeping automated tests fast.
+
+For the next block:
+
+```text
+next_difficulty ~= previous_difficulty * 60 / observed_block_interval
+```
+
+The observed interval is clamped so one block can change difficulty by at most 4x. Difficulty never falls below `1`. This is intentionally an MVP rule; the master specification already schedules an improved difficulty adjustment for VALDR v0.2.
+
+The fixed Genesis Block is the hard-coded trust anchor and is not re-mined during startup. PoW validation applies to subsequently appended blocks.
 
 ### Fixed devnet Genesis parameters
 
 - chain ID: `valdr-devnet-1`
 - timestamp: `1790121600` (2026-09-23 00:00:00 UTC)
 - version: `1`
-- difficulty placeholder: `1`
-- nonce placeholder: `0`
+- difficulty field: `1`
+- nonce field: `0`
 - message: `VALDR genesis block | valdr-devnet-1 | 2026-09-23`
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-The difficulty and nonce fields exist in the block format, but Proof-of-Work target calculation, mining and PoW validation are **not implemented yet**. They belong to Day 3.
+Transactions are still opaque placeholder strings. The typed Transaction Engine is scheduled for Day 5.
 
-Transactions are intentionally opaque placeholder strings in Day 2. The typed Transaction Engine is scheduled for Day 5.
-
-Not implemented yet: Proof of Work, wallet cryptography, typed transactions, UTXO engine, mining rewards, P2P synchronization, persistent blockchain storage, RPC behavior, and the final three-node devnet scenario.
+Not implemented yet: wallet cryptography, typed transactions, UTXO engine, coinbase/mining reward, P2P synchronization, persistent blockchain storage, RPC behavior, and the final three-node devnet scenario.
 
 ## Build and test
 
