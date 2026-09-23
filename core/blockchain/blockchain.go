@@ -57,10 +57,16 @@ func (bc *Blockchain) Balance(address string) (uint64, error) {
 	return bc.utxos.Balance(address)
 }
 
+func (bc *Blockchain) UTXOs(address string) ([]utxo.UTXO, error) {
+	return bc.utxos.List(address)
+}
+
 func (bc *Blockchain) UTXOSnapshot() []utxo.UTXO {
 	return bc.utxos.Snapshot()
 }
 
+// Append mines and appends a candidate whose transaction list already contains
+// its coinbase transaction at index zero. The mining package constructs it.
 func (bc *Blockchain) Append(
 	timestamp int64,
 	transactions []*transaction.Transaction,
@@ -135,8 +141,14 @@ func (bc *Blockchain) AddBlock(candidate *block.Block) error {
 	if err := consensus.ValidatePoW(candidate); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidPoW, err)
 	}
-	if err := bc.utxos.ApplyTransactions(candidate.Transactions); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
+
+	reward := consensus.BlockReward(candidate.Height)
+	if err := bc.utxos.ApplyBlockTransactions(
+		candidate.Height,
+		candidate.Transactions,
+		reward,
+	); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidTransaction, err)
 	}
 
 	bc.blocks = append(bc.blocks, candidate)

@@ -22,6 +22,9 @@ var (
 	ErrValueMismatch      = errors.New("input and output values do not match")
 	ErrBalanceOverflow    = errors.New("balance overflow")
 	ErrInvalidTransaction = errors.New("invalid transaction")
+	ErrMissingCoinbase    = errors.New("block is missing coinbase transaction")
+	ErrInvalidCoinbase    = errors.New("invalid coinbase transaction")
+	ErrUnexpectedCoinbase = errors.New("unexpected coinbase transaction")
 )
 
 type UTXO struct {
@@ -36,7 +39,6 @@ type Set struct {
 }
 
 // New reconstructs a UTXO set from already validated chain state.
-// It does not mint VDR; Day 7 coinbase will provide the live source of new outputs.
 func New(initial []UTXO) (*Set, error) {
 	s := &Set{entries: make(map[string]UTXO, len(initial))}
 	for _, item := range initial {
@@ -115,8 +117,9 @@ func (s *Set) List(address string) ([]UTXO, error) {
 	return items, nil
 }
 
-// ApplyTransaction atomically spends referenced UTXOs and creates the
-// transaction outputs. It does not support coinbase; that is Day 7.
+// ApplyTransaction atomically spends referenced UTXOs and creates normal
+// transaction outputs. Coinbase is rejected here and only accepted in
+// ApplyBlockTransactions with block context.
 func (s *Set) ApplyTransaction(tx *transaction.Transaction) error {
 	if s == nil {
 		return ErrInvalidUTXO
@@ -199,8 +202,7 @@ func (s *Set) ApplyTransaction(tx *transaction.Transaction) error {
 	return nil
 }
 
-// ApplyTransactions applies a block-sized transaction batch atomically.
-// A later invalid transaction cannot leave earlier transactions partially applied.
+// ApplyTransactions applies a batch of normal transactions atomically.
 func (s *Set) ApplyTransactions(transactions []*transaction.Transaction) error {
 	if s == nil {
 		return ErrInvalidUTXO
@@ -211,6 +213,53 @@ func (s *Set) ApplyTransactions(transactions []*transaction.Transaction) error {
 			return fmt.Errorf("transaction %d: %w", i, err)
 		}
 	}
+	s.entries = working.entries
+	return nil
+}
+
+// ApplyBlockTransactions validates exactly one coinbase at index zero,
+// applies all normal transactions atomically, then creates the subsidy UTXO.
+// Applying coinbase last prevents spending the new subsidy in the same block.
+func (s *Set) ApplyBlockTransactions(
+	blockHeight uint64,
+	transactions []*transaction.Transaction,
+	expectedReward uint64,
+) error {
+	if s == nil {
+		return ErrInvalidUTXO
+	}
+	if len(transactions) == 0 {
+		return ErrMissingCoinbase
+	}
+
+	coinbase := transactions[0]
+	if err := coinbase.ValidateCoinbase(blockHeight, expectedReward); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidCoinbase, err)
+	}
+
+	working := s.clone()
+	for i, tx := range transactions[1:] {
+		if tx != nil && tx.HasCoinbaseMarker() {
+			return fmt.Errorf("%w at transaction %d", ErrUnexpectedCoinbase, i+1)
+		}
+		if err := working.ApplyTransaction(tx); err != nil {
+			return fmt.Errorf("transaction %d: %w", i+1, err)
+		}
+	}
+
+	output := coinbase.Outputs[0]
+	item := UTXO{
+		TransactionID: coinbase.TransactionID,
+		OutputIndex:   0,
+		Amount:        output.Amount,
+		Recipient:     output.Recipient,
+	}
+	key := outpointKey(item.TransactionID, item.OutputIndex)
+	if _, exists := working.entries[key]; exists {
+		return fmt.Errorf("%w: %s", ErrUTXOAlreadyExists, key)
+	}
+	working.entries[key] = item
+
 	s.entries = working.entries
 	return nil
 }

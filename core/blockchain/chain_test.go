@@ -9,8 +9,36 @@ import (
 	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/consensus"
 	"github.com/Sheff1981/valdr-core/core/transaction"
+	"github.com/Sheff1981/valdr-core/core/utxo"
 	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 )
+
+func testMinerAddress(t *testing.T) string {
+	t.Helper()
+	key, err := valdrcrypto.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	address, err := valdrcrypto.AddressFromPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return address
+}
+
+func testCoinbase(t *testing.T, height uint64, address string, timestamp int64) *transaction.Transaction {
+	t.Helper()
+	tx, err := transaction.NewCoinbase(
+		height,
+		address,
+		consensus.BlockReward(height),
+		timestamp,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tx
+}
 
 func TestLocalChainGenesisBlock1Block2(t *testing.T) {
 	chain := New()
@@ -23,11 +51,22 @@ func TestLocalChainGenesisBlock1Block2(t *testing.T) {
 		t.Fatal("chain did not start with genesis")
 	}
 
-	block1, err := chain.Append(config.GenesisTimestamp+60, nil)
+	miner := testMinerAddress(t)
+	block1, err := chain.Append(
+		config.GenesisTimestamp+60,
+		[]*transaction.Transaction{
+			testCoinbase(t, 1, miner, config.GenesisTimestamp+60),
+		},
+	)
 	if err != nil {
 		t.Fatalf("append block 1: %v", err)
 	}
-	block2, err := chain.Append(config.GenesisTimestamp+120, nil)
+	block2, err := chain.Append(
+		config.GenesisTimestamp+120,
+		[]*transaction.Transaction{
+			testCoinbase(t, 2, miner, config.GenesisTimestamp+120),
+		},
+	)
 	if err != nil {
 		t.Fatalf("append block 2: %v", err)
 	}
@@ -49,6 +88,14 @@ func TestLocalChainGenesisBlock1Block2(t *testing.T) {
 	}
 	if err := consensus.ValidatePoW(block2); err != nil {
 		t.Fatalf("block 2 PoW: %v", err)
+	}
+
+	balance, err := chain.Balance(miner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if balance != 2*config.InitialMiningReward {
+		t.Fatalf("miner balance = %d, want %d", balance, 2*config.InitialMiningReward)
 	}
 }
 
@@ -112,8 +159,61 @@ func TestRejectsInvalidPoW(t *testing.T) {
 	}
 }
 
+func TestRejectsMissingCoinbase(t *testing.T) {
+	chain := New()
+	candidate := block.New(
+		1,
+		chain.Tip().BlockHash,
+		config.GenesisTimestamp+60,
+		1,
+		0,
+		nil,
+		"",
+	)
+	if err := consensus.Mine(candidate); err != nil {
+		t.Fatal(err)
+	}
+
+	err := chain.AddBlock(candidate)
+	if !errors.Is(err, utxo.ErrMissingCoinbase) {
+		t.Fatalf("AddBlock error = %v, want ErrMissingCoinbase", err)
+	}
+}
+
+func TestRejectsWrongCoinbaseReward(t *testing.T) {
+	chain := New()
+	miner := testMinerAddress(t)
+	coinbase, err := transaction.NewCoinbase(
+		1,
+		miner,
+		config.InitialMiningReward+1,
+		config.GenesisTimestamp+60,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := block.New(
+		1,
+		chain.Tip().BlockHash,
+		config.GenesisTimestamp+60,
+		1,
+		0,
+		[]*transaction.Transaction{coinbase},
+		"",
+	)
+	if err := consensus.Mine(candidate); err != nil {
+		t.Fatal(err)
+	}
+
+	err = chain.AddBlock(candidate)
+	if !errors.Is(err, transaction.ErrInvalidCoinbaseReward) {
+		t.Fatalf("AddBlock error = %v, want ErrInvalidCoinbaseReward", err)
+	}
+}
+
 func TestRejectsTransactionWithMissingUTXO(t *testing.T) {
 	chain := New()
+	miner := testMinerAddress(t)
 
 	signer, err := valdrcrypto.GenerateKeyPair()
 	if err != nil {
@@ -143,13 +243,14 @@ func TestRejectsTransactionWithMissingUTXO(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	coinbase := testCoinbase(t, 1, miner, config.GenesisTimestamp+60)
 	candidate := block.New(
 		1,
 		chain.Tip().BlockHash,
 		config.GenesisTimestamp+60,
 		1,
 		0,
-		[]*transaction.Transaction{tx},
+		[]*transaction.Transaction{coinbase, tx},
 		"",
 	)
 	if err := consensus.Mine(candidate); err != nil {

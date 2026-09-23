@@ -15,20 +15,28 @@ import (
 	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 )
 
-const Version = uint32(1)
+const (
+	Version                       = uint32(1)
+	CoinbasePreviousTransactionID = "0000000000000000000000000000000000000000000000000000000000000000"
+)
 
 var (
-	ErrInvalidVersion       = errors.New("invalid transaction version")
-	ErrNoInputs             = errors.New("transaction has no inputs")
-	ErrNoOutputs            = errors.New("transaction has no outputs")
-	ErrInvalidInput         = errors.New("invalid transaction input")
-	ErrDuplicateInput       = errors.New("duplicate transaction input")
-	ErrInvalidOutput        = errors.New("invalid transaction output")
-	ErrAmountOverflow       = errors.New("transaction output amount overflow")
-	ErrInvalidTimestamp     = errors.New("invalid transaction timestamp")
-	ErrInvalidPublicKey     = errors.New("invalid transaction public key")
-	ErrInvalidSignature     = errors.New("invalid transaction signature")
-	ErrInvalidTransactionID = errors.New("invalid transaction id")
+	ErrInvalidVersion          = errors.New("invalid transaction version")
+	ErrNoInputs                = errors.New("transaction has no inputs")
+	ErrNoOutputs               = errors.New("transaction has no outputs")
+	ErrInvalidInput            = errors.New("invalid transaction input")
+	ErrDuplicateInput          = errors.New("duplicate transaction input")
+	ErrInvalidOutput           = errors.New("invalid transaction output")
+	ErrAmountOverflow          = errors.New("transaction output amount overflow")
+	ErrInvalidTimestamp        = errors.New("invalid transaction timestamp")
+	ErrInvalidPublicKey        = errors.New("invalid transaction public key")
+	ErrInvalidSignature        = errors.New("invalid transaction signature")
+	ErrInvalidTransactionID    = errors.New("invalid transaction id")
+	ErrCoinbaseRequiresBlock   = errors.New("coinbase transaction requires block context")
+	ErrInvalidCoinbase         = errors.New("invalid coinbase transaction")
+	ErrInvalidCoinbaseHeight   = errors.New("invalid coinbase block height")
+	ErrInvalidCoinbaseReward   = errors.New("invalid coinbase reward")
+	ErrCoinbaseHeightOverflow  = errors.New("coinbase block height exceeds input encoding")
 )
 
 type Input struct {
@@ -60,12 +68,51 @@ func New(inputs []Input, outputs []Output, timestamp int64) *Transaction {
 	}
 }
 
+// NewCoinbase creates the unique block subsidy transaction for a height.
+// The existing input fields encode the special coinbase marker:
+// zero transaction ID + output_index equal to block height.
+func NewCoinbase(
+	blockHeight uint64,
+	recipient string,
+	reward uint64,
+	timestamp int64,
+) (*Transaction, error) {
+	if blockHeight == 0 {
+		return nil, ErrInvalidCoinbaseHeight
+	}
+	if blockHeight > uint64(^uint32(0)) {
+		return nil, ErrCoinbaseHeightOverflow
+	}
+
+	tx := &Transaction{
+		Version: Version,
+		Inputs: []Input{{
+			PreviousTransactionID: CoinbasePreviousTransactionID,
+			OutputIndex:           uint32(blockHeight),
+		}},
+		Outputs: []Output{{
+			Amount:    reward,
+			Recipient: recipient,
+		}},
+		Timestamp: timestamp,
+	}
+	tx.TransactionID = tx.CalculateID()
+
+	if err := tx.ValidateCoinbase(blockHeight, reward); err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
 func (tx *Transaction) Sign(key *ecdsa.PrivateKey) error {
 	if tx == nil {
 		return ErrInvalidTransactionID
 	}
 	if key == nil {
 		return valdrcrypto.ErrInvalidPrivateKey
+	}
+	if tx.HasCoinbaseMarker() {
+		return ErrCoinbaseRequiresBlock
 	}
 
 	publicKey, err := valdrcrypto.EncodePublicKey(&key.PublicKey)
@@ -92,7 +139,7 @@ func (tx *Transaction) Sign(key *ecdsa.PrivateKey) error {
 }
 
 func (tx *Transaction) VerifySignature() bool {
-	if tx == nil {
+	if tx == nil || tx.HasCoinbaseMarker() {
 		return false
 	}
 
@@ -113,6 +160,9 @@ func (tx *Transaction) Validate() error {
 	if tx == nil {
 		return ErrInvalidTransactionID
 	}
+	if tx.HasCoinbaseMarker() {
+		return ErrCoinbaseRequiresBlock
+	}
 	if err := tx.validateUnsigned(); err != nil {
 		return err
 	}
@@ -130,6 +180,67 @@ func (tx *Transaction) Validate() error {
 		)
 	}
 	return nil
+}
+
+func (tx *Transaction) ValidateCoinbase(blockHeight, expectedReward uint64) error {
+	if tx == nil {
+		return ErrInvalidCoinbase
+	}
+	if blockHeight == 0 || blockHeight > uint64(^uint32(0)) {
+		return ErrInvalidCoinbaseHeight
+	}
+	if tx.Version != Version {
+		return fmt.Errorf("%w: %v", ErrInvalidCoinbase, ErrInvalidVersion)
+	}
+	if tx.Timestamp <= 0 {
+		return fmt.Errorf("%w: %v", ErrInvalidCoinbase, ErrInvalidTimestamp)
+	}
+	if len(tx.Inputs) != 1 ||
+		tx.Inputs[0].PreviousTransactionID != CoinbasePreviousTransactionID ||
+		tx.Inputs[0].OutputIndex != uint32(blockHeight) {
+		return fmt.Errorf("%w: coinbase input marker", ErrInvalidCoinbase)
+	}
+	if len(tx.Outputs) != 1 {
+		return fmt.Errorf("%w: coinbase must have exactly one output", ErrInvalidCoinbase)
+	}
+	if expectedReward == 0 || tx.Outputs[0].Amount != expectedReward {
+		return fmt.Errorf(
+			"%w: got %d want %d",
+			ErrInvalidCoinbaseReward,
+			tx.Outputs[0].Amount,
+			expectedReward,
+		)
+	}
+	if !valdrcrypto.ValidateAddress(tx.Outputs[0].Recipient) {
+		return fmt.Errorf("%w: recipient", ErrInvalidCoinbase)
+	}
+	if tx.PublicKey != "" || tx.Signature != "" {
+		return fmt.Errorf("%w: coinbase must not contain public key or signature", ErrInvalidCoinbase)
+	}
+
+	expectedID := tx.CalculateID()
+	if tx.TransactionID == "" || tx.TransactionID != expectedID {
+		return fmt.Errorf(
+			"%w: got %q want %q",
+			ErrInvalidTransactionID,
+			tx.TransactionID,
+			expectedID,
+		)
+	}
+	return nil
+}
+
+func (tx *Transaction) HasCoinbaseMarker() bool {
+	return tx != nil &&
+		len(tx.Inputs) == 1 &&
+		tx.Inputs[0].PreviousTransactionID == CoinbasePreviousTransactionID
+}
+
+func (tx *Transaction) IsCoinbase() bool {
+	return tx != nil &&
+		tx.HasCoinbaseMarker() &&
+		tx.PublicKey == "" &&
+		tx.Signature == ""
 }
 
 func (tx *Transaction) SigningBytes() []byte {
