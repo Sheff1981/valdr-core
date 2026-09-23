@@ -15,26 +15,73 @@ VALDR is a standalone cryptocurrency and blockchain project. The active v0.1 imp
 
 ## Development status
 
-Completed milestone: **Day 4 - cryptography and CLI wallet**.
+Completed milestone: **Day 5 - Transaction Engine**.
 
-Implemented through Day 4:
+Implemented through Day 5:
 
 - Go project skeleton;
 - block model, SHA-256 block hashing, fixed Genesis and local blockchain;
 - Proof of Work with nonce search, target validation and simplified devnet difficulty;
-- ECDSA P-256 private/public key generation using the Go standard library;
-- SHA-256 based digital signatures and signature verification;
+- ECDSA P-256 private/public key generation and digital signatures;
 - VALDR devnet addresses beginning with `VDR1`;
-- address checksum bound to `valdr-devnet-1`;
-- local wallet persistence;
-- wallet integrity verification from the stored private key;
-- CLI wallet create/list/export commands.
+- local CLI wallet create/list/export;
+- typed UTXO-style transaction inputs and outputs;
+- canonical transaction signing bytes;
+- transaction-level digital signature verification;
+- SHA-256 transaction IDs;
+- typed transactions committed into block Merkle roots;
+- Day 5 transaction structure validation.
+
+## Transaction Engine v0.1
+
+The master specification defines the transaction fields as `version`, `inputs[]`, `outputs[]`, `timestamp`, `signature` and `transaction_id`.
+
+VALDR v0.1 represents an input as:
+
+```text
+transaction_id
+output_index
+```
+
+and an output as:
+
+```text
+amount       # uint64 atomic units (val)
+recipient    # VDR1... address
+```
+
+A normal Day 5 transaction has one transaction-level public key and signature. The signature covers the chain ID, version, timestamp, every input, every output and the public key. The transaction ID is:
+
+```text
+SHA-256(canonical signed transaction bytes)
+```
+
+The chain ID is included in signed bytes to prevent the same signature from being replayed unchanged across a future network with a different chain ID.
+
+Day 5 validation checks:
+
+- transaction version;
+- non-empty inputs and outputs;
+- syntactically valid previous transaction IDs;
+- no duplicate input reference inside the same transaction;
+- output amount greater than zero;
+- amount overflow;
+- valid `VDR1...` recipient;
+- valid public key;
+- valid digital signature;
+- correct transaction ID.
+
+The following checks are **not implemented on Day 5** because the master plan assigns them to the UTXO Engine on Day 6:
+
+- whether the referenced UTXO actually exists;
+- whether that UTXO belongs to the signing public key;
+- sufficient input value / balance;
+- creating and spending UTXOs;
+- global double-spend protection.
 
 ## Wallet and cryptography v0.1
 
-The master specification fixes the requirements for private/public keys, digital signatures and the `VDR1...` address prefix, but does not prescribe a curve or final address encoding.
-
-For the devnet MVP, VALDR v0.1 uses:
+For the devnet MVP:
 
 ```text
 signature: ECDSA P-256 over SHA-256(message)
@@ -44,28 +91,11 @@ checksum: first 4 bytes of SHA-256(chain_id || payload)
 address: VDR1 + Base32(payload || checksum)
 ```
 
-This format is a devnet MVP parameter. Before mainnet, the cryptographic suite and address encoding must be explicitly frozen as protocol constants.
+This format remains a devnet MVP parameter. Before mainnet, the cryptographic suite and address encoding must be explicitly frozen as protocol constants.
 
-Private keys never leave the wallet code through normal create/list output and are never sent over the network. Wallet files are written with owner-only permissions on supported systems. `wallet export` intentionally reveals the private key and prints a warning.
+Private keys never leave the wallet code through normal create/list output and are never sent over the network. `wallet export` intentionally reveals the private key and prints a warning.
 
-Default wallet directory:
-
-```text
-~/.valdr/wallets
-```
-
-It can be overridden with `VALDR_WALLET_DIR` or `--dir`.
-
-### CLI wallet
-
-```bash
-valdr-cli wallet create
-valdr-cli wallet create --name alice
-valdr-cli wallet list
-valdr-cli wallet export alice
-```
-
-`valdr-cli wallet balance` is intentionally not functional yet. Correct balances require the UTXO Engine scheduled for Day 6; the CLI reports that dependency instead of inventing a balance.
+`valdr-cli wallet balance` remains intentionally unavailable until the UTXO Engine exists.
 
 ## Proof of Work v0.1
 
@@ -76,7 +106,7 @@ valid block: SHA-256(block_header) <= target
 
 The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second block interval and each adjustment is clamped to at most 4x.
 
-### Fixed devnet Genesis parameters
+### Fixed devnet Genesis
 
 - chain ID: `valdr-devnet-1`
 - timestamp: `1790121600` (2026-09-23 00:00:00 UTC)
@@ -86,7 +116,7 @@ The devnet PoW limit uses 12 leading zero bits. Difficulty targets the 60-second
 - message: `VALDR genesis block | valdr-devnet-1 | 2026-09-23`
 - block hash: `47e3a6c15cab1a41c54a36a65f7133261fa6f75976a2e59825694e001716bfe5`
 
-Not implemented yet: typed transactions, UTXO balances/spending, coinbase/mining reward, P2P synchronization, persistent blockchain storage, RPC behavior, and the final three-node devnet scenario.
+Not implemented yet: UTXO balances/spending, coinbase/mining reward, P2P synchronization, persistent blockchain storage, RPC behavior, and the final three-node devnet scenario.
 
 ## Build and test
 

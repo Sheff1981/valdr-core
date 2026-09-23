@@ -3,9 +3,11 @@ package block
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
+	"github.com/Sheff1981/valdr-core/core/transaction"
 )
 
 func TestGenesisBlockDeterministic(t *testing.T) {
@@ -28,7 +30,11 @@ func TestGenesisBlockDeterministic(t *testing.T) {
 }
 
 func TestBlockHashIsSHA256OfHeader(t *testing.T) {
-	b := New(1, "previous", 1790121660, 1, 0, []string{"tx-a", "tx-b"}, "")
+	transactions := []*transaction.Transaction{
+		{TransactionID: strings.Repeat("11", 32)},
+		{TransactionID: strings.Repeat("22", 32)},
+	}
+	b := New(1, "previous", 1790121660, 1, 0, transactions, "")
 	digest := sha256.Sum256(b.HeaderBytes())
 	want := hex.EncodeToString(digest[:])
 	if b.BlockHash != want {
@@ -42,5 +48,16 @@ func TestBlockHashChangesWhenHeaderChanges(t *testing.T) {
 	b.Nonce++
 	if b.CalculateHash() == original {
 		t.Fatal("block hash did not change after nonce changed")
+	}
+}
+
+func TestMerkleRootChangesWithTransactionID(t *testing.T) {
+	first := &transaction.Transaction{TransactionID: strings.Repeat("33", 32)}
+	second := &transaction.Transaction{TransactionID: strings.Repeat("44", 32)}
+
+	rootA := CalculateMerkleRoot([]*transaction.Transaction{first})
+	rootB := CalculateMerkleRoot([]*transaction.Transaction{second})
+	if rootA == rootB {
+		t.Fatal("different transaction IDs produced the same Merkle root")
 	}
 }

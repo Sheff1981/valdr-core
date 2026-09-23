@@ -7,6 +7,7 @@ import (
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/consensus"
+	"github.com/Sheff1981/valdr-core/core/transaction"
 )
 
 var (
@@ -19,23 +20,18 @@ var (
 	ErrInvalidPoW        = errors.New("invalid proof of work")
 )
 
-// Blockchain is the in-memory local chain used by VALDR during the early MVP.
-// Persistent storage is intentionally deferred to the storage stage in the master plan.
 type Blockchain struct {
 	blocks []*block.Block
 }
 
-// New creates a local VALDR chain containing the fixed genesis block.
 func New() *Blockchain {
 	return &Blockchain{blocks: []*block.Block{block.NewGenesis()}}
 }
 
-// Len returns the number of blocks currently in the chain, including genesis.
 func (bc *Blockchain) Len() int {
 	return len(bc.blocks)
 }
 
-// Tip returns the current chain tip.
 func (bc *Blockchain) Tip() *block.Block {
 	if len(bc.blocks) == 0 {
 		return nil
@@ -43,7 +39,6 @@ func (bc *Blockchain) Tip() *block.Block {
 	return bc.blocks[len(bc.blocks)-1]
 }
 
-// BlockAt returns the block at a height when it exists.
 func (bc *Blockchain) BlockAt(height uint64) (*block.Block, bool) {
 	if height >= uint64(len(bc.blocks)) {
 		return nil, false
@@ -51,9 +46,10 @@ func (bc *Blockchain) BlockAt(height uint64) (*block.Block, bool) {
 	return bc.blocks[height], true
 }
 
-// Append creates, mines and appends the next local block using the simplified
-// v0.1 difficulty rule. Coinbase/reward handling is introduced later in the plan.
-func (bc *Blockchain) Append(timestamp int64, transactions []string) (*block.Block, error) {
+func (bc *Blockchain) Append(
+	timestamp int64,
+	transactions []*transaction.Transaction,
+) (*block.Block, error) {
 	tip := bc.Tip()
 	if tip == nil {
 		return nil, errors.New("blockchain has no genesis block")
@@ -80,8 +76,6 @@ func (bc *Blockchain) Append(timestamp int64, transactions []string) (*block.Blo
 	return candidate, nil
 }
 
-// AddBlock validates chain linkage, expected difficulty, block hash and PoW
-// before appending a non-genesis block.
 func (bc *Blockchain) AddBlock(candidate *block.Block) error {
 	if candidate == nil {
 		return ErrNilBlock

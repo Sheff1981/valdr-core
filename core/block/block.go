@@ -7,30 +7,35 @@ import (
 	"encoding/hex"
 
 	"github.com/Sheff1981/valdr-core/config"
+	"github.com/Sheff1981/valdr-core/core/transaction"
 )
 
 const blockVersion = uint32(1)
 
-// Block is the minimal VALDR v0.1 block representation defined by the master specification.
-// Transactions are opaque strings during Day 2 and will be replaced by the transaction model
-// when the Transaction Engine is implemented on Day 5.
 type Block struct {
-	Version           uint32   `json:"version"`
-	Height            uint64   `json:"height"`
-	PreviousBlockHash string   `json:"previous_block_hash"`
-	MerkleRoot        string   `json:"merkle_root"`
-	Timestamp         int64    `json:"timestamp"`
-	Difficulty        uint64   `json:"difficulty"`
-	Nonce             uint64   `json:"nonce"`
-	Transactions      []string `json:"transactions"`
-	BlockHash         string   `json:"block_hash"`
-	ChainID           string   `json:"chain_id"`
-	ExtraData         string   `json:"extra_data,omitempty"`
+	Version           uint32                     `json:"version"`
+	Height            uint64                     `json:"height"`
+	PreviousBlockHash string                     `json:"previous_block_hash"`
+	MerkleRoot        string                     `json:"merkle_root"`
+	Timestamp         int64                      `json:"timestamp"`
+	Difficulty        uint64                     `json:"difficulty"`
+	Nonce             uint64                     `json:"nonce"`
+	Transactions      []*transaction.Transaction `json:"transactions"`
+	BlockHash         string                     `json:"block_hash"`
+	ChainID           string                     `json:"chain_id"`
+	ExtraData         string                     `json:"extra_data,omitempty"`
 }
 
-// New creates a VALDR block and calculates its SHA-256 block hash from the header.
-func New(height uint64, previousBlockHash string, timestamp int64, difficulty uint64, nonce uint64, transactions []string, extraData string) *Block {
-	copiedTransactions := append([]string(nil), transactions...)
+func New(
+	height uint64,
+	previousBlockHash string,
+	timestamp int64,
+	difficulty uint64,
+	nonce uint64,
+	transactions []*transaction.Transaction,
+	extraData string,
+) *Block {
+	copiedTransactions := append([]*transaction.Transaction(nil), transactions...)
 	b := &Block{
 		Version:           blockVersion,
 		Height:            height,
@@ -47,7 +52,6 @@ func New(height uint64, previousBlockHash string, timestamp int64, difficulty ui
 	return b
 }
 
-// NewGenesis returns the fixed VALDR devnet genesis block.
 func NewGenesis() *Block {
 	b := New(
 		0,
@@ -63,7 +67,6 @@ func NewGenesis() *Block {
 	return b
 }
 
-// HeaderBytes returns the canonical bytes used to calculate a block hash.
 func (b *Block) HeaderBytes() []byte {
 	var buf bytes.Buffer
 	writeUint32(&buf, b.Version)
@@ -78,15 +81,12 @@ func (b *Block) HeaderBytes() []byte {
 	return buf.Bytes()
 }
 
-// CalculateHash returns a single SHA-256 hash of the canonical block header.
 func (b *Block) CalculateHash() string {
 	digest := sha256.Sum256(b.HeaderBytes())
 	return hex.EncodeToString(digest[:])
 }
 
-// CalculateMerkleRoot returns a deterministic SHA-256 Merkle root for opaque transaction data.
-// An empty block uses SHA-256 of the empty byte sequence as its root.
-func CalculateMerkleRoot(transactions []string) string {
+func CalculateMerkleRoot(transactions []*transaction.Transaction) string {
 	if len(transactions) == 0 {
 		digest := sha256.Sum256(nil)
 		return hex.EncodeToString(digest[:])
@@ -94,7 +94,7 @@ func CalculateMerkleRoot(transactions []string) string {
 
 	level := make([][sha256.Size]byte, len(transactions))
 	for i, tx := range transactions {
-		level[i] = sha256.Sum256([]byte(tx))
+		level[i] = transactionLeaf(tx)
 	}
 
 	for len(level) > 1 {
@@ -112,6 +112,21 @@ func CalculateMerkleRoot(transactions []string) string {
 	}
 
 	return hex.EncodeToString(level[0][:])
+}
+
+func transactionLeaf(tx *transaction.Transaction) [sha256.Size]byte {
+	if tx == nil {
+		return sha256.Sum256(nil)
+	}
+
+	raw, err := hex.DecodeString(tx.TransactionID)
+	if err == nil && len(raw) == sha256.Size {
+		var leaf [sha256.Size]byte
+		copy(leaf[:], raw)
+		return leaf
+	}
+
+	return sha256.Sum256([]byte(tx.TransactionID))
 }
 
 func writeString(buf *bytes.Buffer, value string) {
