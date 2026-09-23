@@ -171,7 +171,7 @@ func (bc *Blockchain) Append(
 	}
 	tip := bc.blocks[len(bc.blocks)-1]
 
-	difficulty := consensus.NextDifficulty(tip.Difficulty, tip.Timestamp, timestamp)
+	difficulty := consensus.NextDifficulty(bc.blocks)
 	candidate := block.New(
 		tip.Height+1,
 		tip.BlockHash,
@@ -224,7 +224,7 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 		return fmt.Errorf("%w: got %q want %q", ErrPreviousHash, candidate.PreviousBlockHash, tip.BlockHash)
 	}
 
-	expectedDifficulty := consensus.NextDifficulty(tip.Difficulty, tip.Timestamp, candidate.Timestamp)
+	expectedDifficulty := consensus.NextDifficulty(bc.blocks)
 	if candidate.Difficulty != expectedDifficulty {
 		return fmt.Errorf(
 			"%w: got %d want %d",
