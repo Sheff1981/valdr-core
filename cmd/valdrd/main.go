@@ -51,6 +51,10 @@ func run(args []string, out, errOut io.Writer) int {
 		return statusCommand(args[1:], out, errOut)
 	case "start":
 		return startCommand(args[1:], out, errOut)
+	case "migrate":
+		return migrateCommand(args[1:], out, errOut)
+	case "verify-db":
+		return verifyDBCommand(args[1:], out, errOut)
 	default:
 		fmt.Fprintf(errOut, "unknown command %q\n", args[0])
 		return 2
@@ -69,6 +73,10 @@ func initCommand(args []string, out, errOut io.Writer) int {
 		return 2
 	}
 
+	if err := rejectUnmigratedLegacy(*dataDir); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
 	if err := os.MkdirAll(*dataDir, 0o700); err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
@@ -96,11 +104,12 @@ func initCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
-	blockStore, err := storage.NewFileStore(*dataDir)
+	blockStore, err := storage.NewBadgerStore(*dataDir, config.ChainID, config.GenesisBlockHash)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
+	defer blockStore.Close()
 	chain, err := blockchain.NewPersistent(blockStore)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
@@ -108,9 +117,10 @@ func initCommand(args []string, out, errOut io.Writer) int {
 	}
 
 	return writeJSON(out, map[string]any{
-		"data":             *dataDir,
-		"chain_id":         config.ChainID,
-		"blockchain_file":  blockStore.Path(),
+		"data":              *dataDir,
+		"chain_id":          config.ChainID,
+		"blockchain_db":     blockStore.Path(),
+		"storage_schema":    storage.StorageSchemaVersion,
 		"blockchain_height": chain.Height(),
 	}, errOut)
 }
@@ -158,17 +168,22 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		return 2
 	}
 
+	if err := rejectUnmigratedLegacy(*dataDir); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
 	if err := os.MkdirAll(*dataDir, 0o700); err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
 
-	blockStore, err := storage.NewFileStore(*dataDir)
+	blockStore, err := storage.NewBadgerStore(*dataDir, config.ChainID, config.GenesisBlockHash)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		logging.Printf(logging.CategoryError, "storage init failed data=%s error=%v", *dataDir, err)
 		return 1
 	}
+	defer blockStore.Close()
 	chain, err := blockchain.NewPersistent(blockStore)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
@@ -240,7 +255,8 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		"p2p_address": node.Address(),
 		"rpc_address": httpServer.Addr,
 		"data":        *dataDir,
-		"blockchain_file": blockStore.Path(),
+		"blockchain_db": blockStore.Path(),
+		"storage_schema": storage.StorageSchemaVersion,
 		"height":      chain.Height(),
 	}, errOut); err != 0 {
 		return err
@@ -267,6 +283,99 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+
+func migrateCommand(args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	source := fs.String("from-v0.1", "", "v0.1 VALDR data directory")
+	network := fs.String("network", "", "source network chain ID")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 || *source == "" || *network == "" {
+		fmt.Fprintln(errOut, "usage: valdrd migrate --from-v0.1 PATH --network valdr-devnet-1")
+		return 2
+	}
+	report, err := storage.MigrateV01(*source, *network)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return writeJSON(out, report, errOut)
+}
+
+func verifyDBCommand(args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("verify-db", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	dataDir := fs.String("data", "./data", "VALDR v0.2 data directory")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintln(errOut, "usage: valdrd verify-db --data PATH")
+		return 2
+	}
+	store, err := storage.NewBadgerStore(*dataDir, config.ChainID, config.GenesisBlockHash)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	defer store.Close()
+	chain, err := blockchain.NewPersistent(store)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	info, err := store.Info()
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	if info.Height != chain.Height() ||
+		chain.Tip() == nil ||
+		info.ActiveTip != chain.Tip().BlockHash ||
+		info.UTXOHash != storage.HashUTXOSet(chain.UTXOSnapshot()) {
+		fmt.Fprintln(errOut, "storage verification mismatch")
+		return 1
+	}
+	return writeJSON(out, map[string]any{
+		"valid":          true,
+		"database":       store.Path(),
+		"schema_version": info.SchemaVersion,
+		"network":        info.Network,
+		"height":         info.Height,
+		"tip_hash":       info.ActiveTip,
+		"utxo_hash":      info.UTXOHash,
+	}, errOut)
+}
+
+func rejectUnmigratedLegacy(dataDir string) error {
+	legacyPath := filepath.Join(dataDir, "blockchain.json")
+	if _, err := os.Stat(legacyPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	entries, err := os.ReadDir(storage.BadgerPath(dataDir))
+	if errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf(
+			"legacy v0.1 blockchain detected at %s; run: valdrd migrate --from-v0.1 %s --network valdr-devnet-1",
+			legacyPath,
+			dataDir,
+		)
+	}
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 {
+		return fmt.Errorf(
+			"legacy v0.1 blockchain detected without initialized v0.2 database; run migration first",
+		)
+	}
+	return nil
 }
 
 func writeJSON(out io.Writer, value any, errOut io.Writer) int {

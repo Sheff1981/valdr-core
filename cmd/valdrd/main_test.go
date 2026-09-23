@@ -13,7 +13,7 @@ func TestVersionCommand(t *testing.T) {
 	if code := run([]string{"version"}, &out, &errOut); code != 0 {
 		t.Fatalf("version exit=%d stderr=%s", code, errOut.String())
 	}
-	if !strings.Contains(out.String(), "VALDR") || !strings.Contains(out.String(), "0.1.0-dev") {
+	if !strings.Contains(out.String(), "VALDR") || !strings.Contains(out.String(), "0.2.0-dev") {
 		t.Fatalf("unexpected version output: %s", out.String())
 	}
 }
@@ -34,5 +34,8 @@ func TestInitCommand(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "valdr-devnet-1") {
 		t.Fatalf("init output missing chain id: %s", out.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "chain-v2")); err != nil {
+		t.Fatalf("v0.2 Badger directory missing: %v", err)
 	}
 }

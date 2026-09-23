@@ -1,0 +1,38 @@
+name: VALDR v0.2 CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ valdr-v0.2 ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-storage:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout VALDR
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Race test
+        run: go test -race ./...
+
+      - name: Storage v2 and migration gate
+        run: go test ./storage ./core/blockchain ./cmd/valdrd
+
+      - name: Three-node runtime smoke
+        run: ./scripts/start-devnet.sh smoke

@@ -34,6 +34,11 @@ type BlockStore interface {
 	Save([]*block.Block) error
 }
 
+type IndexedBlockStore interface {
+	BlockStore
+	SaveBlock(*block.Block, []utxo.UTXO, []utxo.UTXO) error
+}
+
 type Blockchain struct {
 	mu     sync.RWMutex
 	blocks []*block.Block
@@ -264,21 +269,28 @@ func (bc *Blockchain) addBlockLocked(candidate *block.Block) error {
 		return fmt.Errorf("%w: %w", ErrInvalidTransaction, err)
 	}
 
+	utxoAfter := bc.utxos.Snapshot()
 	bc.blocks = append(bc.blocks, candidate)
 	if bc.store != nil {
-		if err := bc.store.Save(bc.blocks); err != nil {
+		var persistErr error
+		if indexed, ok := bc.store.(IndexedBlockStore); ok {
+			persistErr = indexed.SaveBlock(candidate, utxoBefore, utxoAfter)
+		} else {
+			persistErr = bc.store.Save(bc.blocks)
+		}
+		if persistErr != nil {
 			restored, restoreErr := utxo.New(utxoBefore)
 			if restoreErr != nil {
 				return fmt.Errorf(
 					"%w: save=%v rollback=%v",
 					ErrPersistence,
-					err,
+					persistErr,
 					restoreErr,
 				)
 			}
 			bc.utxos = restored
 			bc.blocks = bc.blocks[:len(bc.blocks)-1]
-			return fmt.Errorf("%w: %v", ErrPersistence, err)
+			return fmt.Errorf("%w: %v", ErrPersistence, persistErr)
 		}
 	}
 	return nil
