@@ -187,13 +187,14 @@ func sendCommand(args []string, out, errOut io.Writer) int {
 	from := fs.String("from", "", "wallet name or address")
 	to := fs.String("to", "", "recipient VDR address")
 	amountText := fs.String("amount", "", "amount in VDR")
+	feeText := fs.String("fee", "0", "transaction fee in VDR")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 0 || *from == "" || *to == "" || *amountText == "" {
 		fmt.Fprintln(
 			errOut,
-			"usage: valdr-cli send [--node URL] [--wallet-dir PATH] --from WALLET --to ADDRESS --amount VDR",
+			"usage: valdr-cli send [--node URL] [--wallet-dir PATH] --from WALLET --to ADDRESS --amount VDR [--fee VDR]",
 		)
 		return 2
 	}
@@ -201,6 +202,12 @@ func sendCommand(args []string, out, errOut io.Writer) int {
 	amount, err := parseVDR(*amountText)
 	if err != nil || amount == 0 {
 		fmt.Fprintln(errOut, "invalid VDR amount")
+		return 2
+	}
+
+	fee, err := parseVDR(*feeText)
+	if err != nil {
+		fmt.Fprintln(errOut, "invalid VDR fee")
 		return 2
 	}
 
@@ -225,10 +232,11 @@ func sendCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
-	tx, err := source.CreateTransaction(
+	tx, err := source.CreateTransactionWithFee(
 		available,
 		*to,
 		amount,
+		fee,
 		time.Now().UTC().Unix(),
 	)
 	if err != nil {
