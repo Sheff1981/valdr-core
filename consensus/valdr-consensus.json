@@ -1,0 +1,46 @@
+{
+  "project": "VALDR",
+  "ticker": "VLD",
+  "version": "0.5.0-public-testnet",
+  "base": {
+    "project": "Bitcoin Core",
+    "version": "31.1",
+    "git_tag": "v31.1",
+    "git_commit": "9be056a8a72b624dae9623b2f7bded92c2a21c91",
+    "git_tree": "109dc8b3413dae47f00add3e30e50cde454c6f8c"
+  },
+  "money": {
+    "decimals": 8,
+    "coin_atoms": 100000000,
+    "initial_subsidy_vld": 50,
+    "halving_interval": 210000,
+    "max_money_vld": 21000000,
+    "premine_vld": 0
+  },
+  "pow": {
+    "algorithm": "SHA-256d",
+    "target_spacing_seconds": 600,
+    "daa": "ASERTI3-2d candidate",
+    "asert_half_life_seconds": 172800,
+    "mainnet_frozen": false
+  },
+  "testnet": {
+    "magic": "8ea4256a",
+    "p2p_port": 37333,
+    "rpc_port": 37332,
+    "bech32_hrp": "tvld",
+    "p2pkh_version": 65,
+    "p2sh_version": 127,
+    "wif_version": 193,
+    "pow_limit": "00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "genesis_time": 1790125200,
+    "genesis_bits": "1e0fffff",
+    "genesis_nonce": 147425,
+    "genesis_merkle": "c7742c1db54c04b717e2e48b4c68e50a156dd98e59d685f97a6b06dfd4fd819a",
+    "genesis_hash": "00000cae1bd0c4bf8439e00052222799079075f09b3d53647a2fc43ac22aa97c"
+  },
+  "mainnet": {
+    "status": "NOT FROZEN",
+    "genesis": null
+  }
+}
