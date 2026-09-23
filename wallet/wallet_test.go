@@ -4,8 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
+	"github.com/Sheff1981/valdr-core/core/utxo"
 	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 )
 
@@ -61,5 +63,44 @@ func TestWalletStoreCreateListExportAndSign(t *testing.T) {
 	}
 	if !valdrcrypto.Verify(pub, message, sig) {
 		t.Fatal("wallet signature did not verify")
+	}
+}
+
+func TestCreateTransactionWithFeeReducesChange(t *testing.T) {
+	sender, err := New("sender")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipient, err := New("recipient")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := sender.CreateTransactionWithFee(
+		[]utxo.UTXO{{
+			TransactionID: strings.Repeat("11", 32),
+			OutputIndex:   0,
+			Amount:        100,
+			Recipient:     sender.Address,
+		}},
+		recipient.Address,
+		60,
+		10,
+		1790121960,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tx.Outputs) != 2 {
+		t.Fatalf("output count = %d, want 2", len(tx.Outputs))
+	}
+	if tx.Outputs[0].Amount != 60 || tx.Outputs[0].Recipient != recipient.Address {
+		t.Fatalf("recipient output = %+v", tx.Outputs[0])
+	}
+	if tx.Outputs[1].Amount != 30 || tx.Outputs[1].Recipient != sender.Address {
+		t.Fatalf("change output = %+v, want 30 back to sender", tx.Outputs[1])
+	}
+	if err := tx.Validate(); err != nil {
+		t.Fatalf("signed fee transaction invalid: %v", err)
 	}
 }
