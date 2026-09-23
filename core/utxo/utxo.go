@@ -123,23 +123,29 @@ func (s *Set) List(address string) ([]UTXO, error) {
 }
 
 // ApplyTransaction atomically spends referenced UTXOs and creates normal
-// transaction outputs. Coinbase is rejected here and only accepted in
-// ApplyBlockTransactions with block context.
+// transaction outputs. Any positive input/output difference is an implicit fee.
 func (s *Set) ApplyTransaction(tx *transaction.Transaction) error {
+	_, err := s.ApplyTransactionWithFee(tx)
+	return err
+}
+
+// ApplyTransactionWithFee applies a normal transaction and returns its implicit
+// fee in val. Coinbase is rejected here and only accepted with block context.
+func (s *Set) ApplyTransactionWithFee(tx *transaction.Transaction) (uint64, error) {
 	if s == nil {
-		return ErrInvalidUTXO
+		return 0, ErrInvalidUTXO
 	}
 	if err := tx.Validate(); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
+		return 0, fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
 	}
 
 	publicKey, err := valdrcrypto.DecodePublicKey(tx.PublicKey)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
+		return 0, fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
 	}
 	owner, err := valdrcrypto.AddressFromPublicKey(publicKey)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
+		return 0, fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
 	}
 
 	spentKeys := make([]string, 0, len(tx.Inputs))
@@ -148,13 +154,13 @@ func (s *Set) ApplyTransaction(tx *transaction.Transaction) error {
 		key := outpointKey(input.PreviousTransactionID, input.OutputIndex)
 		item, exists := s.entries[key]
 		if !exists {
-			return fmt.Errorf("%w: %s", ErrUTXONotFound, key)
+			return 0, fmt.Errorf("%w: %s", ErrUTXONotFound, key)
 		}
 		if item.Recipient != owner {
-			return fmt.Errorf("%w: %s", ErrNotOwner, key)
+			return 0, fmt.Errorf("%w: %s", ErrNotOwner, key)
 		}
 		if math.MaxUint64-inputTotal < item.Amount {
-			return ErrBalanceOverflow
+			return 0, ErrBalanceOverflow
 		}
 		inputTotal += item.Amount
 		spentKeys = append(spentKeys, key)
@@ -164,7 +170,7 @@ func (s *Set) ApplyTransaction(tx *transaction.Transaction) error {
 	created := make([]UTXO, len(tx.Outputs))
 	for i, output := range tx.Outputs {
 		if math.MaxUint64-outputTotal < output.Amount {
-			return ErrBalanceOverflow
+			return 0, ErrBalanceOverflow
 		}
 		outputTotal += output.Amount
 
@@ -176,27 +182,20 @@ func (s *Set) ApplyTransaction(tx *transaction.Transaction) error {
 		}
 		key := outpointKey(item.TransactionID, item.OutputIndex)
 		if _, exists := s.entries[key]; exists {
-			return fmt.Errorf("%w: %s", ErrUTXOAlreadyExists, key)
+			return 0, fmt.Errorf("%w: %s", ErrUTXOAlreadyExists, key)
 		}
 		created[i] = item
 	}
 
 	if inputTotal < outputTotal {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"%w: inputs=%d outputs=%d",
 			ErrInsufficientFunds,
 			inputTotal,
 			outputTotal,
 		)
 	}
-	if inputTotal != outputTotal {
-		return fmt.Errorf(
-			"%w: inputs=%d outputs=%d",
-			ErrValueMismatch,
-			inputTotal,
-			outputTotal,
-		)
-	}
+	fee := inputTotal - outputTotal
 
 	for _, key := range spentKeys {
 		delete(s.entries, key)
@@ -204,27 +203,42 @@ func (s *Set) ApplyTransaction(tx *transaction.Transaction) error {
 	for _, item := range created {
 		s.entries[outpointKey(item.TransactionID, item.OutputIndex)] = item
 	}
-	return nil
+	return fee, nil
 }
 
 // ApplyTransactions applies a batch of normal transactions atomically.
 func (s *Set) ApplyTransactions(transactions []*transaction.Transaction) error {
+	_, err := s.ApplyTransactionsWithFees(transactions)
+	return err
+}
+
+// ApplyTransactionsWithFees applies a batch atomically and returns the total
+// implicit fee. Transactions are evaluated sequentially against the working
+// UTXO view.
+func (s *Set) ApplyTransactionsWithFees(transactions []*transaction.Transaction) (uint64, error) {
 	if s == nil {
-		return ErrInvalidUTXO
+		return 0, ErrInvalidUTXO
 	}
 	working := s.clone()
+	var totalFees uint64
 	for i, tx := range transactions {
-		if err := working.ApplyTransaction(tx); err != nil {
-			return fmt.Errorf("transaction %d: %w", i, err)
+		fee, err := working.ApplyTransactionWithFee(tx)
+		if err != nil {
+			return 0, fmt.Errorf("transaction %d: %w", i, err)
 		}
+		if math.MaxUint64-totalFees < fee {
+			return 0, ErrBalanceOverflow
+		}
+		totalFees += fee
 	}
 	s.entries = working.entries
-	return nil
+	return totalFees, nil
 }
 
 // ApplyBlockTransactions validates exactly one coinbase at index zero,
-// applies all normal transactions atomically, then creates the subsidy UTXO.
-// Applying coinbase last prevents spending the new subsidy in the same block.
+// applies normal transactions atomically, sums their implicit fees, then
+// creates the coinbase UTXO. The coinbase claim may be below, but never above,
+// subsidy + total block fees. Applying coinbase last prevents same-block spend.
 func (s *Set) ApplyBlockTransactions(
 	blockHeight uint64,
 	transactions []*transaction.Transaction,
@@ -238,18 +252,28 @@ func (s *Set) ApplyBlockTransactions(
 	}
 
 	coinbase := transactions[0]
-	if err := coinbase.ValidateCoinbase(blockHeight, expectedReward); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidCoinbase, err)
-	}
-
 	working := s.clone()
+	var totalFees uint64
 	for i, tx := range transactions[1:] {
 		if tx != nil && tx.HasCoinbaseMarker() {
 			return fmt.Errorf("%w at transaction %d", ErrUnexpectedCoinbase, i+1)
 		}
-		if err := working.ApplyTransaction(tx); err != nil {
+		fee, err := working.ApplyTransactionWithFee(tx)
+		if err != nil {
 			return fmt.Errorf("transaction %d: %w", i+1, err)
 		}
+		if math.MaxUint64-totalFees < fee {
+			return ErrBalanceOverflow
+		}
+		totalFees += fee
+	}
+
+	if math.MaxUint64-expectedReward < totalFees {
+		return ErrBalanceOverflow
+	}
+	maxClaim := expectedReward + totalFees
+	if err := coinbase.ValidateCoinbase(blockHeight, maxClaim); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidCoinbase, err)
 	}
 
 	output := coinbase.Outputs[0]
