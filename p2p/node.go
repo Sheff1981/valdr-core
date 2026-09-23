@@ -39,6 +39,8 @@ type NodeConfig struct {
 	ListenAddress    string
 	ChainID          string
 	ProtocolVersion  uint32
+	NetworkProfile   *valdrconfig.NetworkProfile
+	EnableV2         bool
 	HeightProvider   HeightProvider
 	Blockchain       *blockchain.Blockchain
 	Mempool          *mempool.Pool
@@ -68,6 +70,8 @@ type Node struct {
 	listenAddress    string
 	chainID          string
 	protocolVersion  uint32
+	networkProfile   valdrconfig.NetworkProfile
+	enableV2         bool
 	heightProvider   HeightProvider
 	blockchain       *blockchain.Blockchain
 	mempool          *mempool.Pool
@@ -100,6 +104,16 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 		protocolVersion = valdrconfig.P2PProtocolVersion
 	}
 
+	var networkProfile valdrconfig.NetworkProfile
+	if cfg.EnableV2 {
+		if cfg.NetworkProfile == nil {
+			return nil, fmt.Errorf("%w: v2 network profile is required", ErrInvalidConfig)
+		}
+		networkProfile = *cfg.NetworkProfile
+		chainID = networkProfile.ChainID
+		protocolVersion = uint32(networkProfile.ProtocolMax)
+	}
+
 	heightProvider := cfg.HeightProvider
 	if heightProvider == nil && cfg.Blockchain != nil {
 		heightProvider = cfg.Blockchain.Height
@@ -123,6 +137,8 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 		listenAddress:    cfg.ListenAddress,
 		chainID:          chainID,
 		protocolVersion:  protocolVersion,
+		networkProfile:   networkProfile,
+		enableV2:         cfg.EnableV2,
 		heightProvider:   heightProvider,
 		blockchain:       cfg.Blockchain,
 		mempool:          pool,
@@ -386,6 +402,20 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 	defer n.dropPeer(peerID, pc)
 
 	for {
+		if n.enableV2 {
+			frame, err := ReadV2Frame(pc.conn, n.networkProfile)
+			if err != nil {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+					return
+				}
+				return
+			}
+			if err := n.handleV2Frame(peerID, frame); err != nil {
+				return
+			}
+			continue
+		}
+
 		payload, err := readFramePayload(pc.conn)
 		if err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
@@ -588,6 +618,11 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 }
 
 func (n *Node) afterPeerConnected(peerID string, peerHeight uint64) {
+	if n.enableV2 {
+		_ = n.sendV2To(peerID, V2MessageGetPeers, struct{}{})
+		return
+	}
+
 	_ = n.sendTo(peerID, getPeersMessage{Type: messageTypeGetPeers})
 
 	if n.blockchain != nil && peerHeight > n.blockchain.Height() {
@@ -650,6 +685,10 @@ func (n *Node) sendTo(peerID string, value any) error {
 }
 
 func (n *Node) exchangeHello(conn net.Conn, inbound bool) (Peer, error) {
+	if n.enableV2 {
+		return n.exchangeHelloV2(conn, inbound)
+	}
+
 	if err := conn.SetDeadline(time.Now().Add(n.handshakeTimeout)); err != nil {
 		return Peer{}, err
 	}
@@ -684,6 +723,182 @@ func (n *Node) exchangeHello(conn net.Conn, inbound bool) (Peer, error) {
 		ProtocolVersion: remote.ProtocolVersion,
 		Inbound:         inbound,
 	}, nil
+}
+
+func (n *Node) exchangeHelloV2(conn net.Conn, inbound bool) (Peer, error) {
+	if err := conn.SetDeadline(time.Now().Add(n.handshakeTimeout)); err != nil {
+		return Peer{}, err
+	}
+	defer func() {
+		_ = conn.SetDeadline(time.Time{})
+	}()
+
+	tipHash := ""
+	if n.blockchain != nil && n.blockchain.Tip() != nil {
+		tipHash = n.blockchain.Tip().BlockHash
+	}
+
+	local := V2Hello{
+		ChainID:             n.networkProfile.ChainID,
+		ProtocolMin:         n.networkProfile.ProtocolMin,
+		ProtocolMax:         n.networkProfile.ProtocolMax,
+		NodeID:              n.nodeID,
+		Services:            []string{"network"},
+		ListenAddress:       n.Address(),
+		Height:              n.heightProvider(),
+		TipHash:             tipHash,
+		CumulativeChainwork: "0",
+		UserAgent:           "/" + valdrconfig.ProjectName + ":" + valdrconfig.Version + "/",
+		Timestamp:           time.Now().UTC().Unix(),
+		Nonce:               uint64(time.Now().UnixNano()),
+	}
+	if err := WriteV2Frame(
+		conn,
+		n.networkProfile,
+		n.networkProfile.ProtocolMax,
+		V2MessageHello,
+		local,
+	); err != nil {
+		return Peer{}, err
+	}
+
+	frame, err := ReadV2Frame(conn, n.networkProfile)
+	if err != nil {
+		return Peer{}, err
+	}
+	if frame.MessageType != V2MessageHello {
+		return Peer{}, fmt.Errorf("%w: expected hello", ErrInvalidHello)
+	}
+	var remote V2Hello
+	if err := DecodeV2Payload(frame, &remote); err != nil {
+		return Peer{}, err
+	}
+	selected, err := NegotiateV2Hello(
+		n.networkProfile,
+		n.networkProfile.ProtocolMin,
+		n.networkProfile.ProtocolMax,
+		remote,
+	)
+	if err != nil {
+		return Peer{}, err
+	}
+	if remote.NodeID == n.nodeID {
+		return Peer{}, ErrSelfConnection
+	}
+
+	if err := WriteV2Frame(
+		conn,
+		n.networkProfile,
+		selected,
+		V2MessageHelloAck,
+		V2HelloAck{ProtocolVersion: selected},
+	); err != nil {
+		return Peer{}, err
+	}
+
+	ackFrame, err := ReadV2Frame(conn, n.networkProfile)
+	if err != nil {
+		return Peer{}, err
+	}
+	if ackFrame.MessageType != V2MessageHelloAck {
+		return Peer{}, fmt.Errorf("%w: expected hello_ack", ErrInvalidHello)
+	}
+	var ack V2HelloAck
+	if err := DecodeV2Payload(ackFrame, &ack); err != nil {
+		return Peer{}, err
+	}
+	if ack.ProtocolVersion != selected {
+		return Peer{}, ErrV2UnsupportedVersion
+	}
+
+	return Peer{
+		NodeID:          remote.NodeID,
+		Address:         remote.ListenAddress,
+		Height:          remote.Height,
+		ProtocolVersion: uint32(selected),
+		Inbound:         inbound,
+	}, nil
+}
+
+func (n *Node) handleV2Frame(peerID string, frame V2Frame) error {
+	switch frame.MessageType {
+	case V2MessagePing:
+		var ping struct {
+			Nonce uint64 `json:"nonce"`
+		}
+		if err := DecodeV2Payload(frame, &ping); err != nil {
+			return err
+		}
+		return n.sendV2To(peerID, V2MessagePong, ping)
+
+	case V2MessagePong:
+		var pong struct {
+			Nonce uint64 `json:"nonce"`
+		}
+		return DecodeV2Payload(frame, &pong)
+
+	case V2MessageGetPeers:
+		var request struct{}
+		if err := DecodeV2Payload(frame, &request); err != nil {
+			return err
+		}
+		return n.handleGetPeersV2(peerID)
+
+	case V2MessagePeers:
+		var message struct {
+			Peers []peerAdvertisement `json:"peers"`
+		}
+		if err := DecodeV2Payload(frame, &message); err != nil {
+			return err
+		}
+		return n.handlePeers(message.Peers)
+
+	default:
+		return fmt.Errorf(
+			"%w: v2 message type %d is reserved for a later v0.2 stage",
+			ErrUnknownMessage,
+			frame.MessageType,
+		)
+	}
+}
+
+func (n *Node) handleGetPeersV2(peerID string) error {
+	n.mu.RLock()
+	advertisements := make([]peerAdvertisement, 0, len(n.peers)+1)
+	advertisements = append(advertisements, peerAdvertisement{
+		NodeID:  n.nodeID,
+		Address: n.listenerAddressLocked(),
+	})
+	for _, peer := range n.peers {
+		advertisements = append(advertisements, peerAdvertisement{
+			NodeID:  peer.NodeID,
+			Address: peer.Address,
+		})
+	}
+	n.mu.RUnlock()
+
+	return n.sendV2To(peerID, V2MessagePeers, struct {
+		Peers []peerAdvertisement `json:"peers"`
+	}{Peers: advertisements})
+}
+
+func (n *Node) sendV2To(peerID string, messageType V2MessageType, value any) error {
+	n.mu.RLock()
+	pc, exists := n.conns[peerID]
+	n.mu.RUnlock()
+	if !exists {
+		return fmt.Errorf("peer %q not connected", peerID)
+	}
+
+	pc.writeMu.Lock()
+	defer pc.writeMu.Unlock()
+	return WriteV2Frame(
+		pc.conn,
+		n.networkProfile,
+		uint16(n.peers[peerID].ProtocolVersion),
+		messageType,
+		value,
+	)
 }
 
 func (n *Node) validateHello(remote helloMessage) error {
