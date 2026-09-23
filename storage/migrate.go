@@ -28,7 +28,7 @@ func MigrateV01(sourceDataDir, network string) (MigrationReport, error) {
 	if sourceDataDir == "" {
 		return MigrationReport{}, ErrInvalidStorePath
 	}
-	if network != config.ChainID || network != "valdr-devnet-1" {
+	if network != "valdr-devnet-1" {
 		return MigrationReport{}, fmt.Errorf("%w: %q", ErrUnsupportedMigrationNetwork, network)
 	}
 

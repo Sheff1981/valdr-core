@@ -21,16 +21,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: false
-
-      - name: Resolve module lock
-        run: |
-          go mod tidy
-          printf 'VALDR_GO_MOD_B64='
-          base64 -w0 go.mod
-          printf '\nVALDR_GO_SUM_B64='
-          base64 -w0 go.sum
-          printf '\n'
 
       - name: Build
         run: go build ./...
