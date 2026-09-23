@@ -292,27 +292,31 @@ show_status() {
   return "$failed"
 }
 
+SMOKE_DIR=""
+
+cleanup_smoke() {
+  if [[ -z "$SMOKE_DIR" ]]; then
+    return 0
+  fi
+
+  DEVNET_DIR="$SMOKE_DIR"
+  BIN_DIR="$DEVNET_DIR/bin"
+  RUN_DIR="$DEVNET_DIR/run"
+  LOG_DIR="$DEVNET_DIR/logs"
+  DATA_DIR="$DEVNET_DIR/data"
+  VALDRD="$BIN_DIR/valdrd"
+  VALDR_CLI="$BIN_DIR/valdr-cli"
+
+  stop_devnet || true
+  rm -rf "$SMOKE_DIR"
+  SMOKE_DIR=""
+}
+
 smoke_test() {
-  local original_dir="$DEVNET_DIR"
-  local smoke_dir
-  smoke_dir="$(mktemp -d "${TMPDIR:-/tmp}/valdr-devnet-smoke.XXXXXX")"
-
-  export VALDR_DEVNET_DIR="$smoke_dir"
-
-  cleanup_smoke() {
-    DEVNET_DIR="$smoke_dir"
-    BIN_DIR="$DEVNET_DIR/bin"
-    RUN_DIR="$DEVNET_DIR/run"
-    LOG_DIR="$DEVNET_DIR/logs"
-    DATA_DIR="$DEVNET_DIR/data"
-    VALDRD="$BIN_DIR/valdrd"
-    VALDR_CLI="$BIN_DIR/valdr-cli"
-    stop_devnet || true
-    rm -rf "$smoke_dir"
-  }
+  SMOKE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/valdr-devnet-smoke.XXXXXX")"
   trap cleanup_smoke EXIT INT TERM
 
-  DEVNET_DIR="$smoke_dir"
+  DEVNET_DIR="$SMOKE_DIR"
   BIN_DIR="$DEVNET_DIR/bin"
   RUN_DIR="$DEVNET_DIR/run"
   LOG_DIR="$DEVNET_DIR/logs"
@@ -326,7 +330,8 @@ smoke_test() {
   verify_topology
   log "smoke test passed"
 
-  DEVNET_DIR="$original_dir"
+  cleanup_smoke
+  trap - EXIT INT TERM
 }
 
 case "$MODE" in
