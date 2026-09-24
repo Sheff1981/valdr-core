@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +13,7 @@ import (
 	desktopcore "github.com/Sheff1981/valdr-core/desktop"
 	"github.com/Sheff1981/valdr-core/rpc"
 	"github.com/Sheff1981/valdr-core/wallet"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type DesktopState struct {
@@ -189,6 +192,58 @@ func (a *App) SendTransaction(
 		strings.TrimSpace(recipient),
 		amount,
 	)
+}
+
+func (a *App) BackupWallet(selector string) (string, error) {
+	if a.ctx == nil {
+		return "", errors.New("VALDR Desktop is not started")
+	}
+	selector = strings.TrimSpace(selector)
+	if selector == "" {
+		return "", wallet.ErrWalletNotFound
+	}
+	path, err := wailsruntime.SaveFileDialog(
+		a.ctx,
+		wailsruntime.SaveDialogOptions{
+			Title:           "Back up encrypted VALDR wallet",
+			DefaultFilename: "VALDR-" + selector + ".valdr-wallet",
+			Filters: []wailsruntime.FileFilter{{
+				DisplayName: "VALDR encrypted wallet (*.valdr-wallet)",
+				Pattern:     "*.valdr-wallet",
+			}},
+		},
+	)
+	if err != nil || path == "" {
+		return path, err
+	}
+	if filepath.Ext(path) == "" {
+		path += ".valdr-wallet"
+	}
+	if err := wallet.NewStore(a.paths.Wallets).
+		BackupEncrypted(selector, path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func (a *App) RestoreWallet() (wallet.Metadata, error) {
+	if a.ctx == nil {
+		return wallet.Metadata{}, errors.New("VALDR Desktop is not started")
+	}
+	path, err := wailsruntime.OpenFileDialog(
+		a.ctx,
+		wailsruntime.OpenDialogOptions{
+			Title: "Restore encrypted VALDR wallet",
+			Filters: []wailsruntime.FileFilter{{
+				DisplayName: "VALDR encrypted wallet",
+				Pattern:     "*.valdr-wallet;*.json",
+			}},
+		},
+	)
+	if err != nil || path == "" {
+		return wallet.Metadata{}, err
+	}
+	return wallet.NewStore(a.paths.Wallets).ImportEncrypted(path)
 }
 
 func (a *App) StartNode() error {
