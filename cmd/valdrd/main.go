@@ -164,6 +164,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	p2pHost := fs.String("p2p-host", "127.0.0.1", "P2P listen host")
 	advertiseAddress := fs.String("advertise-address", "", "P2P address advertised to peers; empty uses listen address")
 	outboundOnly := fs.Bool("outbound-only", false, "disable inbound P2P listener; intended for Desktop clients")
+	managedStdinShutdown := fs.Bool("managed-stdin-shutdown", false, "stop gracefully when managed stdin closes")
 	p2pPort := fs.Uint("p2p-port", 0, "P2P listen port; 0 uses network default")
 	rpcHost := fs.String("rpc-host", "127.0.0.1", "RPC listen host")
 	rpcPort := fs.Uint("rpc-port", 0, "RPC listen port; 0 uses network default")
@@ -316,9 +317,21 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(signals)
 
+	var managedStop <-chan struct{}
+	if *managedStdinShutdown {
+		ch := make(chan struct{})
+		managedStop = ch
+		go func() {
+			_, _ = io.Copy(io.Discard, os.Stdin)
+			close(ch)
+		}()
+	}
+
 	select {
 	case sig := <-signals:
 		fmt.Fprintf(errOut, "stopping on signal %s\n", sig)
+	case <-managedStop:
+		fmt.Fprintln(errOut, "stopping on managed stdin close")
 	case err := <-serverErr:
 		if err != nil {
 			fmt.Fprintln(errOut, err)
