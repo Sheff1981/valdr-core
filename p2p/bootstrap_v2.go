@@ -118,18 +118,27 @@ func (n *Node) BootstrapAndMaintain(ctx context.Context, overrides []string) Boo
 		return BootstrapResult{}
 	}
 	result := n.Bootstrap(ctx, overrides)
-	// Give peer advertisements a brief chance to arrive without making
-	// bootstrap correctness depend on them.
-	timer := time.NewTimer(25 * time.Millisecond)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return result
-	case <-timer.C:
+
+	// Discovery can expand after each new outbound peer. Keep the bootstrap
+	// work bounded while allowing several waves toward the outbound target.
+	for round := 0; round < 4 && n.outboundCount() < n.protection.OutboundTarget; round++ {
+		timer := time.NewTimer(25 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return result
+		case <-timer.C:
+		}
+
+		next := n.MaintainOutbound(ctx)
+		result.Attempted += next.Attempted
+		result.Connected += next.Connected
+		result.Failures = append(result.Failures, next.Failures...)
+		if next.Attempted == 0 {
+			break
+		}
 	}
-	next := n.MaintainOutbound(ctx)
-	result.Attempted += next.Attempted
-	result.Connected += next.Connected
-	result.Failures = append(result.Failures, next.Failures...)
 	return result
 }
