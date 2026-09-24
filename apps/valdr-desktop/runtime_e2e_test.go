@@ -275,6 +275,9 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 		t.Fatal("restored Desktop wallet is not unlocked")
 	}
 
+	if err := app.StopNode(); err != nil {
+		t.Fatal(err)
+	}
 	assertRuntimeSecretsAbsent(
 		t,
 		root,
