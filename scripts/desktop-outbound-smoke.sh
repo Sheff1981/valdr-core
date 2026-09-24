@@ -18,7 +18,6 @@ cd "$root"
 go build -o "$tmp/valdrd" ./cmd/valdrd
 
 mkfifo "$tmp/managed.stdin"
-exec 3<>"$tmp/managed.stdin"
 
 "$tmp/valdrd" start \
   --network testnet \
@@ -29,8 +28,12 @@ exec 3<>"$tmp/managed.stdin"
   --p2p-port 29333 \
   --rpc-host 127.0.0.1 \
   --rpc-port 29332 \
-  <&3 >"$tmp/node.out" 2>"$tmp/node.err" &
+  <"$tmp/managed.stdin" >"$tmp/node.out" 2>"$tmp/node.err" &
 node_pid=$!
+
+# Keep exactly one writer in the parent. Closing fd 3 below must be the
+# event that produces EOF for valdrd; the child must not inherit a writer.
+exec 3>"$tmp/managed.stdin"
 
 for _ in $(seq 1 40); do
   if "$tmp/valdrd" status --node http://127.0.0.1:29332 >"$tmp/status.json" 2>/dev/null; then
@@ -60,7 +63,6 @@ assert result != 0, "outbound-only Desktop node unexpectedly opened inbound P2P 
 PY
 
 exec 3>&-
-exec 3<&-
 wait "$node_pid"
 node_pid=""
 
