@@ -114,6 +114,9 @@ func (n *Node) MaintainOutbound(ctx context.Context) BootstrapResult {
 }
 
 func (n *Node) BootstrapAndMaintain(ctx context.Context, overrides []string) BootstrapResult {
+	if len(n.seedCandidates(overrides)) == 0 {
+		return BootstrapResult{}
+	}
 	result := n.Bootstrap(ctx, overrides)
 	// Give peer advertisements a brief chance to arrive without making
 	// bootstrap correctness depend on them.
