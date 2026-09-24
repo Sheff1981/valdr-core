@@ -41,6 +41,17 @@ func TestV2ExplicitAdvertiseAddressIsUsedInHandshake(t *testing.T) {
 	waitForPeerCount(t, nodeA, 1)
 	waitForPeerCount(t, nodeB, 1)
 
+	// Both peers immediately exchange get_peers/peers after the handshake.
+	// The connection must survive that first public-discovery exchange.
+	time.Sleep(200 * time.Millisecond)
+	if nodeA.PeerCount() != 1 || nodeB.PeerCount() != 1 {
+		t.Fatalf(
+			"public v2 peers disconnected after discovery exchange: A=%d B=%d",
+			nodeA.PeerCount(),
+			nodeB.PeerCount(),
+		)
+	}
+
 	peersA := nodeA.Peers()
 	peersB := nodeB.Peers()
 	if len(peersA) != 1 || peersA[0].Address != "node-b.example:17333" {
