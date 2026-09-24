@@ -69,6 +69,8 @@ type AppAPI = {
     recipient: string,
     amountVDR: string,
   ): Promise<SendResult>;
+  BackupWallet(selector: string): Promise<string>;
+  RestoreWallet(): Promise<WalletMetadata>;
   StartNode(): Promise<void>;
   StopNode(): Promise<void>;
 };
@@ -279,8 +281,18 @@ root.innerHTML = `
           </article>
 
           <article class="card">
-            <h3>Wallets on this device</h3>
+            <div class="section-head">
+              <div>
+                <h3>Wallets on this device</h3>
+                <p class="subtle">Backups stay encrypted. Restoring never imports a plaintext legacy wallet.</p>
+              </div>
+              <div class="actions">
+                <button class="secondary" id="backup-wallet">Back up selected</button>
+                <button class="secondary" id="restore-wallet">Restore backup</button>
+              </div>
+            </div>
             <div id="wallet-list" class="wallet-list"></div>
+            <p id="wallet-action-status" class="subtle"></p>
           </article>
         </div>
       </section>
@@ -576,6 +588,45 @@ document.getElementById("create-wallet-form")?.addEventListener("submit", async 
     await refresh();
   } catch (error) {
     showError(error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.getElementById("backup-wallet")?.addEventListener("click", async () => {
+  const wallet = activeWallet();
+  if (!wallet) {
+    text("wallet-action-status", "Select a wallet first.");
+    return;
+  }
+  try {
+    const path = await api().BackupWallet(wallet.address);
+    text(
+      "wallet-action-status",
+      path ? "Encrypted backup saved." : "Backup cancelled.",
+    );
+  } catch (error) {
+    text(
+      "wallet-action-status",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+});
+
+document.getElementById("restore-wallet")?.addEventListener("click", async () => {
+  try {
+    const restored = await api().RestoreWallet();
+    if (!restored.address) {
+      text("wallet-action-status", "Restore cancelled.");
+      return;
+    }
+    activeWalletAddress = restored.address;
+    activeWalletName = restored.name || "VALDR Wallet";
+    text("wallet-action-status", "Encrypted wallet restored.");
+    await refresh();
+  } catch (error) {
+    text(
+      "wallet-action-status",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 });
 
