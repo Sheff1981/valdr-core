@@ -602,3 +602,24 @@ button:disabled {
   user-select: text;
   word-break: break-all;
 }
+
+
+.latest-transaction {
+  margin-top: 12px;
+}
+
+.latest-transaction .section-head {
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.latest-transaction span {
+  display: block;
+  margin-bottom: 6px;
+  color: #768696;
+  font-size: 12px;
+}
+
+.latest-transaction strong {
+  color: #d5e0e8;
+}

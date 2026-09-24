@@ -245,6 +245,17 @@ root.innerHTML = `
           </div>
         </article>
 
+        <article class="card latest-transaction">
+          <div class="section-head">
+            <div>
+              <span>Latest transaction</span>
+              <strong id="overview-latest-direction">No transactions yet</strong>
+            </div>
+            <strong id="overview-latest-amount">—</strong>
+          </div>
+          <div id="overview-latest-meta" class="subtle">Select a wallet to view its latest activity.</div>
+        </article>
+
         <div id="global-error" class="error-box hidden" role="alert"></div>
       </section>
 
@@ -682,6 +693,9 @@ const refreshWalletPresentation = async (): Promise<void> => {
   } catch {
     text("overview-balance", "—");
   }
+  if (currentView === "overview") {
+    void refreshOverviewLatestTransaction();
+  }
 };
 
 const renderHistory = (items: TransactionHistoryItem[]): void => {
@@ -748,6 +762,49 @@ const renderHistory = (items: TransactionHistoryItem[]): void => {
 
     card.append(head, meta);
     list.append(card);
+  }
+};
+
+const refreshOverviewLatestTransaction = async (): Promise<void> => {
+  const wallet = activeWallet();
+  if (!wallet || !currentState?.node_status) {
+    text("overview-latest-direction", "No transactions yet");
+    text("overview-latest-amount", "—");
+    text(
+      "overview-latest-meta",
+      wallet ? "Waiting for local node status." : "Select a wallet to view its latest activity.",
+    );
+    return;
+  }
+
+  try {
+    const items = await api().GetTransactionHistory(wallet.address);
+    if (activeWalletAddress !== wallet.address) return;
+    const item = items[0];
+    if (!item) {
+      text("overview-latest-direction", "No transactions yet");
+      text("overview-latest-amount", "—");
+      text("overview-latest-meta", "No wallet activity found.");
+      return;
+    }
+
+    const direction =
+      item.direction === "received"
+        ? "Received"
+        : item.direction === "sent"
+          ? "Sent"
+          : "Self transfer";
+    const prefix = item.direction === "received" ? "+" : item.direction === "sent" ? "−" : "";
+    text("overview-latest-direction", direction);
+    text("overview-latest-amount", `${prefix}${item.amount_vdr} VDR`);
+    text(
+      "overview-latest-meta",
+      `${item.status} · ${new Date(item.timestamp * 1000).toLocaleString()} · ${item.transaction_id.slice(0, 16)}…`,
+    );
+  } catch {
+    text("overview-latest-direction", "Unavailable");
+    text("overview-latest-amount", "—");
+    text("overview-latest-meta", "Latest transaction could not be loaded.");
   }
 };
 
@@ -859,6 +916,8 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item[data-view]").forEach((bu
     text("view-title", button.textContent?.trim() || "VALDR");
     if (view === "transactions") {
       void refreshTransactionHistory();
+    } else if (view === "overview") {
+      void refreshOverviewLatestTransaction();
     }
   });
 });
