@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Sheff1981/valdr-core/core/transaction"
@@ -27,11 +28,14 @@ type Metadata struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+const maxP256DERSignatureHexLength = 144
+
 var (
-	ErrWalletIntegrity    = errors.New("wallet integrity check failed")
-	ErrInvalidAmount      = errors.New("invalid transaction amount")
-	ErrInsufficientFunds  = errors.New("wallet has insufficient funds")
+	ErrWalletIntegrity     = errors.New("wallet integrity check failed")
+	ErrInvalidAmount       = errors.New("invalid transaction amount")
+	ErrInsufficientFunds   = errors.New("wallet has insufficient funds")
 	ErrWalletValueOverflow = errors.New("wallet UTXO value overflow")
+	ErrWalletFeeOverflow   = errors.New("wallet transaction fee overflow")
 )
 
 func New(name string) (*Wallet, error) {
@@ -100,22 +104,49 @@ func (w *Wallet) Sign(message []byte) ([]byte, error) {
 	return valdrcrypto.Sign(key, message)
 }
 
-// CreateTransaction selects this wallet's UTXOs, creates change when needed,
-// and signs a normal zero-fee v0.1 transaction.
+// CreateTransaction preserves the legacy zero-fee wallet API. Testnet and
+// other policy-aware callers must use CreateTransactionWithFeeRate.
 func (w *Wallet) CreateTransaction(
 	available []utxo.UTXO,
 	recipient string,
 	amount uint64,
 	timestamp int64,
 ) (*transaction.Transaction, error) {
+	tx, _, err := w.CreateTransactionWithFeeRate(
+		available,
+		recipient,
+		amount,
+		0,
+		timestamp,
+	)
+	return tx, err
+}
+
+// CreateTransactionWithFeeRate deterministically selects this wallet's UTXOs
+// and reserves at least minFeePerByte * canonical serialized bytes as the
+// implicit fee. The estimate reserves the maximum P-256 DER signature length,
+// so the final signed transaction cannot fall below the requested fee rate
+// merely because the DER signature length varies.
+func (w *Wallet) CreateTransactionWithFeeRate(
+	available []utxo.UTXO,
+	recipient string,
+	amount uint64,
+	minFeePerByte uint64,
+	timestamp int64,
+) (*transaction.Transaction, uint64, error) {
 	if amount == 0 {
-		return nil, ErrInvalidAmount
+		return nil, 0, ErrInvalidAmount
 	}
 	if !valdrcrypto.ValidateAddress(recipient) {
-		return nil, valdrcrypto.ErrInvalidAddress
+		return nil, 0, valdrcrypto.ErrInvalidAddress
 	}
-	if _, err := w.Private(); err != nil {
-		return nil, err
+	key, err := w.Private()
+	if err != nil {
+		return nil, 0, err
+	}
+	publicHex, err := valdrcrypto.EncodePublicKey(&key.PublicKey)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	candidates := make([]utxo.UTXO, 0, len(available))
@@ -131,44 +162,160 @@ func (w *Wallet) CreateTransaction(
 		return candidates[i].TransactionID < candidates[j].TransactionID
 	})
 
-	inputs := make([]transaction.Input, 0)
+	inputs := make([]transaction.Input, 0, len(candidates))
 	var selected uint64
 	for _, item := range candidates {
 		if math.MaxUint64-selected < item.Amount {
-			return nil, ErrWalletValueOverflow
+			return nil, 0, ErrWalletValueOverflow
 		}
 		selected += item.Amount
 		inputs = append(inputs, transaction.Input{
 			PreviousTransactionID: item.TransactionID,
 			OutputIndex:           item.OutputIndex,
 		})
-		if selected >= amount {
-			break
+
+		outputs, fee, ok, err := feeAwareOutputs(
+			inputs,
+			publicHex,
+			recipient,
+			w.Address,
+			amount,
+			selected,
+			minFeePerByte,
+			timestamp,
+		)
+		if err != nil {
+			return nil, 0, err
 		}
+		if !ok {
+			continue
+		}
+
+		tx := transaction.New(inputs, outputs, timestamp)
+		if err := tx.Sign(key); err != nil {
+			return nil, 0, err
+		}
+		actualFee, err := implicitFee(selected, tx.Outputs)
+		if err != nil {
+			return nil, 0, err
+		}
+		required, err := feeForSize(minFeePerByte, tx.SerializedSize())
+		if err != nil {
+			return nil, 0, err
+		}
+		if actualFee < required {
+			return nil, 0, ErrWalletFeeOverflow
+		}
+		if actualFee < fee {
+			return nil, 0, ErrWalletFeeOverflow
+		}
+		return tx, actualFee, nil
 	}
 
-	if selected < amount {
-		return nil, ErrInsufficientFunds
-	}
+	return nil, 0, ErrInsufficientFunds
+}
 
-	outputs := []transaction.Output{{
+func feeAwareOutputs(
+	inputs []transaction.Input,
+	publicHex string,
+	recipient string,
+	changeAddress string,
+	amount uint64,
+	selected uint64,
+	minFeePerByte uint64,
+	timestamp int64,
+) ([]transaction.Output, uint64, bool, error) {
+	recipientOutput := transaction.Output{
 		Amount:    amount,
 		Recipient: recipient,
-	}}
-	if selected > amount {
-		outputs = append(outputs, transaction.Output{
-			Amount:    selected - amount,
-			Recipient: w.Address,
-		})
 	}
 
-	tx := transaction.New(inputs, outputs, timestamp)
-	key, err := w.Private()
+	// Prefer change. Amount is fixed-width in canonical serialization, so a
+	// one-val placeholder has exactly the same byte size as the final change.
+	withChange := []transaction.Output{
+		recipientOutput,
+		{Amount: 1, Recipient: changeAddress},
+	}
+	changeFee, err := estimatedSignedFee(
+		inputs,
+		withChange,
+		publicHex,
+		minFeePerByte,
+		timestamp,
+	)
 	if err != nil {
-		return nil, err
+		return nil, 0, false, err
 	}
-	if err := tx.Sign(key); err != nil {
-		return nil, err
+	requiredWithChange, overflow := addUint64(amount, changeFee)
+	if !overflow && selected > requiredWithChange {
+		withChange[1].Amount = selected - requiredWithChange
+		return withChange, changeFee, true, nil
 	}
-	return tx, nil
+
+	// If a selected UTXO cannot fund a positive change output, allow a
+	// one-output transaction. Any remainder becomes additional fee rather than
+	// creating a zero-value output.
+	oneOutput := []transaction.Output{recipientOutput}
+	minimumFee, err := estimatedSignedFee(
+		inputs,
+		oneOutput,
+		publicHex,
+		minFeePerByte,
+		timestamp,
+	)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	requiredOne, overflow := addUint64(amount, minimumFee)
+	if overflow || selected < requiredOne {
+		return nil, 0, false, nil
+	}
+	return oneOutput, selected - amount, true, nil
+}
+
+func estimatedSignedFee(
+	inputs []transaction.Input,
+	outputs []transaction.Output,
+	publicHex string,
+	minFeePerByte uint64,
+	timestamp int64,
+) (uint64, error) {
+	tx := transaction.New(inputs, outputs, timestamp)
+	tx.PublicKey = publicHex
+	tx.Signature = strings.Repeat("0", maxP256DERSignatureHexLength)
+	return feeForSize(minFeePerByte, tx.SerializedSize())
+}
+
+func feeForSize(rate uint64, size int) (uint64, error) {
+	if rate == 0 || size == 0 {
+		return 0, nil
+	}
+	if size < 0 || uint64(size) > math.MaxUint64/rate {
+		return 0, ErrWalletFeeOverflow
+	}
+	return rate * uint64(size), nil
+}
+
+func implicitFee(
+	selected uint64,
+	outputs []transaction.Output,
+) (uint64, error) {
+	var total uint64
+	for _, output := range outputs {
+		if math.MaxUint64-total < output.Amount {
+			return 0, ErrWalletValueOverflow
+		}
+		total += output.Amount
+	}
+	if total > selected {
+		return 0, ErrWalletFeeOverflow
+	}
+	return selected - total, nil
+}
+
+func addUint64(a, b uint64) (uint64, bool) {
+	if math.MaxUint64-a < b {
+		return 0, true
+	}
+	return a + b, false
 }
