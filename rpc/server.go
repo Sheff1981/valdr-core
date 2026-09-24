@@ -106,13 +106,30 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			target = tip.Target
 			blockVersion = tip.Version
 		}
+		height := s.chain.Height()
+		bestKnownHeight := height
+		for _, peer := range s.node.Peers() {
+			if peer.Height > bestKnownHeight {
+				bestKnownHeight = peer.Height
+			}
+		}
+		syncProgress := 1.0
+		if bestKnownHeight > 0 {
+			syncProgress = float64(height) /
+				float64(bestKnownHeight)
+			if syncProgress > 1 {
+				syncProgress = 1
+			}
+		}
 		return StatusResult{
 			Project:                config.ProjectName,
 			Ticker:                 config.Ticker,
 			Version:                config.Version,
 			Network:                profile.Name,
 			ChainID:                profile.ChainID,
-			Height:                 s.chain.Height(),
+			Height:                 height,
+			BestKnownHeight:        bestKnownHeight,
+			SyncProgress:           syncProgress,
 			TipHash:                tipHash,
 			Chainwork:              s.chain.Chainwork(),
 			BlockVersion:           blockVersion,
