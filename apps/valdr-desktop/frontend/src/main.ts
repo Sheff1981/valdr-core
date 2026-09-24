@@ -296,6 +296,7 @@ root.innerHTML = `
         <div class="product-heading">
           <p class="eyebrow">NOT A TOKEN. A CHAIN.</p>
           <h1 class="product-title">VALDR DESKTOP</h1>
+          <p class="product-subtitle">SECURE WALLET · STRONGER NETWORK · A BRIGHTER TOMORROW</p>
           <p class="view-label" id="view-title">Dashboard</p>
         </div>
         <div class="top-actions">

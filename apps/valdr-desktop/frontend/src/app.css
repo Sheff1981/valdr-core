@@ -1386,3 +1386,484 @@ code { color: #c3a96f; }
     display: none;
   }
 }
+
+
+/* VALDR Premium Desktop v2 — owner-approved visual reference implementation */
+:root {
+  --valdr-gold: #e8b74f;
+  --valdr-gold-2: #f7d37a;
+  --valdr-gold-3: #8f5a19;
+  --valdr-night: #050607;
+  --valdr-panel: rgba(8, 12, 14, .92);
+  --valdr-panel-soft: rgba(13, 17, 18, .88);
+  --valdr-border: rgba(232, 183, 79, .34);
+  --valdr-border-strong: rgba(247, 211, 122, .62);
+}
+
+body {
+  background:
+    linear-gradient(rgba(2,3,4,.72), rgba(2,3,4,.92)),
+    url("/valdr-premium-scene.svg") center top / cover fixed no-repeat,
+    #050607;
+}
+
+.shell {
+  grid-template-columns: 246px 1fr;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.80) 0 246px, rgba(0,0,0,.18) 246px 100%),
+    radial-gradient(circle at 84% 9%, rgba(232,183,79,.10), transparent 29%);
+}
+
+.sidebar {
+  padding: 18px 14px 18px;
+  border-right: 1px solid rgba(232,183,79,.32);
+  background:
+    linear-gradient(180deg, rgba(3,5,6,.96), rgba(2,4,5,.94)),
+    radial-gradient(circle at 50% 12%, rgba(232,183,79,.11), transparent 32%);
+  box-shadow: 18px 0 48px rgba(0,0,0,.42);
+}
+
+.brand-sidebar {
+  gap: 8px;
+  padding: 0 2px 20px;
+}
+
+.brand-emblem-sidebar {
+  width: 160px;
+  height: 160px;
+  border: 0;
+  border-radius: 50%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 18px rgba(237,183,62,.28));
+  box-shadow: none;
+}
+
+.brand-emblem {
+  object-fit: contain;
+  border: 0;
+  background: transparent;
+}
+
+.brand strong {
+  color: #f7d98d;
+  font-size: 25px;
+  letter-spacing: .16em;
+  text-shadow: 0 0 20px rgba(234,175,53,.24);
+}
+
+.brand span {
+  color: #d5b874;
+  font-size: 11px;
+  letter-spacing: .36em;
+  text-transform: uppercase;
+}
+
+nav { gap: 8px; }
+
+.nav-item {
+  min-height: 48px;
+  padding: 12px 12px 12px 48px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #c0b8aa;
+  font-size: 15px;
+}
+
+.nav-item::before {
+  left: 16px;
+  color: #e9b849;
+  font-size: 20px;
+}
+
+.nav-item.active {
+  color: #fff0c7;
+  border-color: rgba(244,194,84,.54);
+  background:
+    linear-gradient(90deg, rgba(190,119,28,.46), rgba(88,52,16,.18));
+  box-shadow:
+    inset 3px 0 0 #f2c45f,
+    0 0 22px rgba(214,143,36,.10);
+}
+
+.sidebar-foot {
+  padding-left: 10px;
+  padding-bottom: 4px;
+}
+
+.testnet-pill {
+  border-color: rgba(242,195,90,.64);
+  color: #f3c866;
+  background: rgba(164,100,22,.14);
+}
+
+.content {
+  padding: 22px 28px 46px;
+  background:
+    linear-gradient(180deg, rgba(4,6,7,.48), rgba(4,6,7,.78)),
+    radial-gradient(circle at 88% 13%, rgba(230,167,52,.09), transparent 33%);
+}
+
+.valdr-topbar {
+  position: relative;
+  min-height: 140px;
+  margin: -22px -28px 16px;
+  padding: 30px 34px 24px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(232,183,79,.30);
+  background:
+    linear-gradient(90deg, rgba(5,7,8,.96) 0%, rgba(7,8,8,.84) 48%, rgba(8,7,5,.35) 100%),
+    url("/valdr-premium-scene.svg") right 14% center / cover no-repeat;
+  box-shadow: inset 0 -40px 70px rgba(0,0,0,.22);
+}
+
+.valdr-topbar::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(249,207,105,.65), transparent);
+}
+
+.product-heading,
+.top-actions {
+  position: relative;
+  z-index: 2;
+}
+
+.product-heading .eyebrow {
+  color: #e5b34d;
+  letter-spacing: .24em;
+}
+
+.product-title {
+  color: #f4d28a;
+  font-size: clamp(34px, 3.8vw, 56px);
+  letter-spacing: .08em;
+  line-height: .98;
+  text-shadow:
+    0 1px 0 rgba(255,255,255,.08),
+    0 0 24px rgba(229,179,77,.16);
+}
+
+.product-subtitle {
+  margin: 12px 0 0;
+  color: #ded6c8;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+}
+
+.view-label {
+  margin-top: 10px;
+  color: #9b8c72;
+  font-size: 10px;
+}
+
+.top-actions {
+  align-items: center;
+  gap: 14px;
+}
+
+.wallet-select-label {
+  min-width: 220px;
+  color: #b9a98c;
+}
+
+.wallet-select-label select {
+  min-height: 42px;
+  border-color: rgba(232,183,79,.24);
+  background: rgba(5,8,9,.90);
+}
+
+.status-stack {
+  min-width: 205px;
+  padding: 12px 14px;
+  border-color: rgba(232,183,79,.28);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(11,15,16,.96), rgba(4,7,8,.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.025),
+    0 14px 30px rgba(0,0,0,.28);
+}
+
+.valdr-hero {
+  min-height: 262px;
+  padding: 34px 34px;
+  border-color: rgba(232,183,79,.52);
+  border-radius: 15px;
+  background:
+    linear-gradient(90deg, rgba(4,7,8,.98) 0%, rgba(7,10,11,.90) 43%, rgba(8,8,6,.24) 72%, rgba(5,6,6,.12) 100%),
+    url("/valdr-premium-scene.svg") right center / cover no-repeat;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,221,147,.035),
+    0 18px 44px rgba(0,0,0,.34),
+    0 0 30px rgba(215,143,34,.08);
+}
+
+.valdr-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 51% 57%, rgba(222,161,48,.12), transparent 22%),
+    linear-gradient(90deg, rgba(0,0,0,.04), transparent 58%);
+}
+
+.hero-main {
+  z-index: 3;
+  max-width: 60%;
+}
+
+.hero-watermark {
+  right: 39%;
+  width: 220px;
+  height: 220px;
+  opacity: .12;
+  border-radius: 50%;
+  filter: sepia(.2) saturate(.9);
+  mask-image: radial-gradient(circle, black 45%, rgba(0,0,0,.6) 67%, transparent 80%);
+}
+
+.hero-network-id {
+  z-index: 4;
+  min-width: 145px;
+  padding: 10px 12px;
+  border: 1px solid rgba(232,183,79,.18);
+  border-radius: 9px;
+  background: rgba(5,7,7,.55);
+  backdrop-filter: blur(4px);
+}
+
+.balance {
+  color: #f0bf5b;
+  font-size: clamp(42px, 5.1vw, 62px);
+  text-shadow:
+    0 0 16px rgba(239,178,59,.12),
+    0 1px 0 rgba(255,255,255,.04);
+}
+
+.balance span:last-child {
+  color: #e7bc61;
+  font-size: 22px;
+}
+
+.hero-actions {
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.hero-actions button {
+  min-width: 118px;
+  min-height: 47px;
+  font-size: 15px;
+}
+
+.grid.stats {
+  gap: 13px;
+  margin-top: 14px;
+}
+
+.grid.stats .card {
+  position: relative;
+  min-height: 118px;
+  overflow: hidden;
+  padding: 20px 18px 18px 70px;
+  border-color: rgba(232,183,79,.24);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(12,17,18,.94), rgba(6,9,10,.94));
+}
+
+.grid.stats .card::before {
+  position: absolute;
+  left: 20px;
+  top: 22px;
+  color: #f0bd55;
+  font-size: 31px;
+  line-height: 1;
+  text-shadow: 0 0 14px rgba(240,189,85,.18);
+}
+
+.grid.stats .card:nth-child(1)::before { content: "▤"; }
+.grid.stats .card:nth-child(2)::before { content: "⟳"; }
+.grid.stats .card:nth-child(3)::before { content: "♟"; }
+.grid.stats .card:nth-child(4)::before { content: "◉"; }
+.grid.stats .card:nth-child(5)::before { content: "▣"; }
+
+.grid.stats .card::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 12px;
+  height: 18px;
+  opacity: .45;
+  background:
+    linear-gradient(165deg,
+      transparent 0 8%,
+      rgba(232,183,79,.80) 9% 11%,
+      transparent 12% 20%,
+      rgba(232,183,79,.72) 21% 23%,
+      transparent 24% 40%,
+      rgba(232,183,79,.72) 41% 43%,
+      transparent 44% 55%,
+      rgba(232,183,79,.82) 56% 58%,
+      transparent 59% 75%,
+      rgba(232,183,79,.75) 76% 78%,
+      transparent 79%);
+  mask-image: linear-gradient(90deg, transparent, black 16%, black 84%, transparent);
+}
+
+.stats .card span {
+  color: #a2998b;
+  font-size: 12px;
+}
+.stats .card strong {
+  color: #f1e7d7;
+  font-size: 27px;
+  font-weight: 520;
+}
+
+.node-panel,
+.latest-transaction {
+  border-color: rgba(232,183,79,.24);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(12,16,17,.94), rgba(6,9,10,.95));
+}
+
+.node-panel {
+  min-height: 112px;
+  padding-left: 82px;
+  position: relative;
+}
+
+.node-panel::before {
+  content: "▤";
+  position: absolute;
+  left: 28px;
+  top: 31px;
+  color: #f0bd55;
+  font-size: 34px;
+  text-shadow: 0 0 16px rgba(240,189,85,.20);
+}
+
+.latest-transaction {
+  min-height: 105px;
+  padding-left: 70px;
+  position: relative;
+}
+
+.latest-transaction::before {
+  content: "⇩";
+  position: absolute;
+  left: 27px;
+  top: 31px;
+  color: #f0bd55;
+  font-size: 29px;
+}
+
+.latest-transaction #overview-latest-amount {
+  color: #76e7aa;
+  font-size: 17px;
+}
+
+button.primary {
+  border-color: #ffd477;
+  background:
+    linear-gradient(180deg, #ffe19a 0%, #f1bd54 48%, #c98525 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.60),
+    0 0 18px rgba(232,163,53,.20),
+    0 7px 20px rgba(0,0,0,.24);
+}
+
+button.secondary {
+  border-color: rgba(232,183,79,.32);
+  background: linear-gradient(180deg, rgba(20,24,24,.98), rgba(8,11,12,.98));
+}
+
+button.danger {
+  border-color: rgba(185,73,58,.68);
+  color: #f0aea2;
+  background: rgba(54,19,18,.70);
+}
+
+.card,
+.transaction-detail-card,
+.send-confirm-card,
+.first-run-card {
+  border-color: rgba(232,183,79,.22);
+  background:
+    linear-gradient(180deg, rgba(13,18,19,.96), rgba(5,8,9,.96));
+}
+
+.boot-splash {
+  background:
+    linear-gradient(90deg, rgba(2,3,4,.90), rgba(2,3,4,.58)),
+    url("/valdr-premium-scene.svg") center / cover no-repeat,
+    #030405;
+}
+
+.boot-splash-panel {
+  border-color: rgba(245,199,96,.45);
+  background: rgba(4,6,7,.70);
+  backdrop-filter: blur(8px);
+}
+
+.boot-coin img {
+  border-radius: 50%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 20px rgba(238,179,52,.30));
+}
+
+.first-run {
+  background:
+    linear-gradient(rgba(3,4,5,.84), rgba(3,4,5,.94)),
+    url("/valdr-premium-scene.svg") center / cover no-repeat;
+}
+
+.download-coin {
+  width: 68px;
+  height: 68px;
+  padding: 2px;
+  border-color: rgba(244,198,92,.62);
+  background: rgba(2,4,5,.86);
+  box-shadow:
+    0 0 0 1px rgba(255,219,133,.08),
+    0 0 30px rgba(224,150,34,.24),
+    0 10px 26px rgba(0,0,0,.46);
+}
+
+.download-coin img {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.download-caption {
+  color: #d9b660;
+  letter-spacing: .14em;
+}
+
+@media (max-width: 1180px) {
+  .shell { grid-template-columns: 212px 1fr; }
+  .brand-emblem-sidebar { width: 128px; height: 128px; }
+  .content { padding-left: 22px; padding-right: 82px; }
+  .valdr-topbar { margin-left: -22px; margin-right: -82px; }
+  .product-subtitle { display: none; }
+  .hero-main { max-width: 68%; }
+  .grid.stats .card { padding-left: 54px; }
+  .grid.stats .card::before { left: 15px; font-size: 25px; }
+}
+
+@media (max-width: 900px) {
+  .valdr-topbar { min-height: 118px; }
+  .valdr-hero { min-height: 230px; }
+  .hero-watermark { right: 18px; opacity: .09; }
+}

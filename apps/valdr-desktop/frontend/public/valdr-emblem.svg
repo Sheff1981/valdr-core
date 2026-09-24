@@ -1,1 +1,35 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="VALDR mark"><path fill="none" stroke="#c6a35f" stroke-width="2" d="M32 3 55 16v32L32 61 9 48V16Z"/><path fill="none" stroke="#e0c17d" stroke-width="4" stroke-linecap="square" d="M19 18 32 48 45 18M25 29h14"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="VALDR premium V coin emblem">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="62%"><stop offset="0" stop-color="#21170a"/><stop offset=".58" stop-color="#0b0c0d"/><stop offset="1" stop-color="#020304"/></radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff0a6"/><stop offset=".28" stop-color="#f5c65c"/><stop offset=".56" stop-color="#b86d18"/><stop offset=".78" stop-color="#ffe08a"/><stop offset="1" stop-color="#8b4f11"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <circle cx="256" cy="256" r="242" fill="url(#bg)" stroke="#6e4819" stroke-width="4"/>
+  <circle cx="256" cy="256" r="226" fill="none" stroke="url(#gold)" stroke-width="8" filter="url(#glow)"/>
+  <circle cx="256" cy="256" r="204" fill="none" stroke="#7c531f" stroke-width="3"/>
+  <g fill="none" stroke="#9f742e" stroke-width="2" opacity=".85">
+    <circle cx="256" cy="256" r="181"/>
+    <circle cx="256" cy="256" r="160"/>
+    <path d="M256 77v75M256 360v75M77 256h76M359 256h76M129 129l52 52M331 331l52 52M383 129l-52 52M181 331l-52 52"/>
+    <path d="M256 128l18 30-18 31-18-31zM128 256l30-18 31 18-31 18zM384 256l-30-18-31 18 31 18zM256 384l18-30-18-31-18 31z"/>
+  </g>
+  <g fill="#17130d" stroke="#7b531f" stroke-width="3" opacity=".9">
+    <path d="M96 286c32-51 72-77 121-79-24 18-40 39-47 64 20-11 39-16 58-15-32 27-54 59-66 97-31-5-53-28-66-67z"/>
+    <path d="M416 286c-32-51-72-77-121-79 24 18 40 39 47 64-20-11-39-16-58-15 32 27 54 59 66 97 31-5 53-28 66-67z"/>
+  </g>
+  <g filter="url(#glow)">
+    <path d="M128 142L256 410 384 142" fill="none" stroke="#3f260c" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M128 142L256 410 384 142" fill="none" stroke="url(#gold)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M139 149L256 390 373 149" fill="none" stroke="#fff0a0" stroke-opacity=".56" stroke-width="3"/>
+  </g>
+  <g fill="none" stroke="#6f4719" stroke-width="3" opacity=".9">
+    <path d="M158 169l35 24-20 28 39 26-20 31 41 27-20 31 43 27"/>
+    <path d="M354 169l-35 24 20 28-39 26 20 31-41 27 20 31-43 27"/>
+  </g>
+  <g transform="translate(256 96)" fill="none" stroke="url(#gold)" stroke-width="6" stroke-linejoin="round">
+    <path d="M0-34 25 0 0 34-25 0z"/>
+    <path d="M0-22 13 0 0 22-13 0z"/>
+  </g>
+  <circle cx="256" cy="256" r="13" fill="#d59a34"/>
+  <circle cx="256" cy="256" r="6" fill="#171008"/>
+</svg>

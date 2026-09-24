@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 430" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#050708"/><stop offset=".48" stop-color="#171107"/><stop offset=".72" stop-color="#7c4e13"/><stop offset="1" stop-color="#120d08"/></linearGradient>
+    <radialGradient id="sun" cx="69%" cy="41%" r="36%"><stop stop-color="#ffd779" stop-opacity=".92"/><stop offset=".24" stop-color="#d78922" stop-opacity=".55"/><stop offset=".62" stop-color="#6b3c10" stop-opacity=".18"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+    <linearGradient id="peak" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#373027"/><stop offset=".3" stop-color="#17191a"/><stop offset="1" stop-color="#040506"/></linearGradient>
+    <linearGradient id="goldStroke" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe397"/><stop offset=".4" stop-color="#e2a63c"/><stop offset="1" stop-color="#7e4716"/></linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="14"/></filter>
+  </defs>
+  <rect width="1400" height="430" fill="url(#sky)"/>
+  <rect width="1400" height="430" fill="url(#sun)"/>
+  <g opacity=".46" filter="url(#soft)" fill="#d47e20">
+    <ellipse cx="1040" cy="155" rx="230" ry="80"/>
+    <ellipse cx="870" cy="220" rx="260" ry="75"/>
+  </g>
+  <g fill="url(#peak)" stroke="#7d5525" stroke-opacity=".5">
+    <path d="M420 430 560 150 615 235 690 98 760 224 840 84 930 250 990 160 1090 430z"/>
+    <path d="M0 430 120 290 170 332 250 218 315 330 380 250 500 430z"/>
+    <path d="M770 430 900 284 970 335 1050 220 1115 325 1200 242 1325 430z"/>
+  </g>
+  <g fill="#050607" stroke="#b17628" stroke-width="3">
+    <path d="M1022 132c72-63 194-72 286-6 35 25 62 57 75 94-38-19-72-27-105-24 30 21 52 44 66 70-42-21-81-27-118-18 22 17 39 37 50 59-52-20-101-19-146 3-45 22-91 39-140 49 21-35 35-69 41-103-37 6-76 3-117-10 40-22 75-48 108-79z"/>
+    <path d="M1032 168 908 214l124 17 87-31z"/>
+  </g>
+  <g fill="none" stroke="url(#goldStroke)" stroke-width="6" stroke-linecap="round">
+    <path d="M1030 168c70-56 164-67 247-32 58 25 91 66 106 109"/>
+    <path d="M1028 181 914 214l114 5"/>
+    <path d="M1110 130c-20 47-23 104-9 171"/>
+    <path d="M1144 124c-12 58-8 118 13 181"/>
+    <path d="M1180 127c-4 56 7 111 33 166"/>
+    <path d="M1219 137c8 51 27 100 56 146"/>
+  </g>
+  <circle cx="1146" cy="168" r="23" fill="#0a0908" stroke="#e5a83a" stroke-width="6"/>
+  <circle cx="1149" cy="165" r="9" fill="#ffbf36"/>
+  <circle cx="1152" cy="161" r="3" fill="#fff2b3"/>
+  <path d="M1022 178 898 214l126 8" fill="none" stroke="#f0bd55" stroke-width="4"/>
+  <g opacity=".14" transform="translate(690 232)">
+    <circle r="120" fill="none" stroke="#d49a36" stroke-width="4"/>
+    <circle r="96" fill="none" stroke="#d49a36" stroke-width="2"/>
+    <path d="M0-102V102M-102 0H102M-72-72 72 72M72-72-72 72M0-82l15 28-15 20-15-20zM0 82l15-28-15-20-15 20z" fill="none" stroke="#d49a36" stroke-width="3"/>
+  </g>
+  <rect width="1400" height="430" fill="url(#sky)" opacity=".12"/>
+</svg>

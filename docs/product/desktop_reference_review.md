@@ -226,3 +226,21 @@ Release constraint:
 
 - the download affordance may be visible during Stage 12, but it must not expose nonexistent, unsigned or unverified installers;
 - it remains non-operational until Stage 13 produces signed/verifiable release artifacts and the official download target is frozen.
+
+
+## 9. Owner-approved Premium Desktop visual reference
+
+**Date:** 2026-09-25  
+**Source:** project-owner approved VALDR Premium Desktop reference/mockup created for this project.
+
+Implemented product direction:
+
+- the coin-style ornate **V** is the canonical Premium Desktop visual mark; an inverted-A-like mark is rejected;
+- the same V/coin identity is used in the sidebar, splash, hero watermark, download affordance and browser/app surface where supported;
+- Dashboard uses the project-owned black/gold mountain-and-raven visual language;
+- layout preserves the real VALDR wallet/node data and controls instead of replacing the application with a static mockup;
+- no fiat conversion is fabricated: Stage 12 continues to show actual Testnet/VALDR data only;
+- Mainnet remains disabled;
+- the Downloads affordance remains non-operational until Stage 13 signed/verifiable packages exist.
+
+This is a visual/product change only. It does not modify consensus, P2P, wallet format, RPC trust boundaries or storage.
