@@ -58,5 +58,8 @@ jobs:
       - name: Wallet v2 encryption and migration gate
         run: go test ./wallet ./cmd/valdr-cli -run "Test(Wallet|RPCBackedCLIStatusBalanceSendAndQueries)" -count=1
 
+      - name: Explorer API and reorg gate
+        run: go test ./explorer -run "TestExplorer" -count=1
+
       - name: Three-node runtime smoke
         run: ./scripts/start-devnet.sh smoke
