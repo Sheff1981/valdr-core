@@ -1,6 +1,8 @@
 package wallet
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,8 +13,9 @@ import (
 
 func TestWalletStoreCreateListExportAndSign(t *testing.T) {
 	store := NewStore(t.TempDir())
+	passphrase := []byte("correct horse battery staple")
 
-	created, err := store.Create("alice")
+	created, err := store.CreateEncrypted("alice", passphrase)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,6 +24,14 @@ func TestWalletStoreCreateListExportAndSign(t *testing.T) {
 	}
 
 	path := filepath.Join(store.Dir, created.Address+".json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte(created.PrivateKey)) ||
+		bytes.Contains(raw, []byte("private_key")) {
+		t.Fatal("encrypted wallet file contains plaintext private key material")
+	}
 	if runtime.GOOS != "windows" {
 		info, err := os.Stat(path)
 		if err != nil {
@@ -42,7 +53,7 @@ func TestWalletStoreCreateListExportAndSign(t *testing.T) {
 		t.Fatalf("wallet list = %+v", items)
 	}
 
-	exported, err := store.Export("alice")
+	exported, err := store.Export("alice", passphrase)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,5 +72,12 @@ func TestWalletStoreCreateListExportAndSign(t *testing.T) {
 	}
 	if !valdrcrypto.Verify(pub, message, sig) {
 		t.Fatal("wallet signature did not verify")
+	}
+}
+
+func TestPlaintextCreateAPIIsDisabled(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if _, err := store.Create("legacy-new"); !errors.Is(err, ErrPassphraseRequired) {
+		t.Fatalf("Create error=%v want ErrPassphraseRequired", err)
 	}
 }
