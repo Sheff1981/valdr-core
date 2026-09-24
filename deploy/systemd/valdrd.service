@@ -1,0 +1,24 @@
+[Unit]
+Description=VALDR Testnet full node
+Documentation=https://github.com/Sheff1981/valdr-core
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=valdr
+Group=valdr
+UMask=0077
+ExecStart=/usr/local/bin/valdrd start --network testnet --data /var/lib/valdr --node-id=%H --p2p-host 0.0.0.0 --rpc-host 127.0.0.1
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/valdr
+LockPersonality=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
