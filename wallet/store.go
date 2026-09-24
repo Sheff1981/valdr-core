@@ -135,6 +135,9 @@ func (s *Store) Migrate(
 	if len(passphrase) == 0 {
 		return Metadata{}, ErrPassphraseRequired
 	}
+	if err := s.ensureDir(); err != nil {
+		return Metadata{}, err
+	}
 	record, err := s.find(selector)
 	if err != nil {
 		return Metadata{}, err
