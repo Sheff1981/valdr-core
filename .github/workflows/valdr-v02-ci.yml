@@ -55,5 +55,8 @@ jobs:
       - name: Seed and P2P protection gate
         run: go test ./p2p -run "Test(SeedBootstrapContinuesPastOfflineSeed|InboundReservationLimits|TemporaryBanAfterMalformedThreshold|PublicDiscoveryRejectsUnsafeNumericAddresses|TokenBucketRejectsBurstAboveConfiguredLimit|BoundedDuplicateCacheEvictsOldest|IdleWatchdogPingsBeforeDisconnect|DiscoveryContinuesBeyondSeedNodes|BootstrapAndMaintainDoesNothingWithoutSeeds|ProtectionDefaultValues|V2PerMessagePayloadLimits)$" -count=1
 
+      - name: Wallet v2 encryption and migration gate
+        run: go test ./wallet ./cmd/valdr-cli -run "Test(Wallet|RPCBackedCLIStatusBalanceSendAndQueries)" -count=1
+
       - name: Three-node runtime smoke
         run: ./scripts/start-devnet.sh smoke
