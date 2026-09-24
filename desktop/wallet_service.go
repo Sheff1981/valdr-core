@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Sheff1981/valdr-core/config"
+	"github.com/Sheff1981/valdr-core/core/transaction"
 	"github.com/Sheff1981/valdr-core/core/utxo"
 	"github.com/Sheff1981/valdr-core/rpc"
 	"github.com/Sheff1981/valdr-core/wallet"
@@ -29,14 +30,18 @@ type WalletBalance struct {
 	BalanceVDR string `json:"balance_vdr"`
 }
 
+type SendPreview struct {
+	AmountVal uint64 `json:"amount_val"`
+	AmountVDR string `json:"amount_vdr"`
+	FeeVal    uint64 `json:"fee_val"`
+	FeeVDR    string `json:"fee_vdr"`
+	TotalVal  uint64 `json:"total_val"`
+	TotalVDR  string `json:"total_vdr"`
+}
+
 type SendResult struct {
 	TransactionID string `json:"transaction_id"`
-	AmountVal     uint64 `json:"amount_val"`
-	AmountVDR     string `json:"amount_vdr"`
-	FeeVal        uint64 `json:"fee_val"`
-	FeeVDR        string `json:"fee_vdr"`
-	TotalVal      uint64 `json:"total_val"`
-	TotalVDR      string `json:"total_vdr"`
+	SendPreview
 }
 
 func NewWalletService(
@@ -69,6 +74,26 @@ func (s *WalletService) Balance(
 	}, nil
 }
 
+func (s *WalletService) PreviewSend(
+	ctx context.Context,
+	selector string,
+	passphrase []byte,
+	recipient string,
+	amount uint64,
+) (SendPreview, error) {
+	_, fee, err := s.buildTransaction(
+		ctx,
+		selector,
+		passphrase,
+		recipient,
+		amount,
+	)
+	if err != nil {
+		return SendPreview{}, err
+	}
+	return sendPreview(amount, fee)
+}
+
 func (s *WalletService) Send(
 	ctx context.Context,
 	selector string,
@@ -76,12 +101,50 @@ func (s *WalletService) Send(
 	recipient string,
 	amount uint64,
 ) (SendResult, error) {
+	tx, fee, err := s.buildTransaction(
+		ctx,
+		selector,
+		passphrase,
+		recipient,
+		amount,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var sent rpc.SendTransactionResult
+	if err := s.client.Call(
+		ctx,
+		rpc.MethodSendTransaction,
+		rpc.SendTransactionParams{Transaction: tx},
+		&sent,
+	); err != nil {
+		return nil, 0, err
+	}
+
+	preview, err := sendPreview(amount, fee)
+	if err != nil {
+		return SendResult{}, err
+	}
+	return SendResult{
+		TransactionID: sent.TransactionID,
+		SendPreview:   preview,
+	}, nil
+}
+
+func (s *WalletService) buildTransaction(
+	ctx context.Context,
+	selector string,
+	passphrase []byte,
+	recipient string,
+	amount uint64,
+) (*transaction.Transaction, uint64, error) {
 	secret := append([]byte(nil), passphrase...)
 	defer clearBytes(secret)
 
 	source, err := s.store.Unlock(selector, secret)
 	if err != nil {
-		return SendResult{}, err
+		return nil, 0, err
 	}
 
 	var status rpc.StatusResult
@@ -99,7 +162,7 @@ func (s *WalletService) Send(
 	}
 	if profile.Name != config.NetworkTestnetV02 &&
 		profile.Name != config.NetworkDevnetV02 {
-		return SendResult{}, ErrDesktopMainnet
+		return nil, 0, ErrDesktopMainnet
 	}
 
 	var available []utxo.UTXO
@@ -124,28 +187,21 @@ func (s *WalletService) Send(
 		return SendResult{}, err
 	}
 
-	var sent rpc.SendTransactionResult
-	if err := s.client.Call(
-		ctx,
-		rpc.MethodSendTransaction,
-		rpc.SendTransactionParams{Transaction: tx},
-		&sent,
-	); err != nil {
-		return SendResult{}, err
-	}
+	return tx, fee, nil
+}
 
+func sendPreview(amount, fee uint64) (SendPreview, error) {
 	if math.MaxUint64-amount < fee {
-		return SendResult{}, wallet.ErrWalletFeeOverflow
+		return SendPreview{}, wallet.ErrWalletFeeOverflow
 	}
 	total := amount + fee
-	return SendResult{
-		TransactionID: sent.TransactionID,
-		AmountVal:     amount,
-		AmountVDR:     FormatVDR(amount),
-		FeeVal:        fee,
-		FeeVDR:        FormatVDR(fee),
-		TotalVal:      total,
-		TotalVDR:      FormatVDR(total),
+	return SendPreview{
+		AmountVal: amount,
+		AmountVDR: FormatVDR(amount),
+		FeeVal:    fee,
+		FeeVDR:    FormatVDR(fee),
+		TotalVal:  total,
+		TotalVDR:  FormatVDR(total),
 	}, nil
 }
 
