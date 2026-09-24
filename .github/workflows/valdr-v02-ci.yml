@@ -50,7 +50,7 @@ jobs:
         run: go test ./config ./core/mempool ./core/blockchain ./p2p ./mining
 
       - name: Headers-first sync gate
-        run: go test ./p2p -run "TestV2(FreshNodeHeadersFirstSync|SyncResumesFromPersistedChainAfterRestart|HeadersFirstSyncReorgsToGreaterChainwork|LocatorContract|HeadersContract|InventoryContract)$" -count=1
+        run: go test ./p2p -run "TestV2(FreshNodeHeadersFirstSync|SyncResumesFromPersistedChainAfterRestart|HeadersFirstSyncReorgsToGreaterChainwork|SyncDecisionUsesCumulativeChainwork|LocatorContract|HeadersContract|InventoryContract)$" -count=1
 
       - name: Three-node runtime smoke
         run: ./scripts/start-devnet.sh smoke
