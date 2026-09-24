@@ -256,3 +256,126 @@ func validDNSName(host string) bool {
 	}
 	return true
 }
+
+
+func (n *Node) reserveInbound(ip string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	now := n.protection.Now()
+	if until, exists := n.bannedUntil[ip]; exists {
+		if now.Before(until) {
+			return ErrPeerBanned
+		}
+		delete(n.bannedUntil, ip)
+		delete(n.violations, ip)
+	}
+
+	active := 0
+	activeForIP := 0
+	for peerID, peer := range n.peers {
+		if !peer.Inbound {
+			continue
+		}
+		active++
+		if pc := n.conns[peerID]; pc != nil && pc.remoteIP == ip {
+			activeForIP++
+		}
+	}
+	if active+n.inboundPending >= n.protection.MaxInbound {
+		return ErrInboundLimit
+	}
+	if activeForIP+n.inboundPendingByIP[ip] >= n.protection.MaxInboundPerIP {
+		return ErrInboundLimit
+	}
+
+	n.inboundPending++
+	n.inboundPendingByIP[ip]++
+	return nil
+}
+
+func (n *Node) releaseInboundReservation(ip string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.inboundPending > 0 {
+		n.inboundPending--
+	}
+	if n.inboundPendingByIP[ip] <= 1 {
+		delete(n.inboundPendingByIP, ip)
+	} else {
+		n.inboundPendingByIP[ip]--
+	}
+}
+
+func (n *Node) isIPBanned(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	until, exists := n.bannedUntil[ip]
+	if !exists {
+		return false
+	}
+	if !n.protection.Now().Before(until) {
+		delete(n.bannedUntil, ip)
+		delete(n.violations, ip)
+		return false
+	}
+	return true
+}
+
+func (n *Node) recordIPViolation(ip string, weight int) bool {
+	if ip == "" || weight <= 0 {
+		return false
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	now := n.protection.Now()
+	if until, exists := n.bannedUntil[ip]; exists && now.Before(until) {
+		return true
+	}
+	n.violations[ip] += weight
+	if n.violations[ip] < n.protection.MalformedThreshold {
+		return false
+	}
+	n.bannedUntil[ip] = now.Add(n.protection.BanDuration)
+	n.violations[ip] = 0
+	return true
+}
+
+func (n *Node) recordPeerViolation(peerID string, weight int) bool {
+	n.mu.RLock()
+	pc := n.conns[peerID]
+	n.mu.RUnlock()
+	if pc == nil {
+		return false
+	}
+	return n.recordIPViolation(pc.remoteIP, weight)
+}
+
+func (n *Node) allowPeerTraffic(peerID string, payloadBytes int) bool {
+	n.mu.RLock()
+	pc := n.conns[peerID]
+	n.mu.RUnlock()
+	if pc == nil || pc.traffic == nil {
+		return false
+	}
+	return pc.traffic.allow(n.protection, payloadBytes)
+}
+
+func (n *Node) outboundCount() int {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	count := 0
+	for _, peer := range n.peers {
+		if !peer.Inbound {
+			count++
+		}
+	}
+	return count
+}
+
+func (n *Node) isPublicDiscovery() bool {
+	return n.enableV2 && n.networkProfile.Public
+}
