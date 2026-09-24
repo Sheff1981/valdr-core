@@ -120,6 +120,15 @@ func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
 	if err := app.SetWalletAutoLockMinutes(5); err != nil {
 		t.Fatal(err)
 	}
+	persisted, err := desktopcore.NewPreferenceStore(
+		filepath.Join(root, "desktop-settings.json"),
+	).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.WalletAutoLockMinutes != 5 {
+		t.Fatalf("persisted auto-lock=%d want=5", persisted.WalletAutoLockMinutes)
+	}
 	state, err = app.GetState()
 	if err != nil {
 		t.Fatal(err)

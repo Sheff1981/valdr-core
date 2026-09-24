@@ -21,6 +21,7 @@ func TestDesktopPreferencesDefaultAndPersistence(t *testing.T) {
 
 	prefs.StartNode = false
 	prefs.Advanced = true
+	prefs.WalletAutoLockMinutes = 30
 	if err := store.Save(prefs); err != nil {
 		t.Fatal(err)
 	}
@@ -60,5 +61,25 @@ func TestDesktopPreferencesRejectUnsupportedValues(t *testing.T) {
 	}
 	if _, err := store.Load(); !errors.Is(err, ErrDesktopPreferences) {
 		t.Fatalf("Load error=%v want ErrDesktopPreferences", err)
+	}
+}
+
+
+func TestDesktopPreferencesLoadLegacyFileDefaultsAutoLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "desktop-settings.json")
+	if err := os.WriteFile(
+		path,
+		[]byte("{\"version\":1,\"language\":\"en\",\"theme\":\"dark\",\"start_node\":true,\"advanced\":false}\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	prefs, err := NewPreferenceStore(path).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prefs.WalletAutoLockMinutes != 15 {
+		t.Fatalf("auto-lock=%d want=15", prefs.WalletAutoLockMinutes)
 	}
 }

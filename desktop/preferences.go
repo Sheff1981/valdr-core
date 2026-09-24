@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const DesktopPreferencesVersion = 1
@@ -14,20 +15,22 @@ const DesktopPreferencesVersion = 1
 var ErrDesktopPreferences = errors.New("invalid VALDR Desktop preferences")
 
 type DesktopPreferences struct {
-	Version   int    `json:"version"`
-	Language  string `json:"language"`
-	Theme     string `json:"theme"`
-	StartNode bool   `json:"start_node"`
-	Advanced  bool   `json:"advanced"`
+	Version               int    `json:"version"`
+	Language              string `json:"language"`
+	Theme                 string `json:"theme"`
+	StartNode             bool   `json:"start_node"`
+	Advanced              bool   `json:"advanced"`
+	WalletAutoLockMinutes int    `json:"wallet_auto_lock_minutes"`
 }
 
 func DefaultDesktopPreferences() DesktopPreferences {
 	return DesktopPreferences{
-		Version:   DesktopPreferencesVersion,
-		Language:  "en",
-		Theme:     "dark",
-		StartNode: true,
-		Advanced:  false,
+		Version:               DesktopPreferencesVersion,
+		Language:              "en",
+		Theme:                 "dark",
+		StartNode:             true,
+		Advanced:              false,
+		WalletAutoLockMinutes: int(DefaultWalletAutoLock / time.Minute),
 	}
 }
 
@@ -61,6 +64,9 @@ func (s *PreferenceStore) Load() (DesktopPreferences, error) {
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		return DesktopPreferences{}, ErrDesktopPreferences
+	}
+	if prefs.WalletAutoLockMinutes == 0 {
+		prefs.WalletAutoLockMinutes = int(DefaultWalletAutoLock / time.Minute)
 	}
 	if err := validateDesktopPreferences(prefs); err != nil {
 		return DesktopPreferences{}, err
@@ -121,6 +127,10 @@ func validateDesktopPreferences(prefs DesktopPreferences) error {
 	if prefs.Version != DesktopPreferencesVersion ||
 		prefs.Language != "en" ||
 		prefs.Theme != "dark" {
+		return ErrDesktopPreferences
+	}
+	timeout := time.Duration(prefs.WalletAutoLockMinutes) * time.Minute
+	if err := validateWalletAutoLock(timeout); err != nil {
 		return ErrDesktopPreferences
 	}
 	return nil

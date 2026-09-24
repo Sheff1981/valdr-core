@@ -89,7 +89,7 @@ func NewApp() (*App, error) {
 	}
 	walletSessions, err := desktopcore.NewWalletSessionManager(
 		walletStore,
-		desktopcore.DefaultWalletAutoLock,
+		time.Duration(preferences.WalletAutoLockMinutes)*time.Minute,
 	)
 	if err != nil {
 		return nil, err
@@ -244,9 +244,31 @@ func (a *App) SetWalletAutoLockMinutes(minutes int) error {
 	if a.walletSessions == nil {
 		return desktopcore.ErrWalletLocked
 	}
-	return a.walletSessions.SetTimeout(
-		time.Duration(minutes) * time.Minute,
-	)
+
+	timeout := time.Duration(minutes) * time.Minute
+	previous := a.walletSessions.Timeout()
+	if err := a.walletSessions.SetTimeout(timeout); err != nil {
+		return err
+	}
+
+	prefs := a.preferencesSnapshot()
+	prefs.WalletAutoLockMinutes = minutes
+	store := a.preferenceStore
+	if store == nil {
+		store = desktopcore.NewPreferenceStore(
+			filepath.Join(a.paths.Root, "desktop-settings.json"),
+		)
+	}
+	if err := store.Save(prefs); err != nil {
+		_ = a.walletSessions.SetTimeout(previous)
+		return err
+	}
+
+	a.mu.Lock()
+	a.preferenceStore = store
+	a.preferences = prefs
+	a.mu.Unlock()
+	return nil
 }
 
 func (a *App) GetReceiveQRCode(address string) (string, error) {
