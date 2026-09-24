@@ -196,7 +196,7 @@ func sendCommand(args []string, out, errOut io.Writer) int {
 	if fs.NArg() != 0 || *from == "" || *to == "" || *amountText == "" {
 		fmt.Fprintln(
 			errOut,
-			"usage: valdr-cli send [--node URL] [--wallet-dir PATH] --from WALLET --to ADDRESS --amount VDR",
+			"usage: valdr-cli send [--node URL] [--wallet-dir PATH] [--password-fd FD] --from WALLET --to ADDRESS --amount VDR",
 		)
 		return 2
 	}
