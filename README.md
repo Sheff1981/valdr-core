@@ -61,7 +61,37 @@ Sync uses cumulative chainwork rather than height as the fork-choice trigger, wh
 
 CI covers fresh Genesis-to-tip sync, restart/offline resume using BadgerDB, greater-chainwork reorg sync, live `inv → get_headers → headers → get_data → block` catch-up, strict locator/header/inventory payload rules and chainwork-based sync decisions.
 
-**Stage 8 is not started.** Next master-spec milestone: seed nodes + P2P protection.
+**Stage 8 — Seed bootstrap + P2P protection: implemented and CI-verified (software gate).**
+
+Network profiles now carry a compiled seed-list field and operators can extend bootstrap with repeated `--seed host:port` values. Seed failures are best-effort and do not stop a running node; bootstrap continues through remaining seeds and then uses discovered peers in bounded rounds toward the outbound target of 8. With no seeds configured, automatic maintenance remains disabled so legacy/manual topologies are unchanged.
+
+P2P protection defaults now implement the master-spec requirements: 5-second handshake timeout, 5-minute idle detection with ping-before-close, max 64 inbound peers, max 4 inbound peers per IP, 4 MiB global frame cap plus per-message caps, token-bucket message/byte limits, malformed-IP scoring with a 1-hour temporary ban, bounded duplicate caches, and public-discovery rejection of unsafe numeric addresses.
+
+Operational defaults not numerically fixed by the master spec are currently: 30-second ping grace, malformed threshold 10, duplicate cache 4,096 entries, 64 messages/s with burst 128, and 2 MiB/s with 4 MiB burst. These are local anti-abuse policy, not consensus parameters.
+
+**Public Testnet seed deployment note:** the repository does not invent public seed addresses before infrastructure exists. The Testnet compiled seed list remains unpopulated until Stage 12 provisions at least 3 stable public full nodes across at least 2 independent regions/providers. Those real endpoints must then be frozen into the Testnet profile and the seed gate rerun before public launch.
+
+**Stage 9 is not started.** Next master-spec milestone: wallet encryption v2.
+
+## Stage 8 seed/P2P protection gate
+
+Stage 8 software implements and tests:
+
+- compiled network-profile seed-list support plus operator seed overrides;
+- best-effort seed bootstrap where one offline seed does not abort startup;
+- bounded post-seed discovery toward outbound target 8;
+- no-seed mode preserving manual/legacy topology behavior;
+- handshake timeout 5 seconds;
+- idle watchdog at 5 minutes with ping before disconnect;
+- inbound cap 64 and per-IP inbound cap 4;
+- 4 MiB global frame payload limit plus smaller per-message limits;
+- token-bucket inbound message and byte rate limiting;
+- malformed IP score and 1-hour temporary bans;
+- bounded transaction/inventory duplicate caches;
+- public peer-gossip filtering for unspecified, loopback, private, multicast and link-local numeric addresses;
+- regression coverage for seed failure, discovery beyond seeds, bans, rate limits, duplicate eviction, idle keepalive and old three-node topology.
+
+The actual Public Testnet seed endpoints are deployment data, not fabricated placeholders. They remain a Stage 12 launch prerequisite: minimum 3 stable public nodes in at least 2 independent regions/providers, followed by updating `NetworkTestnetV02.DefaultSeeds`.
 
 ## Stage 7 headers-first sync gate
 
