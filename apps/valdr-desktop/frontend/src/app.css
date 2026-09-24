@@ -700,3 +700,53 @@ button:disabled {
 .transaction-detail-fields code {
   user-select: text;
 }
+
+
+.network-peers {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+
+.peer-list {
+  display: grid;
+  gap: 8px;
+}
+
+.peer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 8px;
+  background: #0d151d;
+}
+
+.peer-item strong,
+.peer-item code {
+  display: block;
+}
+
+.peer-item code {
+  margin-top: 4px;
+}
+
+.peer-meta {
+  color: #748493;
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .peer-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .peer-meta {
+    text-align: left;
+  }
+}

@@ -38,6 +38,15 @@ type DesktopState = {
   wallet_auto_lock_minutes: number;
 };
 
+type PeerInfo = {
+  node_id: string;
+  address: string;
+  height: number;
+  cumulative_chainwork?: string;
+  protocol_version: number;
+  inbound: boolean;
+};
+
 type WalletBalance = {
   address: string;
   balance_val: number;
@@ -80,6 +89,7 @@ type AppAPI = {
   GetReceiveQRCode(address: string): Promise<string>;
   ExportPrivateKey(selector: string, confirmation: string): Promise<string>;
   GetWalletBalance(address: string): Promise<WalletBalance>;
+  GetPeers(): Promise<PeerInfo[]>;
   PreviewSend(
     selector: string,
     recipient: string,
@@ -494,12 +504,28 @@ root.innerHTML = `
           <dl class="details">
             <div><dt>Profile</dt><dd id="detail-network">testnet</dd></div>
             <div><dt>Chain ID</dt><dd id="detail-chain">valdr-testnet-1</dd></div>
+            <div><dt>Node state</dt><dd id="detail-node-state">—</dd></div>
+            <div><dt>Synchronization</dt><dd id="detail-sync">—</dd></div>
+            <div><dt>Local / best height</dt><dd id="detail-height">—</dd></div>
+            <div><dt>Connected peers</dt><dd id="detail-peer-count">—</dd></div>
             <div><dt>Tip</dt><dd><code id="detail-tip">—</code></dd></div>
             <div><dt>Chainwork</dt><dd><code id="detail-chainwork">—</code></dd></div>
             <div><dt>Node data</dt><dd><code id="detail-data">—</code></dd></div>
             <div><dt>Wallet data</dt><dd><code id="detail-wallets">—</code></dd></div>
+            <div><dt>Logs</dt><dd><code id="detail-logs">—</code></dd></div>
           </dl>
-          <p class="subtle">Inbound public-node mode is intentionally not exposed in this first Desktop slice.</p>
+          <div class="network-peers">
+            <div class="section-head">
+              <div>
+                <h3>Connected peers</h3>
+                <p class="subtle">Read-only view from the managed local node.</p>
+              </div>
+              <button class="secondary" id="refresh-peers" type="button">Refresh peers</button>
+            </div>
+            <div id="peer-list" class="peer-list"></div>
+            <p id="peer-list-empty" class="subtle">No connected peers.</p>
+          </div>
+          <p class="subtle">Desktop remains outbound-only. Public-node mode will be exposed only in Advanced mode.</p>
         </article>
       </section>
     </main>
@@ -902,6 +928,51 @@ const refreshOverviewLatestTransaction = async (): Promise<void> => {
   }
 };
 
+const renderPeers = (peers: PeerInfo[]): void => {
+  const list = document.getElementById("peer-list");
+  const empty = document.getElementById("peer-list-empty");
+  if (!list || !empty) return;
+  list.replaceChildren();
+
+  if (peers.length === 0) {
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  for (const peer of peers) {
+    const item = document.createElement("div");
+    item.className = "peer-item";
+
+    const identity = document.createElement("div");
+    const nodeID = document.createElement("strong");
+    nodeID.textContent = peer.node_id || "Unknown peer";
+    const address = document.createElement("code");
+    address.textContent = peer.address;
+    identity.append(nodeID, address);
+
+    const meta = document.createElement("div");
+    meta.className = "peer-meta";
+    const direction = peer.inbound ? "Inbound" : "Outbound";
+    meta.textContent = `${direction} · v${peer.protocol_version} · height ${peer.height}`;
+
+    item.append(identity, meta);
+    list.append(item);
+  }
+};
+
+const refreshPeers = async (): Promise<void> => {
+  if (!currentState?.node_running) {
+    renderPeers([]);
+    return;
+  }
+  try {
+    renderPeers(await api().GetPeers());
+  } catch {
+    renderPeers([]);
+  }
+};
+
 const refreshTransactionHistory = async (): Promise<void> => {
   const errorBox = document.getElementById("history-error");
   errorBox?.classList.add("hidden");
@@ -931,6 +1002,7 @@ const renderState = (state: DesktopState): void => {
   text("detail-chain", state.chain_id);
   text("detail-data", state.paths.node_data);
   text("detail-wallets", state.paths.wallets);
+  text("detail-logs", state.paths.logs);
 
   text(
     "height",
@@ -946,8 +1018,21 @@ const renderState = (state: DesktopState): void => {
   text("mempool", status ? String(status.mempool_count) : "—");
   text("detail-tip", status?.tip_hash || "—");
   text("detail-chainwork", status?.chainwork || "—");
+  text("detail-peer-count", status ? String(status.peer_count) : "—");
+  text(
+    "detail-height",
+    status ? `${status.height} / ${status.best_known_height}` : "—",
+  );
+  text(
+    "detail-sync",
+    status ? `${Math.round(status.sync_progress * 100)}%` : "—",
+  );
 
   const healthy = state.node_running && Boolean(status);
+  text(
+    "detail-node-state",
+    healthy ? "Online" : state.node_running ? "Starting" : "Stopped",
+  );
   text("node-badge-text", healthy ? "Node online" : state.node_running ? "Node starting" : "Node stopped");
   text("node-state", healthy ? "Connected to local RPC" : state.node_running ? "Starting local node…" : "Stopped");
 
@@ -1013,6 +1098,8 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item[data-view]").forEach((bu
       void refreshTransactionHistory();
     } else if (view === "overview") {
       void refreshOverviewLatestTransaction();
+    } else if (view === "network") {
+      void refreshPeers();
     }
   });
 });
@@ -1424,6 +1511,10 @@ document.addEventListener("keydown", (event) => {
 
 document.getElementById("refresh-history")?.addEventListener("click", async () => {
   await refreshTransactionHistory();
+});
+
+document.getElementById("refresh-peers")?.addEventListener("click", async () => {
+  await refreshPeers();
 });
 
 document.getElementById("copy-address")?.addEventListener("click", async () => {

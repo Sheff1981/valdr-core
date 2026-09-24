@@ -278,6 +278,25 @@ func (a *App) GetWalletBalance(
 	return a.walletService.Balance(ctx, strings.TrimSpace(address))
 }
 
+func (a *App) GetPeers() ([]rpc.PeerResult, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		2*time.Second,
+	)
+	defer cancel()
+
+	var peers []rpc.PeerResult
+	if err := rpc.NewClient(a.node.Endpoint()).Call(
+		ctx,
+		rpc.MethodGetPeers,
+		nil,
+		&peers,
+	); err != nil {
+		return nil, err
+	}
+	return peers, nil
+}
+
 func (a *App) GetTransactionHistory(
 	address string,
 ) ([]desktopcore.TransactionHistoryItem, error) {
