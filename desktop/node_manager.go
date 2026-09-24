@@ -38,6 +38,7 @@ type NodeManager struct {
 	mu      sync.Mutex
 	config  NodeProcessConfig
 	command *exec.Cmd
+	stdin   io.WriteCloser
 	waitCh  chan error
 }
 
@@ -92,18 +93,25 @@ func (m *NodeManager) Start() error {
 	cmd := exec.Command(m.config.BinaryPath, args...)
 	cmd.Stdout = m.config.Stdout
 	cmd.Stderr = m.config.Stderr
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
 	if err := cmd.Start(); err != nil {
+		_ = stdin.Close()
 		return err
 	}
 
 	waitCh := make(chan error, 1)
 	m.command = cmd
+	m.stdin = stdin
 	m.waitCh = waitCh
 	go func() {
 		err := cmd.Wait()
 		m.mu.Lock()
 		if m.command == cmd {
 			m.command = nil
+			m.stdin = nil
 		}
 		m.mu.Unlock()
 		waitCh <- err
@@ -115,14 +123,15 @@ func (m *NodeManager) Start() error {
 func (m *NodeManager) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	cmd := m.command
+	stdin := m.stdin
 	waitCh := m.waitCh
 	m.mu.Unlock()
 	if cmd == nil {
 		return nil
 	}
 
-	if err := cmd.Process.Signal(os.Interrupt); err != nil {
-		_ = cmd.Process.Kill()
+	if stdin != nil {
+		_ = stdin.Close()
 	}
 	select {
 	case err := <-waitCh:
@@ -193,6 +202,7 @@ func desktopNodeArgs(cfg NodeProcessConfig) ([]string, error) {
 		"--data", cfg.DataDir,
 		"--node-id", cfg.NodeID,
 		"--outbound-only",
+		"--managed-stdin-shutdown",
 		"--rpc-host", "127.0.0.1",
 		"--rpc-port", strconv.Itoa(int(port)),
 	}
