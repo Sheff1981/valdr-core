@@ -113,6 +113,29 @@ if (!root) {
 }
 
 root.innerHTML = `
+  <div id="transaction-detail-dialog" class="transaction-detail-dialog hidden" aria-modal="true" role="dialog" aria-labelledby="transaction-detail-title">
+    <div class="transaction-detail-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">TRANSACTION DETAIL</p>
+          <h2 id="transaction-detail-title">Transaction</h2>
+        </div>
+        <button class="secondary" id="close-transaction-detail" type="button">Close</button>
+      </div>
+      <dl class="details transaction-detail-fields">
+        <div><dt>Status</dt><dd id="transaction-detail-status">—</dd></div>
+        <div><dt>Direction</dt><dd id="transaction-detail-direction">—</dd></div>
+        <div><dt>Timestamp</dt><dd id="transaction-detail-time">—</dd></div>
+        <div><dt>Amount</dt><dd id="transaction-detail-amount">—</dd></div>
+        <div><dt>Network fee</dt><dd id="transaction-detail-fee">—</dd></div>
+        <div><dt>Confirmations</dt><dd id="transaction-detail-confirmations">—</dd></div>
+        <div><dt>Block height</dt><dd id="transaction-detail-height">—</dd></div>
+        <div><dt>Block hash</dt><dd><code id="transaction-detail-block">—</code></dd></div>
+        <div><dt>Transaction ID</dt><dd><code id="transaction-detail-txid">—</code></dd></div>
+      </dl>
+    </div>
+  </div>
+
   <div id="send-confirm-dialog" class="send-confirm-dialog hidden" aria-modal="true" role="dialog" aria-labelledby="send-confirm-title">
     <div class="send-confirm-card">
       <p class="eyebrow">FINAL CONFIRMATION</p>
@@ -523,6 +546,37 @@ const closeSendConfirmation = (): void => {
   document.getElementById("send-confirm-dialog")?.classList.add("hidden");
 };
 
+const closeTransactionDetail = (): void => {
+  document.getElementById("transaction-detail-dialog")?.classList.add("hidden");
+};
+
+const openTransactionDetail = (item: TransactionHistoryItem): void => {
+  const direction =
+    item.direction === "received"
+      ? "Received"
+      : item.direction === "sent"
+        ? "Sent"
+        : "Self transfer";
+  const prefix = item.direction === "received" ? "+" : item.direction === "sent" ? "−" : "";
+
+  text("transaction-detail-status", item.status);
+  text("transaction-detail-direction", direction);
+  text("transaction-detail-time", new Date(item.timestamp * 1000).toLocaleString());
+  text("transaction-detail-amount", `${prefix}${item.amount_vdr} VDR`);
+  text("transaction-detail-fee", item.fee_val > 0 ? `${item.fee_vdr} VDR` : "—");
+  text(
+    "transaction-detail-confirmations",
+    item.status === "pending" ? "0" : String(item.confirmations),
+  );
+  text(
+    "transaction-detail-height",
+    item.block_height === undefined ? "—" : String(item.block_height),
+  );
+  text("transaction-detail-block", item.block_hash || "—");
+  text("transaction-detail-txid", item.transaction_id);
+  document.getElementById("transaction-detail-dialog")?.classList.remove("hidden");
+};
+
 const clearSendStatus = (): void => {
   sendError?.classList.add("hidden");
   const result = document.getElementById("send-result");
@@ -791,7 +845,16 @@ const renderHistory = (items: TransactionHistoryItem[]): void => {
     if (item.block_height) addDetail("Block", String(item.block_height));
     addDetail("Transaction ID", item.transaction_id);
 
-    card.append(head, meta);
+    const actions = document.createElement("div");
+    actions.className = "history-actions";
+    const detailButton = document.createElement("button");
+    detailButton.type = "button";
+    detailButton.className = "secondary";
+    detailButton.textContent = "View details";
+    detailButton.addEventListener("click", () => openTransactionDetail(item));
+    actions.append(detailButton);
+
+    card.append(head, meta, actions);
     list.append(card);
   }
 };
@@ -940,6 +1003,7 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item[data-view]").forEach((bu
     const view = button.dataset.view;
     if (!view) return;
     currentView = view;
+    closeTransactionDetail();
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
@@ -962,6 +1026,7 @@ document.getElementById("wallet-selector")?.addEventListener("change", (event) =
   lastPreviewSummary = null;
   clearPrivateKeyExport();
   closeSendConfirmation();
+  closeTransactionDetail();
   clearSendStatus();
   document.getElementById("send-preview")?.classList.add("hidden");
   document.getElementById("send-preview-empty")?.classList.remove("hidden");
@@ -1346,9 +1411,14 @@ document.getElementById("broadcast-send")?.addEventListener("click", async () =>
   }
 });
 
+document.getElementById("close-transaction-detail")?.addEventListener("click", () => {
+  closeTransactionDetail();
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeSendConfirmation();
+    closeTransactionDetail();
   }
 });
 

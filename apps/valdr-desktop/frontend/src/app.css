@@ -660,3 +660,43 @@ button:disabled {
   justify-content: flex-end;
   margin-top: 18px;
 }
+
+
+.history-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.transaction-detail-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1210;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 8, 12, .82);
+}
+
+.transaction-detail-dialog.hidden {
+  display: none;
+}
+
+.transaction-detail-card {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid rgba(145,176,204,.18);
+  border-radius: 14px;
+  background: #101821;
+  box-shadow: 0 24px 80px rgba(0,0,0,.48);
+}
+
+.transaction-detail-fields {
+  margin-top: 8px;
+}
+
+.transaction-detail-fields code {
+  user-select: text;
+}
