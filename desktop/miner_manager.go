@@ -44,6 +44,8 @@ type MinerStatus struct {
 	BlockRewardVal         uint64  `json:"block_reward_val"`
 	BlockRewardVDR         string  `json:"block_reward_vdr"`
 	TargetBlockTimeSeconds int64   `json:"target_block_time_seconds"`
+	RetargetInterval       uint64  `json:"retarget_interval"`
+	BlocksUntilRetarget    uint64  `json:"blocks_until_retarget"`
 	HashrateHPS            float64 `json:"hashrate_hps"`
 	LastBlockHashrateHPS   float64 `json:"last_block_hashrate_hps"`
 	LastBlockHashes        uint64  `json:"last_block_hashes"`
@@ -223,6 +225,8 @@ func (m *MinerManager) Status(ctx context.Context) (MinerStatus, error) {
 	status.BlockRewardVal = info.BlockRewardVal
 	status.BlockRewardVDR = FormatVDR(info.BlockRewardVal)
 	status.TargetBlockTimeSeconds = info.TargetBlockTimeSeconds
+	status.RetargetInterval = info.RetargetInterval
+	status.BlocksUntilRetarget = info.BlocksUntilRetarget
 	return status, nil
 }
 

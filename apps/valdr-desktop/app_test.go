@@ -171,3 +171,14 @@ func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
 		t.Fatalf("locked export error=%v", err)
 	}
 }
+
+
+func TestCopyReceiveAddressRejectsInvalidAddress(t *testing.T) {
+	app := &App{}
+	if err := app.CopyReceiveAddress("not-a-valdr-address"); !errors.Is(
+		err,
+		ErrInvalidReceiveAddress,
+	) {
+		t.Fatalf("error=%v want ErrInvalidReceiveAddress", err)
+	}
+}

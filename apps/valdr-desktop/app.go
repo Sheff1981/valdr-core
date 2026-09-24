@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Sheff1981/valdr-core/config"
+	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 	desktopcore "github.com/Sheff1981/valdr-core/desktop"
 	"github.com/Sheff1981/valdr-core/rpc"
 	"github.com/Sheff1981/valdr-core/wallet"
@@ -25,6 +26,9 @@ var (
 	)
 	ErrDesktopNodeRequired = errors.New(
 		"VALDR Desktop local node must be running",
+	)
+	ErrInvalidReceiveAddress = errors.New(
+		"invalid VALDR receive address",
 	)
 )
 
@@ -299,6 +303,17 @@ func (a *App) GetReceiveQRCode(address string) (string, error) {
 	return desktopcore.AddressQRCodeDataURI(
 		strings.TrimSpace(address),
 	)
+}
+
+func (a *App) CopyReceiveAddress(address string) error {
+	address = strings.TrimSpace(address)
+	if !valdrcrypto.ValidateAddress(address) {
+		return ErrInvalidReceiveAddress
+	}
+	if a.ctx == nil {
+		return errors.New("VALDR Desktop is not started")
+	}
+	return wailsruntime.ClipboardSetText(a.ctx, address)
 }
 
 func (a *App) ExportPrivateKey(
@@ -607,6 +622,13 @@ func (a *App) StartNode() error {
 	}
 	a.setNodeError("")
 	return nil
+}
+
+func (a *App) RestartNode() error {
+	if err := a.StopNode(); err != nil {
+		return err
+	}
+	return a.StartNode()
 }
 
 func (a *App) StopNode() error {

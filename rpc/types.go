@@ -106,6 +106,8 @@ type MiningInfoResult struct {
 	CurrentTarget          string `json:"current_target,omitempty"`
 	BlockRewardVal         uint64 `json:"block_reward_val"`
 	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
+	RetargetInterval       uint64 `json:"retarget_interval"`
+	BlocksUntilRetarget    uint64 `json:"blocks_until_retarget"`
 }
 
 type MineBlockResult struct {

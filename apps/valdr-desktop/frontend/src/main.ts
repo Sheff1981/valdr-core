@@ -67,6 +67,8 @@ type MinerStatus = {
   block_reward_val: number;
   block_reward_vdr: string;
   target_block_time_seconds: number;
+  retarget_interval: number;
+  blocks_until_retarget: number;
   hashrate_hps: number;
   last_block_hashrate_hps: number;
   last_block_hashes: number;
@@ -115,6 +117,7 @@ type AppAPI = {
   LockWallet(selector: string): Promise<void>;
   SetWalletAutoLockMinutes(minutes: number): Promise<void>;
   GetReceiveQRCode(address: string): Promise<string>;
+  CopyReceiveAddress(address: string): Promise<void>;
   ExportPrivateKey(selector: string, confirmation: string): Promise<string>;
   GetWalletBalance(address: string): Promise<WalletBalance>;
   GetPeers(): Promise<PeerInfo[]>;
@@ -139,6 +142,7 @@ type AppAPI = {
   StartMining(rewardAddress: string): Promise<void>;
   StopMining(): Promise<void>;
   StartNode(): Promise<void>;
+  RestartNode(): Promise<void>;
   StopNode(): Promise<void>;
 };
 
@@ -218,6 +222,7 @@ root.innerHTML = `
         <span id="first-run-node-state">Starting local node…</span>
         <strong id="first-run-sync">Waiting for status</strong>
       </div>
+      <button class="secondary full-button hidden restart-node-action" type="button">Restart local node</button>
       <form id="first-run-form">
         <label>
           Wallet name
@@ -333,6 +338,7 @@ root.innerHTML = `
           </div>
           <div class="actions">
             <button class="secondary" id="start-node">Start node</button>
+            <button class="secondary hidden restart-node-action" type="button">Restart node</button>
             <button class="danger" id="stop-node">Stop node</button>
           </div>
         </article>
@@ -608,6 +614,8 @@ root.innerHTML = `
               <div><dt>Next height</dt><dd id="mining-next-height">—</dd></div>
               <div><dt>Block reward</dt><dd id="mining-reward">—</dd></div>
               <div><dt>Target block interval</dt><dd id="mining-target-time">—</dd></div>
+              <div><dt>Current chain target</dt><dd><code id="mining-current-target">—</code></dd></div>
+              <div><dt>Difficulty retarget</dt><dd id="mining-retarget">—</dd></div>
               <div><dt>Engine</dt><dd>CPU · SHA-256 · single thread</dd></div>
               <div><dt>Average effective hashrate</dt><dd id="mining-hashrate">—</dd></div>
               <div><dt>Last block hashrate</dt><dd id="mining-last-hashrate">—</dd></div>
@@ -1201,6 +1209,15 @@ const refreshMining = async (): Promise<void> => {
         ? status.target_block_time_seconds + " seconds"
         : "—",
     );
+    text("mining-current-target", status.current_target || "—");
+    text(
+      "mining-retarget",
+      status.retarget_interval > 0
+        ? status.blocks_until_retarget === 0
+          ? `Next block · every ${status.retarget_interval} blocks`
+          : `In ${status.blocks_until_retarget} block(s) · every ${status.retarget_interval} blocks`
+        : "—",
+    );
     text("mining-hashrate", formatHashrate(status.hashrate_hps));
     text("mining-last-hashrate", formatHashrate(status.last_block_hashrate_hps));
     text("mining-last-duration", formatMiningDuration(status.last_block_duration_ms));
@@ -1287,6 +1304,15 @@ const renderState = (state: DesktopState): void => {
 
   const badge = document.getElementById("node-badge");
   badge?.classList.toggle("healthy", healthy);
+
+  const startNodeButton = document.getElementById("start-node") as HTMLButtonElement | null;
+  const stopNodeButton = document.getElementById("stop-node") as HTMLButtonElement | null;
+  if (startNodeButton) startNodeButton.disabled = state.node_running;
+  if (stopNodeButton) stopNodeButton.disabled = !state.node_running;
+  document.querySelectorAll<HTMLButtonElement>(".restart-node-action").forEach((button) => {
+    button.classList.toggle("hidden", !state.node_error);
+    button.disabled = false;
+  });
 
   const firstRun = document.getElementById("first-run");
   firstRun?.classList.toggle("hidden", state.wallets.length > 0);
@@ -1411,6 +1437,23 @@ document.getElementById("stop-node")?.addEventListener("click", async () => {
   } catch (error) {
     showError(error instanceof Error ? error.message : String(error));
   }
+});
+
+document.querySelectorAll<HTMLButtonElement>(".restart-node-action").forEach((button) => {
+  button.addEventListener("click", async () => {
+    clearError();
+    button.disabled = true;
+    text("node-detail", "Restarting local node…");
+    text("first-run-node-state", "Restarting local node…");
+    try {
+      await api().RestartNode();
+      await refresh();
+    } catch (error) {
+      showError(error instanceof Error ? error.message : String(error));
+    } finally {
+      button.disabled = false;
+    }
+  });
 });
 
 document.getElementById("start-mining")?.addEventListener("click", async () => {
@@ -1834,10 +1877,13 @@ document.getElementById("copy-address")?.addEventListener("click", async () => {
     return;
   }
   try {
-    await navigator.clipboard.writeText(wallet.address);
+    await api().CopyReceiveAddress(wallet.address);
     text("copy-status", "Address copied.");
-  } catch {
-    text("copy-status", "Clipboard unavailable. Select and copy the address manually.");
+  } catch (error) {
+    text(
+      "copy-status",
+      error instanceof Error ? error.message : "Clipboard unavailable.",
+    );
   }
 });
 

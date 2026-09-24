@@ -264,3 +264,30 @@ func TestRPCMethodAndNotFoundErrors(t *testing.T) {
 		t.Fatalf("unknown method error = %v, want ErrRPCResponse", err)
 	}
 }
+
+
+func TestBlocksUntilRetarget(t *testing.T) {
+	tests := []struct {
+		nextHeight uint64
+		interval   uint64
+		want       uint64
+	}{
+		{nextHeight: 1, interval: 60, want: 59},
+		{nextHeight: 59, interval: 60, want: 1},
+		{nextHeight: 60, interval: 60, want: 0},
+		{nextHeight: 61, interval: 60, want: 59},
+		{nextHeight: 180, interval: 60, want: 0},
+		{nextHeight: 10, interval: 0, want: 0},
+	}
+	for _, tc := range tests {
+		if got := blocksUntilRetarget(tc.nextHeight, tc.interval); got != tc.want {
+			t.Fatalf(
+				"blocksUntilRetarget(%d, %d)=%d want=%d",
+				tc.nextHeight,
+				tc.interval,
+				got,
+				tc.want,
+			)
+		}
+	}
+}

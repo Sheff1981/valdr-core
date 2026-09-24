@@ -238,6 +238,8 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			CurrentTarget:          tip.Target,
 			BlockRewardVal:         consensus.BlockReward(nextHeight),
 			TargetBlockTimeSeconds: profile.TargetBlockTimeSeconds,
+			RetargetInterval:       profile.RetargetInterval,
+			BlocksUntilRetarget:    blocksUntilRetarget(nextHeight, profile.RetargetInterval),
 		}, nil
 
 	case MethodGetUTXOs:
@@ -368,6 +370,17 @@ func (s *Server) writeError(w http.ResponseWriter, status, code int, err error) 
 			Message: err.Error(),
 		},
 	})
+}
+
+func blocksUntilRetarget(nextHeight, interval uint64) uint64 {
+	if interval == 0 {
+		return 0
+	}
+	remainder := nextHeight % interval
+	if remainder == 0 {
+		return 0
+	}
+	return interval - remainder
 }
 
 func calculateSyncProgress(
