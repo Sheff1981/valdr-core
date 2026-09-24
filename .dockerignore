@@ -1,0 +1,7 @@
+.git
+.github
+data
+*.log
+*.pid
+*.tmp
+.valdr
