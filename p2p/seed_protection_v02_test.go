@@ -335,3 +335,32 @@ func TestProtectionDefaultValues(t *testing.T) {
 		t.Fatalf("unexpected protection defaults: %+v", cfg)
 	}
 }
+
+
+func TestBootstrapAndMaintainDoesNothingWithoutSeeds(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := mustStartNode(t, NodeConfig{
+		NodeID:         "no-seed-target",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer node.Close()
+
+	node.mu.Lock()
+	node.discovered["would-connect"] = "127.0.0.1:65534"
+	node.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	result := node.BootstrapAndMaintain(ctx, nil)
+	if result.Attempted != 0 || result.Connected != 0 || len(result.Failures) != 0 {
+		t.Fatalf("unexpected bootstrap activity without seeds: %+v", result)
+	}
+	if node.PeerCount() != 0 {
+		t.Fatalf("peer count=%d want=0", node.PeerCount())
+	}
+}
