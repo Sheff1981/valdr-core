@@ -125,15 +125,18 @@ type peerTrafficState struct {
 	mu           sync.Mutex
 	messages     tokenBucket
 	bytes        tokenBucket
+	lastActivity time.Time
 	awaitingPong bool
 	lastPing     uint64
+	pingSentAt   time.Time
 }
 
 func newPeerTrafficState(cfg ProtectionConfig) *peerTrafficState {
 	now := cfg.Now()
 	return &peerTrafficState{
-		messages: newTokenBucket(cfg.MessagesPerSecond, cfg.MessageBurst, now),
-		bytes:    newTokenBucket(cfg.BytesPerSecond, cfg.ByteBurst, now),
+		messages:     newTokenBucket(cfg.MessagesPerSecond, cfg.MessageBurst, now),
+		bytes:        newTokenBucket(cfg.BytesPerSecond, cfg.ByteBurst, now),
+		lastActivity: now,
 	}
 }
 
@@ -145,17 +148,35 @@ func (s *peerTrafficState) allow(cfg ProtectionConfig, payloadBytes int) bool {
 		s.bytes.allow(float64(payloadBytes), now)
 }
 
-func (s *peerTrafficState) setAwaitingPong(nonce uint64, waiting bool) {
+func (s *peerTrafficState) markActivity(now time.Time) {
 	s.mu.Lock()
-	s.awaitingPong = waiting
-	s.lastPing = nonce
+	s.lastActivity = now
+	s.awaitingPong = false
+	s.lastPing = 0
+	s.pingSentAt = time.Time{}
 	s.mu.Unlock()
 }
 
-func (s *peerTrafficState) pingState() (bool, uint64) {
+func (s *peerTrafficState) setAwaitingPong(
+	nonce uint64,
+	now time.Time,
+) {
+	s.mu.Lock()
+	s.awaitingPong = true
+	s.lastPing = nonce
+	s.pingSentAt = now
+	s.mu.Unlock()
+}
+
+func (s *peerTrafficState) idleState() (
+	lastActivity time.Time,
+	awaiting bool,
+	pingSentAt time.Time,
+	lastPing uint64,
+) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.awaitingPong, s.lastPing
+	return s.lastActivity, s.awaitingPong, s.pingSentAt, s.lastPing
 }
 
 type boundedStringSet struct {
