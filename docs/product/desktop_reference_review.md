@@ -244,3 +244,18 @@ Implemented product direction:
 - the Downloads affordance remains non-operational until Stage 13 signed/verifiable packages exist.
 
 This is a visual/product change only. It does not modify consensus, P2P, wallet format, RPC trust boundaries or storage.
+
+
+## 10. Exact owner-supplied raster reference assets
+
+**Date:** 2026-09-25
+
+For the Premium Desktop dashboard, the project owner explicitly requested that the supplied reference artwork be used directly rather than re-drawn or re-generated.
+
+Implementation rule:
+
+- sidebar VALDR branding uses a direct crop of the owner-supplied reference;
+- header/mountain/raven artwork uses a direct crop of the owner-supplied reference;
+- the dashboard keeps live VALDR wallet/node data and controls over those local assets;
+- no remote runtime content is introduced;
+- no consensus, wallet, P2P, RPC or storage behavior changes.

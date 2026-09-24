@@ -266,22 +266,18 @@ root.innerHTML = `
 
   <div class="shell">
     <aside class="sidebar">
-      <div class="brand brand-sidebar">
-        <img class="brand-emblem brand-emblem-sidebar" src="/valdr-emblem.svg" alt="VALDR">
-        <div>
-          <strong>VALDR</strong>
-          <span>Desktop</span>
-        </div>
+      <div class="brand brand-sidebar reference-brand-block">
+        <img class="reference-brand-image" src="/valdr-reference-brand.jpg" alt="VALDR Desktop">
       </div>
 
       <nav aria-label="Primary navigation">
         <button class="nav-item active" data-view="overview">Dashboard</button>
+        <button class="nav-item" data-view="wallet">Wallet</button>
         <button class="nav-item" data-view="send">Send</button>
         <button class="nav-item" data-view="receive">Receive</button>
-        <button class="nav-item" data-view="wallet">Wallet</button>
-        <button class="nav-item" data-view="transactions">Transactions</button>
-        <button class="nav-item advanced-only hidden" data-view="network">Network</button>
         <button class="nav-item advanced-only hidden" data-view="mining">Mining</button>
+        <button class="nav-item advanced-only hidden" data-view="network">Network</button>
+        <button class="nav-item" data-view="transactions">Transactions</button>
         <button class="nav-item" data-view="settings">Settings</button>
       </nav>
 
@@ -318,8 +314,8 @@ root.innerHTML = `
       </header>
 
       <section class="view active" id="view-overview">
-        <div class="hero valdr-hero">
-          <img class="hero-watermark" src="/valdr-emblem.svg" alt="">
+        <div class="hero valdr-hero reference-hero">
+          <div class="reference-hero-art" aria-hidden="true"></div>
           <div class="hero-main">
             <p class="eyebrow">TOTAL SPENDABLE BALANCE</p>
             <div class="balance"><span id="overview-balance">—</span> <span>VDR</span></div>

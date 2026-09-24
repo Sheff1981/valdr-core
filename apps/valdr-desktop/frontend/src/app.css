@@ -1867,3 +1867,161 @@ button.danger {
   .valdr-hero { min-height: 230px; }
   .hero-watermark { right: 18px; opacity: .09; }
 }
+
+/* VALDR exact owner-reference raster skin — 2026-09-25 */
+/* These are direct crops from the project-owner supplied reference image.
+   No generated/reconstructed raven, mountain or VALDR mark is used here. */
+
+body {
+  background: #050607;
+}
+
+.reference-brand-block {
+  display: block;
+  padding: 0 0 16px;
+}
+
+.reference-brand-image {
+  display: block;
+  width: 100%;
+  max-width: 208px;
+  height: auto;
+  margin: 0 auto;
+  border: 0;
+  border-radius: 0;
+  object-fit: contain;
+  box-shadow: none;
+}
+
+.valdr-topbar {
+  min-height: 166px;
+  margin: -22px -28px 16px;
+  padding: 28px 32px 22px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(232,183,79,.30);
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.05) 0%, rgba(0,0,0,.05) 63%, rgba(4,6,7,.80) 78%, rgba(4,6,7,.94) 100%),
+    url("/valdr-reference-hero.jpg") left top / auto 334px no-repeat,
+    #060708;
+}
+
+.valdr-topbar .product-heading {
+  min-width: 54%;
+}
+
+.valdr-topbar .product-heading .eyebrow,
+.valdr-topbar .product-title,
+.valdr-topbar .product-subtitle,
+.valdr-topbar .view-label {
+  visibility: hidden;
+}
+
+.valdr-topbar .top-actions {
+  position: relative;
+  z-index: 3;
+  margin-left: auto;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(5,8,9,.82);
+  backdrop-filter: blur(8px);
+}
+
+.reference-hero {
+  min-height: 252px;
+  isolation: isolate;
+  background:
+    linear-gradient(90deg, rgba(6,9,10,.99) 0%, rgba(7,10,11,.97) 44%, rgba(7,9,10,.74) 61%, rgba(5,7,8,.24) 100%);
+}
+
+.reference-hero::before {
+  display: none;
+}
+
+.reference-hero-art {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 0 42%;
+  overflow: hidden;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, rgba(8,10,11,.92) 0%, rgba(8,10,11,.16) 25%, rgba(0,0,0,0) 48%),
+    url("/valdr-reference-hero.jpg") right 42% / auto 334px no-repeat;
+  pointer-events: none;
+}
+
+.reference-hero .hero-main,
+.reference-hero .hero-network-id {
+  position: relative;
+  z-index: 3;
+}
+
+.reference-hero .hero-main {
+  max-width: 58%;
+}
+
+.reference-hero .hero-watermark {
+  display: none;
+}
+
+.reference-hero .hero-actions {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  z-index: 5;
+  margin: 0;
+}
+
+.reference-hero .hero-actions button {
+  min-width: 112px;
+  min-height: 45px;
+}
+
+.reference-hero .hero-network-id {
+  margin-left: auto;
+  margin-right: 10px;
+  align-self: start;
+  background: rgba(5,7,8,.70);
+  backdrop-filter: blur(6px);
+}
+
+.download-coin {
+  background:
+    linear-gradient(rgba(0,0,0,.18), rgba(0,0,0,.18)),
+    url("/valdr-reference-brand.jpg") center 15% / 104px auto no-repeat,
+    #050607;
+}
+
+.download-coin img {
+  display: none;
+}
+
+.first-run,
+.boot-splash {
+  background:
+    linear-gradient(rgba(3,4,5,.86), rgba(3,4,5,.94)),
+    url("/valdr-reference-hero.jpg") center / cover no-repeat,
+    #030405;
+}
+
+@media (max-width: 1180px) {
+  .valdr-topbar {
+    background-size: auto 286px;
+  }
+  .reference-hero-art {
+    inset-left: 48%;
+    background-size: auto 300px;
+  }
+}
+
+@media (max-width: 900px) {
+  .reference-brand-image {
+    max-width: 170px;
+  }
+  .reference-hero-art {
+    inset: 0 0 0 52%;
+    opacity: .72;
+  }
+  .reference-hero .hero-main {
+    max-width: 72%;
+  }
+}
