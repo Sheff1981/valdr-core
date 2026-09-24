@@ -2,6 +2,8 @@ package p2p
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"testing"
@@ -138,5 +140,46 @@ func TestV2HelloNegotiatesHighestMutualVersion(t *testing.T) {
 	hello.ChainID = "valdr-testnet-1"
 	if _, err := NegotiateV2Hello(profile, 2, 2, hello); !errors.Is(err, ErrWrongChainID) {
 		t.Fatalf("error=%v want ErrWrongChainID", err)
+	}
+}
+
+
+func TestV2PerMessagePayloadLimits(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	oversizedPing := struct {
+		Nonce uint64 `json:"nonce"`
+		Pad   string `json:"pad"`
+	}{
+		Nonce: 1,
+		Pad:   string(bytes.Repeat([]byte("x"), v2MessagePayloadLimit(V2MessagePing))),
+	}
+	if err := WriteV2Frame(
+		&buf,
+		profile,
+		2,
+		V2MessagePing,
+		oversizedPing,
+	); !errors.Is(err, ErrFrameTooLarge) {
+		t.Fatalf("WriteV2Frame error=%v want ErrFrameTooLarge", err)
+	}
+
+	payload := bytes.Repeat([]byte("x"), v2MessagePayloadLimit(V2MessagePing)+1)
+	magic := profile.Magic()
+	sum := sha256.Sum256(payload)
+	header := make([]byte, v2FrameHeaderSize)
+	copy(header[0:4], magic[:])
+	binary.BigEndian.PutUint16(header[4:6], 2)
+	binary.BigEndian.PutUint16(header[6:8], uint16(V2MessagePing))
+	binary.BigEndian.PutUint32(header[8:12], uint32(len(payload)))
+	copy(header[12:16], sum[:4])
+
+	raw := append(header, payload...)
+	if _, err := ReadV2Frame(bytes.NewReader(raw), profile); !errors.Is(err, ErrFrameTooLarge) {
+		t.Fatalf("ReadV2Frame error=%v want ErrFrameTooLarge", err)
 	}
 }
