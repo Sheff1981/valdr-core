@@ -71,8 +71,10 @@ type StatusResult struct {
 	Version                string `json:"version"`
 	Network                string `json:"network"`
 	ChainID                string `json:"chain_id"`
-	Height                 uint64 `json:"height"`
-	TipHash                string `json:"tip_hash"`
+	Height                 uint64  `json:"height"`
+	BestKnownHeight        uint64  `json:"best_known_height"`
+	SyncProgress           float64 `json:"sync_progress"`
+	TipHash                string  `json:"tip_hash"`
 	Chainwork              string `json:"chainwork"`
 	BlockVersion           uint32 `json:"block_version"`
 	Target                 string `json:"target,omitempty"`
