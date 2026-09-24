@@ -158,7 +158,9 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	rpcHost := fs.String("rpc-host", "127.0.0.1", "RPC listen host")
 	rpcPort := fs.Uint("rpc-port", uint(config.DefaultRPCPort), "RPC listen port")
 	var peers stringListFlag
+	var seeds stringListFlag
 	fs.Var(&peers, "peer", "P2P peer address; may be repeated")
+	fs.Var(&seeds, "seed", "P2P seed address; may be repeated; failures are non-fatal")
 
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -228,6 +230,18 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		}
 	}
 
+	bootstrapCtx, bootstrapCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	bootstrapResult := node.BootstrapAndMaintain(bootstrapCtx, seeds)
+	bootstrapCancel()
+	for _, failure := range bootstrapResult.Failures {
+		logging.Printf(
+			logging.CategoryP2P,
+			"seed bootstrap failed address=%s error=%s",
+			failure.Address,
+			failure.Error,
+		)
+	}
+
 	rpcServer, err := rpc.NewServer(chain, node)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
@@ -258,6 +272,8 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		"blockchain_db": blockStore.Path(),
 		"storage_schema": storage.StorageSchemaVersion,
 		"height":      chain.Height(),
+		"seed_attempted": bootstrapResult.Attempted,
+		"seed_connected": bootstrapResult.Connected,
 	}, errOut); err != 0 {
 		return err
 	}
