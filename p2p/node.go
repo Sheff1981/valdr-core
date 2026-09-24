@@ -300,6 +300,11 @@ func (n *Node) BroadcastTransaction(tx *transaction.Transaction) error {
 	}
 	logging.Printf(logging.CategoryTX, "accepted local txid=%s", tx.TransactionID)
 	logging.Printf(logging.CategoryMempool, "size=%d", n.mempool.Len())
+	if n.enableV2 {
+		return n.broadcastV2Except("", V2MessageTx, V2TxPayload{
+			Transaction: tx,
+		})
+	}
 	return n.broadcastExcept("", transactionMessage{
 		Type:        messageTypeTransaction,
 		Transaction: tx,
@@ -327,6 +332,14 @@ func (n *Node) BroadcastBlock(candidate *block.Block) error {
 		candidate.Height,
 		candidate.BlockHash,
 	)
+	if n.enableV2 {
+		return n.broadcastV2Except("", V2MessageInv, V2InvPayload{
+			Items: []V2InventoryItem{{
+				Kind: V2InventoryBlock,
+				Hash: candidate.BlockHash,
+			}},
+		})
+	}
 	return n.broadcastExcept("", blockMessage{
 		Type:  messageTypeBlock,
 		Block: candidate,
@@ -1221,16 +1234,14 @@ func (n *Node) handleInvV2(peerID string, payload V2InvPayload) error {
 	if err := ValidateV2InvPayload(payload); err != nil {
 		return err
 	}
-	items := make([]V2InventoryItem, 0, len(payload.Items))
 	for _, item := range payload.Items {
 		if !n.blockchain.HasBlock(item.Hash) {
-			items = append(items, item)
+			// Stage 7 is strictly headers-first: inventory only signals that
+			// new data exists. Fetch and validate headers before any body.
+			return n.requestHeadersV2(peerID)
 		}
 	}
-	if len(items) == 0 {
-		return nil
-	}
-	return n.sendV2To(peerID, V2MessageGetData, V2GetDataPayload{Items: items})
+	return nil
 }
 
 func (n *Node) handleGetPeersV2(peerID string) error {
@@ -1251,6 +1262,31 @@ func (n *Node) handleGetPeersV2(peerID string) error {
 	return n.sendV2To(peerID, V2MessagePeers, struct {
 		Peers []peerAdvertisement `json:"peers"`
 	}{Peers: advertisements})
+}
+
+func (n *Node) broadcastV2Except(
+	excludedPeerID string,
+	messageType V2MessageType,
+	value any,
+) error {
+	n.mu.RLock()
+	peerIDs := make([]string, 0, len(n.conns))
+	for peerID := range n.conns {
+		if peerID != excludedPeerID {
+			peerIDs = append(peerIDs, peerID)
+		}
+	}
+	n.mu.RUnlock()
+	sort.Strings(peerIDs)
+
+	var firstErr error
+	for _, peerID := range peerIDs {
+		if err := n.sendV2To(peerID, messageType, value); err != nil &&
+			firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 func (n *Node) sendV2To(peerID string, messageType V2MessageType, value any) error {
