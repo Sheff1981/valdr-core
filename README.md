@@ -3,7 +3,7 @@
 VALDR is a standalone cryptocurrency and blockchain project.
 
 The frozen working baseline is **VALDR Devnet v0.1** at `release/valdr-devnet-v0.1`.
-Active development on branch `valdr-v0.2` follows the current baseline `docs/VALDR_Master_TZ_v0.2.3.md`. Earlier v0.2/v0.2.1/v0.2.2 specifications remain preserved. v0.2.3 adds the mandatory VALDR Desktop and cross-platform release stages before public Testnet without changing the frozen Stage 0-11 consensus architecture.
+Active development on branch `valdr-v0.2` follows the current baseline `docs/VALDR_Master_TZ_v0.2.4.md`. Earlier v0.2/v0.2.1/v0.2.2/v0.2.3 specifications remain preserved. v0.2.4 keeps the Desktop/cross-platform plan and adds explicit network binding for v2 transactions to prevent cross-network replay.
 
 ## v0.2 development status
 
