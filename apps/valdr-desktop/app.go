@@ -226,6 +226,12 @@ func (a *App) SetWalletAutoLockMinutes(minutes int) error {
 	)
 }
 
+func (a *App) GetReceiveQRCode(address string) (string, error) {
+	return desktopcore.AddressQRCodeDataURI(
+		strings.TrimSpace(address),
+	)
+}
+
 func (a *App) GetWalletBalance(
 	address string,
 ) (desktopcore.WalletBalance, error) {

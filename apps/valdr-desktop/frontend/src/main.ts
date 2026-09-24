@@ -77,6 +77,7 @@ type AppAPI = {
   UnlockWallet(selector: string, passphrase: string): Promise<WalletMetadata>;
   LockWallet(selector: string): Promise<void>;
   SetWalletAutoLockMinutes(minutes: number): Promise<void>;
+  GetReceiveQRCode(address: string): Promise<string>;
   GetWalletBalance(address: string): Promise<WalletBalance>;
   PreviewSend(
     selector: string,
@@ -305,12 +306,20 @@ root.innerHTML = `
           </div>
         </div>
         <article class="card receive-card">
-          <span class="subtle">Active wallet address</span>
-          <code class="receive-address" id="receive-address">Select a wallet</code>
-          <div class="actions">
-            <button class="secondary" id="copy-address">Copy address</button>
+          <div class="receive-grid">
+            <div class="receive-details">
+              <span class="subtle">Active wallet address</span>
+              <code class="receive-address" id="receive-address">Select a wallet</code>
+              <div class="actions">
+                <button class="secondary" id="copy-address">Copy address</button>
+              </div>
+              <p id="copy-status" class="subtle"></p>
+            </div>
+            <div id="receive-qr-panel" class="receive-qr-panel hidden">
+              <img id="receive-qr" class="receive-qr" alt="VALDR receive address QR code">
+              <span>Generated locally · no web service</span>
+            </div>
           </div>
-          <p id="copy-status" class="subtle"></p>
         </article>
       </section>
 
@@ -471,6 +480,7 @@ let currentState: DesktopState | null = null;
 let currentView = "overview";
 let activeWalletAddress = "";
 let activeWalletName = "";
+let renderedReceiveQRAddress = "";
 let lastPreviewInput: {
   selector: string;
   recipient: string;
@@ -576,10 +586,40 @@ const renderWallets = (wallets: WalletMetadata[]): void => {
       const selector = document.getElementById("wallet-selector") as HTMLSelectElement | null;
       if (selector) selector.value = wallet.address;
       lastPreviewInput = null;
+      renderedReceiveQRAddress = "";
       void refreshWalletPresentation();
+      renderWalletSecurity();
       renderWallets(wallets);
     });
     list.append(item);
+  }
+};
+
+const refreshReceiveQR = async (address: string): Promise<void> => {
+  const panel = document.getElementById("receive-qr-panel");
+  const image = document.getElementById("receive-qr") as HTMLImageElement | null;
+
+  if (!address) {
+    renderedReceiveQRAddress = "";
+    if (image) image.removeAttribute("src");
+    panel?.classList.add("hidden");
+    return;
+  }
+  if (address === renderedReceiveQRAddress && image?.src) {
+    panel?.classList.remove("hidden");
+    return;
+  }
+
+  try {
+    const dataURI = await api().GetReceiveQRCode(address);
+    if (activeWalletAddress !== address) return;
+    if (image) image.src = dataURI;
+    renderedReceiveQRAddress = address;
+    panel?.classList.remove("hidden");
+  } catch {
+    renderedReceiveQRAddress = "";
+    if (image) image.removeAttribute("src");
+    panel?.classList.add("hidden");
   }
 };
 
@@ -589,6 +629,7 @@ const refreshWalletPresentation = async (): Promise<void> => {
   const sendFrom = document.getElementById("send-from") as HTMLInputElement | null;
   if (sendFrom) sendFrom.value = wallet?.address ?? "";
   text("receive-address", wallet?.address ?? "Select a wallet");
+  void refreshReceiveQR(wallet?.address ?? "");
   text(
     "overview-wallet-label",
     wallet
@@ -792,6 +833,7 @@ document.getElementById("wallet-selector")?.addEventListener("change", (event) =
   const selector = event.currentTarget as HTMLSelectElement;
   activeWalletAddress = selector.value;
   activeWalletName = activeWallet()?.name || "VALDR Wallet";
+  renderedReceiveQRAddress = "";
   lastPreviewInput = null;
   clearSendStatus();
   document.getElementById("send-preview")?.classList.add("hidden");
