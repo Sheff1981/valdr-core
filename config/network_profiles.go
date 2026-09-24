@@ -45,6 +45,7 @@ type NetworkProfile struct {
 	MaxFutureBlockSeconds  int64
 	MinDifficultyAfterSeconds int64
 	MinRelayFeePerByte     uint64
+	DefaultSeeds           []string
 	Public                 bool
 }
 
