@@ -16,6 +16,12 @@ const (
 	DevnetV02GenesisNonce = uint64(5229)
 	DevnetV02GenesisMessage = "VALDR genesis block | valdr-devnet-2 | 2026-09-23"
 	DevnetV02GenesisHash = "0009d92e50db69eae0e654399ab73cbc6baf5161105712466c045286db8a2231"
+
+	TestnetV02GenesisTimestamp = int64(1790208000)
+	TestnetV02GenesisTarget = "000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+	TestnetV02GenesisNonce = uint64(12480)
+	TestnetV02GenesisMessage = "VALDR genesis block | valdr-testnet-1 | 2026-09-24"
+	TestnetV02GenesisHash = "0009d956448a8caefcd798af1a7957840d0aa7b72f8350362909f241ea100122"
 )
 
 var ErrUnknownNetworkProfile = errors.New("unknown VALDR network profile")
