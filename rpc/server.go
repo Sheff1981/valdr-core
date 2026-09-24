@@ -97,19 +97,29 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		tip := s.chain.Tip()
+		profile := s.chain.Profile()
 		tipHash := ""
+		target := ""
+		blockVersion := profile.BlockVersion
 		if tip != nil {
 			tipHash = tip.BlockHash
+			target = tip.Target
+			blockVersion = tip.Version
 		}
 		return StatusResult{
-			Project:      config.ProjectName,
-			Ticker:       config.Ticker,
-			Version:      config.Version,
-			ChainID:      config.ChainID,
-			Height:       s.chain.Height(),
-			TipHash:      tipHash,
-			PeerCount:    s.node.PeerCount(),
-			MempoolCount: s.node.MempoolLen(),
+			Project:                config.ProjectName,
+			Ticker:                 config.Ticker,
+			Version:                config.Version,
+			Network:                profile.Name,
+			ChainID:                profile.ChainID,
+			Height:                 s.chain.Height(),
+			TipHash:                tipHash,
+			Chainwork:              s.chain.Chainwork(),
+			BlockVersion:           blockVersion,
+			Target:                 target,
+			PeerCount:              s.node.PeerCount(),
+			MempoolCount:           s.node.MempoolLen(),
+			TargetBlockTimeSeconds: profile.TargetBlockTimeSeconds,
 		}, nil
 
 	case MethodGetBlock:
@@ -213,12 +223,14 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			return nil, ErrNotFound
 		}
 		nextHeight := tip.Height + 1
+		profile := s.chain.Profile()
 		return MiningInfoResult{
 			Height:                 tip.Height,
 			NextHeight:             nextHeight,
 			CurrentDifficulty:      tip.Difficulty,
+			CurrentTarget:          tip.Target,
 			BlockRewardVal:         consensus.BlockReward(nextHeight),
-			TargetBlockTimeSeconds: config.TargetBlockTimeSeconds,
+			TargetBlockTimeSeconds: profile.TargetBlockTimeSeconds,
 		}, nil
 
 	case MethodGetUTXOs:
