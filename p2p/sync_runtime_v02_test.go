@@ -9,6 +9,7 @@ import (
 	"github.com/Sheff1981/valdr-core/core/blockchain"
 	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 	"github.com/Sheff1981/valdr-core/mining"
+	"github.com/Sheff1981/valdr-core/storage"
 )
 
 func TestV2FreshNodeHeadersFirstSync(t *testing.T) {
@@ -87,5 +88,159 @@ func TestV2FreshNodeHeadersFirstSync(t *testing.T) {
 		targetChain.Tip(),
 		sourceChain.Height(),
 		sourceChain.Tip(),
+	)
+}
+
+
+func TestV2SyncResumesFromPersistedChainAfterRestart(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sourceChain, err := blockchain.NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	minerKey, err := valdrcrypto.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	minerAddress, err := valdrcrypto.AddressFromPublicKey(&minerKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := int64(1); i <= 3; i++ {
+		if _, err := mining.MineBlock(
+			sourceChain,
+			minerAddress,
+			profile.GenesisTimestamp+i*profile.TargetBlockTimeSeconds,
+			nil,
+		); err != nil {
+			t.Fatalf("mine source block %d: %v", i, err)
+		}
+	}
+
+	source := mustStartNode(t, NodeConfig{
+		NodeID:         "v2-resume-source",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Blockchain:     sourceChain,
+	})
+	defer source.Close()
+
+	dataDir := t.TempDir()
+	store, err := storage.NewBadgerStore(
+		dataDir,
+		profile.ChainID,
+		profile.GenesisHash,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetChain, err := blockchain.NewPersistentForProfile(store, profile)
+	if err != nil {
+		_ = store.Close()
+		t.Fatal(err)
+	}
+	target := mustStartNode(t, NodeConfig{
+		NodeID:         "v2-resume-target",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Blockchain:     targetChain,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	if err := target.Connect(ctx, source.Address()); err != nil {
+		cancel()
+		target.Close()
+		_ = store.Close()
+		t.Fatalf("initial target connect source: %v", err)
+	}
+	cancel()
+	waitForSameTip(t, targetChain, sourceChain, 5*time.Second)
+
+	if err := target.Close(); err != nil {
+		_ = store.Close()
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitForPeerCount(t, source, 0)
+
+	for i := int64(4); i <= 6; i++ {
+		if _, err := mining.MineBlock(
+			sourceChain,
+			minerAddress,
+			profile.GenesisTimestamp+i*profile.TargetBlockTimeSeconds,
+			nil,
+		); err != nil {
+			t.Fatalf("mine offline source block %d: %v", i, err)
+		}
+	}
+
+	reopenedStore, err := storage.NewBadgerStore(
+		dataDir,
+		profile.ChainID,
+		profile.GenesisHash,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopenedStore.Close()
+
+	reopenedChain, err := blockchain.NewPersistentForProfile(reopenedStore, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reopenedChain.Height() != 3 {
+		t.Fatalf("reopened height=%d want=3", reopenedChain.Height())
+	}
+
+	restarted := mustStartNode(t, NodeConfig{
+		NodeID:         "v2-resume-target",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Blockchain:     reopenedChain,
+	})
+	defer restarted.Close()
+
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := restarted.Connect(ctx, source.Address()); err != nil {
+		t.Fatalf("restarted target connect source: %v", err)
+	}
+	waitForSameTip(t, reopenedChain, sourceChain, 5*time.Second)
+}
+
+func waitForSameTip(
+	t *testing.T,
+	target *blockchain.Blockchain,
+	source *blockchain.Blockchain,
+	timeout time.Duration,
+) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		targetTip := target.Tip()
+		sourceTip := source.Tip()
+		if targetTip != nil &&
+			sourceTip != nil &&
+			target.Height() == source.Height() &&
+			targetTip.BlockHash == sourceTip.BlockHash {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf(
+		"chains did not converge: target height=%d tip=%v source height=%d tip=%v",
+		target.Height(),
+		target.Tip(),
+		source.Height(),
+		source.Tip(),
 	)
 }
