@@ -166,7 +166,7 @@ root.innerHTML = `
     <div class="boot-splash-glow"></div>
     <div class="boot-splash-panel">
       <div class="boot-coin">
-        <img src="/valdr-emblem.webp" alt="">
+        <img src="/valdr-emblem.svg" alt="">
       </div>
       <div class="boot-copy">
         <p class="eyebrow">NOT A TOKEN. A CHAIN.</p>
@@ -222,7 +222,7 @@ root.innerHTML = `
   <div id="first-run" class="first-run hidden" aria-modal="true" role="dialog">
     <div class="first-run-card">
       <div class="brand first-run-brand">
-        <img class="brand-emblem" src="/valdr-emblem.webp" alt="VALDR">
+        <img class="brand-emblem" src="/valdr-emblem.svg" alt="VALDR">
         <div>
           <strong>VALDR</strong>
           <span>Desktop · Testnet</span>
@@ -267,7 +267,7 @@ root.innerHTML = `
   <div class="shell">
     <aside class="sidebar">
       <div class="brand brand-sidebar">
-        <img class="brand-emblem brand-emblem-sidebar" src="/valdr-emblem.webp" alt="VALDR">
+        <img class="brand-emblem brand-emblem-sidebar" src="/valdr-emblem.svg" alt="VALDR">
         <div>
           <strong>VALDR</strong>
           <span>Desktop</span>
@@ -318,7 +318,7 @@ root.innerHTML = `
 
       <section class="view active" id="view-overview">
         <div class="hero valdr-hero">
-          <img class="hero-watermark" src="/valdr-emblem.webp" alt="">
+          <img class="hero-watermark" src="/valdr-emblem.svg" alt="">
           <div class="hero-main">
             <p class="eyebrow">TOTAL SPENDABLE BALANCE</p>
             <div class="balance"><span id="overview-balance">—</span> <span>VDR</span></div>
