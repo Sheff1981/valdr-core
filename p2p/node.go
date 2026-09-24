@@ -21,7 +21,10 @@ import (
 	"github.com/Sheff1981/valdr-core/logging"
 )
 
-const defaultHandshakeTimeout = 5 * time.Second
+const (
+	defaultHandshakeTimeout = 5 * time.Second
+	outboundOnlyHelloAddress = "0.0.0.0:0"
+)
 
 var (
 	ErrInvalidConfig        = errors.New("invalid P2P node config")
@@ -40,6 +43,7 @@ type NodeConfig struct {
 	NodeID           string
 	ListenAddress    string
 	AdvertiseAddress string
+	OutboundOnly     bool
 	ChainID          string
 	ProtocolVersion  uint32
 	NetworkProfile   *valdrconfig.NetworkProfile
@@ -76,6 +80,8 @@ type Node struct {
 	nodeID           string
 	listenAddress    string
 	advertiseAddress string
+	outboundOnly     bool
+	started          bool
 	chainID          string
 	protocolVersion  uint32
 	networkProfile   valdrconfig.NetworkProfile
@@ -107,10 +113,19 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 	if nodeID == "" || nodeID != cfg.NodeID || len(nodeID) > maxNodeIDLength {
 		return nil, fmt.Errorf("%w: node id", ErrInvalidConfig)
 	}
-	if strings.TrimSpace(cfg.ListenAddress) == "" {
+	if cfg.OutboundOnly && !cfg.EnableV2 {
+		return nil, fmt.Errorf("%w: outbound-only requires P2P v2", ErrInvalidConfig)
+	}
+	if !cfg.OutboundOnly && strings.TrimSpace(cfg.ListenAddress) == "" {
 		return nil, fmt.Errorf("%w: listen address", ErrInvalidConfig)
 	}
 	advertiseAddress := strings.TrimSpace(cfg.AdvertiseAddress)
+	if cfg.OutboundOnly && advertiseAddress != "" {
+		return nil, fmt.Errorf(
+			"%w: outbound-only node must not advertise an inbound address",
+			ErrInvalidConfig,
+		)
+	}
 	if advertiseAddress != "" {
 		if advertiseAddress != cfg.AdvertiseAddress {
 			return nil, fmt.Errorf("%w: advertise address", ErrInvalidConfig)
@@ -171,6 +186,7 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 		nodeID:           nodeID,
 		listenAddress:    cfg.ListenAddress,
 		advertiseAddress: advertiseAddress,
+		outboundOnly:     cfg.OutboundOnly,
 		chainID:          chainID,
 		protocolVersion:  protocolVersion,
 		networkProfile:   networkProfile,
@@ -199,8 +215,12 @@ func (n *Node) Start() error {
 	if n.closed {
 		return ErrNodeClosed
 	}
-	if n.listener != nil {
+	if n.started {
 		return ErrAlreadyStarted
+	}
+	if n.outboundOnly {
+		n.started = true
+		return nil
 	}
 
 	listener, err := net.Listen("tcp", n.listenAddress)
@@ -208,6 +228,7 @@ func (n *Node) Start() error {
 		return err
 	}
 	n.listener = listener
+	n.started = true
 
 	n.wg.Add(1)
 	go n.acceptLoop(listener)
@@ -218,6 +239,9 @@ func (n *Node) Address() string {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
+	if n.outboundOnly {
+		return ""
+	}
 	if n.listener != nil {
 		return n.listener.Addr().String()
 	}
@@ -236,7 +260,7 @@ func (n *Node) NodeID() string {
 
 func (n *Node) Connect(ctx context.Context, address string) error {
 	n.mu.RLock()
-	started := n.listener != nil
+	started := n.started
 	closed := n.closed
 	n.mu.RUnlock()
 
@@ -404,6 +428,7 @@ func (n *Node) Close() error {
 
 	listener := n.listener
 	n.listener = nil
+	n.started = false
 
 	conns := make([]net.Conn, 0, len(n.conns))
 	for _, pc := range n.conns {
@@ -1002,7 +1027,7 @@ func (n *Node) exchangeHelloV2(conn net.Conn, inbound bool) (Peer, error) {
 		ProtocolMax:         n.networkProfile.ProtocolMax,
 		NodeID:              n.nodeID,
 		Services:            []string{"network"},
-		ListenAddress:       n.AdvertiseAddress(),
+		ListenAddress:       n.helloAddress(),
 		Height:              n.heightProvider(),
 		TipHash:             tipHash,
 		CumulativeChainwork: chainwork,
@@ -1438,15 +1463,25 @@ func (n *Node) handleInvV2(peerID string, payload V2InvPayload) error {
 func (n *Node) handleGetPeersV2(peerID string) error {
 	n.mu.RLock()
 	advertisements := make([]peerAdvertisement, 0, len(n.peers)+1)
-	advertisements = append(advertisements, peerAdvertisement{
-		NodeID:  n.nodeID,
-		Address: n.advertiseAddressLocked(),
-	})
-	for _, peer := range n.peers {
+	add := func(nodeID, address string) {
+		if nodeID == "" || address == "" {
+			return
+		}
+		if err := validateDiscoveredAddress(
+			address,
+			n.isPublicDiscovery(),
+		); err != nil {
+			return
+		}
 		advertisements = append(advertisements, peerAdvertisement{
-			NodeID:  peer.NodeID,
-			Address: peer.Address,
+			NodeID:  nodeID,
+			Address: address,
 		})
+	}
+
+	add(n.nodeID, n.advertiseAddressLocked())
+	for _, peer := range n.peers {
+		add(peer.NodeID, peer.Address)
 	}
 	n.mu.RUnlock()
 
@@ -1611,8 +1646,20 @@ func (n *Node) listenerAddressLocked() string {
 }
 
 func (n *Node) advertiseAddressLocked() string {
+	if n.outboundOnly {
+		return ""
+	}
 	if n.advertiseAddress != "" {
 		return n.advertiseAddress
 	}
 	return n.listenerAddressLocked()
+}
+
+func (n *Node) helloAddress() string {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	if n.outboundOnly {
+		return outboundOnlyHelloAddress
+	}
+	return n.advertiseAddressLocked()
 }
