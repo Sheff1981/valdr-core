@@ -39,6 +39,7 @@ type HeightProvider func() uint64
 type NodeConfig struct {
 	NodeID           string
 	ListenAddress    string
+	AdvertiseAddress string
 	ChainID          string
 	ProtocolVersion  uint32
 	NetworkProfile   *valdrconfig.NetworkProfile
@@ -74,6 +75,7 @@ type peerConnection struct {
 type Node struct {
 	nodeID           string
 	listenAddress    string
+	advertiseAddress string
 	chainID          string
 	protocolVersion  uint32
 	networkProfile   valdrconfig.NetworkProfile
@@ -108,6 +110,15 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 	if strings.TrimSpace(cfg.ListenAddress) == "" {
 		return nil, fmt.Errorf("%w: listen address", ErrInvalidConfig)
 	}
+	advertiseAddress := strings.TrimSpace(cfg.AdvertiseAddress)
+	if advertiseAddress != "" {
+		if advertiseAddress != cfg.AdvertiseAddress {
+			return nil, fmt.Errorf("%w: advertise address", ErrInvalidConfig)
+		}
+		if _, _, err := net.SplitHostPort(advertiseAddress); err != nil {
+			return nil, fmt.Errorf("%w: advertise address: %v", ErrInvalidConfig, err)
+		}
+	}
 
 	chainID := cfg.ChainID
 	if chainID == "" {
@@ -126,6 +137,11 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 		networkProfile = *cfg.NetworkProfile
 		chainID = networkProfile.ChainID
 		protocolVersion = uint32(networkProfile.ProtocolMax)
+		if advertiseAddress != "" && networkProfile.Public {
+			if err := validateDiscoveredAddress(advertiseAddress, true); err != nil {
+				return nil, fmt.Errorf("%w: advertise address: %v", ErrInvalidConfig, err)
+			}
+		}
 	}
 
 	heightProvider := cfg.HeightProvider
@@ -154,6 +170,7 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 	return &Node{
 		nodeID:           nodeID,
 		listenAddress:    cfg.ListenAddress,
+		advertiseAddress: advertiseAddress,
 		chainID:          chainID,
 		protocolVersion:  protocolVersion,
 		networkProfile:   networkProfile,
@@ -205,6 +222,12 @@ func (n *Node) Address() string {
 		return n.listener.Addr().String()
 	}
 	return n.listenAddress
+}
+
+func (n *Node) AdvertiseAddress() string {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.advertiseAddressLocked()
 }
 
 func (n *Node) NodeID() string {
@@ -708,7 +731,7 @@ func (n *Node) handleGetPeers(peerID string) error {
 	advertisements := make([]peerAdvertisement, 0, len(n.peers)+1)
 	advertisements = append(advertisements, peerAdvertisement{
 		NodeID:  n.nodeID,
-		Address: n.listenerAddressLocked(),
+		Address: n.advertiseAddressLocked(),
 	})
 	for _, peer := range n.peers {
 		advertisements = append(advertisements, peerAdvertisement{
@@ -901,7 +924,7 @@ func (n *Node) exchangeHello(conn net.Conn, inbound bool) (Peer, error) {
 		ProtocolVersion: n.protocolVersion,
 		ChainID:         n.chainID,
 		NodeID:          n.nodeID,
-		ListenAddress:   n.Address(),
+		ListenAddress:   n.AdvertiseAddress(),
 		Height:          n.heightProvider(),
 	}
 	if err := writeFrame(conn, local); err != nil {
@@ -948,7 +971,7 @@ func (n *Node) exchangeHelloV2(conn net.Conn, inbound bool) (Peer, error) {
 		ProtocolMax:         n.networkProfile.ProtocolMax,
 		NodeID:              n.nodeID,
 		Services:            []string{"network"},
-		ListenAddress:       n.Address(),
+		ListenAddress:       n.AdvertiseAddress(),
 		Height:              n.heightProvider(),
 		TipHash:             tipHash,
 		CumulativeChainwork: chainwork,
@@ -1554,4 +1577,11 @@ func (n *Node) listenerAddressLocked() string {
 		return n.listener.Addr().String()
 	}
 	return n.listenAddress
+}
+
+func (n *Node) advertiseAddressLocked() string {
+	if n.advertiseAddress != "" {
+		return n.advertiseAddress
+	}
+	return n.listenerAddressLocked()
 }
