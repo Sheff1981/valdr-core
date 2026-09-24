@@ -34,9 +34,41 @@ type DesktopState = {
   wallets: WalletMetadata[];
 };
 
+type WalletBalance = {
+  address: string;
+  balance_val: number;
+  balance_vdr: string;
+};
+
+type SendPreview = {
+  amount_val: number;
+  amount_vdr: string;
+  fee_val: number;
+  fee_vdr: string;
+  total_val: number;
+  total_vdr: string;
+};
+
+type SendResult = SendPreview & {
+  transaction_id: string;
+};
+
 type AppAPI = {
   GetState(): Promise<DesktopState>;
   CreateWallet(name: string, passphrase: string): Promise<WalletMetadata>;
+  GetWalletBalance(address: string): Promise<WalletBalance>;
+  PreviewSend(
+    selector: string,
+    passphrase: string,
+    recipient: string,
+    amountVDR: string,
+  ): Promise<SendPreview>;
+  SendTransaction(
+    selector: string,
+    passphrase: string,
+    recipient: string,
+    amountVDR: string,
+  ): Promise<SendResult>;
   StartNode(): Promise<void>;
   StopNode(): Promise<void>;
 };
@@ -69,10 +101,10 @@ root.innerHTML = `
 
       <nav aria-label="Primary navigation">
         <button class="nav-item active" data-view="overview">Overview</button>
+        <button class="nav-item" data-view="send">Send</button>
+        <button class="nav-item" data-view="receive">Receive</button>
         <button class="nav-item" data-view="wallet">Wallet</button>
         <button class="nav-item" data-view="network">Network</button>
-        <button class="nav-item muted" disabled>Send <small>next</small></button>
-        <button class="nav-item muted" disabled>Receive <small>next</small></button>
         <button class="nav-item muted" disabled>Transactions <small>next</small></button>
       </nav>
 
@@ -88,18 +120,24 @@ root.innerHTML = `
           <p class="eyebrow">VALDR NETWORK</p>
           <h1 id="view-title">Overview</h1>
         </div>
-        <div class="node-badge" id="node-badge">
-          <span class="dot"></span>
-          <span id="node-badge-text">Checking node…</span>
+        <div class="top-actions">
+          <label class="wallet-select-label">
+            Active wallet
+            <select id="wallet-selector" aria-label="Active wallet"></select>
+          </label>
+          <div class="node-badge" id="node-badge">
+            <span class="dot"></span>
+            <span id="node-badge-text">Checking node…</span>
+          </div>
         </div>
       </header>
 
       <section class="view active" id="view-overview">
         <div class="hero">
           <div>
-            <p class="eyebrow">Wallet balance</p>
-            <div class="balance">— <span>VDR</span></div>
-            <p class="subtle">Balance display activates with the Send/Receive slice.</p>
+            <p class="eyebrow">Spendable balance</p>
+            <div class="balance"><span id="overview-balance">—</span> <span>VDR</span></div>
+            <p class="subtle" id="overview-wallet-label">Create or select an encrypted wallet.</p>
           </div>
           <div class="network-id">
             <span>Network</span>
@@ -140,6 +178,74 @@ root.innerHTML = `
         </article>
 
         <div id="global-error" class="error-box hidden" role="alert"></div>
+      </section>
+
+      <section class="view" id="view-send">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">TESTNET VDR</p>
+            <h2>Send VDR</h2>
+            <p class="subtle">The private key is decrypted and used only inside VALDR Desktop. The node receives only a signed transaction.</p>
+          </div>
+        </div>
+
+        <div class="wallet-layout">
+          <article class="card">
+            <form id="send-form">
+              <label>
+                From
+                <input id="send-from" readonly placeholder="Select a wallet">
+              </label>
+              <label>
+                Recipient address
+                <input id="send-recipient" autocomplete="off" spellcheck="false" placeholder="VDR1…" required>
+              </label>
+              <label>
+                Amount (VDR)
+                <input id="send-amount" inputmode="decimal" autocomplete="off" placeholder="0.00000000" required>
+              </label>
+              <label>
+                Wallet passphrase
+                <input id="send-passphrase" type="password" autocomplete="current-password" required>
+              </label>
+              <button class="primary" type="submit">Preview transaction</button>
+            </form>
+            <p class="warning">VALDR transactions are irreversible after broadcast. Verify the address and amount before confirming.</p>
+          </article>
+
+          <article class="card">
+            <h3>Transaction preview</h3>
+            <div id="send-preview-empty" class="subtle">Enter transaction details to calculate the network fee.</div>
+            <div id="send-preview" class="hidden">
+              <dl class="details compact">
+                <div><dt>Amount</dt><dd><strong id="preview-amount">—</strong> VDR</dd></div>
+                <div><dt>Network fee</dt><dd><strong id="preview-fee">—</strong> VDR</dd></div>
+                <div><dt>Total spend</dt><dd><strong id="preview-total">—</strong> VDR</dd></div>
+              </dl>
+              <button class="primary full-button" id="confirm-send">Confirm and broadcast</button>
+            </div>
+            <div id="send-result" class="success-box hidden" role="status"></div>
+            <div id="send-error" class="error-box hidden" role="alert"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-receive">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">RECEIVE TESTNET VDR</p>
+            <h2>Receive VDR</h2>
+            <p class="subtle">Share your public VALDR address. Never share the wallet passphrase or private key.</p>
+          </div>
+        </div>
+        <article class="card receive-card">
+          <span class="subtle">Active wallet address</span>
+          <code class="receive-address" id="receive-address">Select a wallet</code>
+          <div class="actions">
+            <button class="secondary" id="copy-address">Copy address</button>
+          </div>
+          <p id="copy-status" class="subtle"></p>
+        </article>
       </section>
 
       <section class="view" id="view-wallet">
@@ -212,6 +318,9 @@ const text = (id: string, value: string): void => {
   }
 };
 
+const value = (id: string): string =>
+  (document.getElementById(id) as HTMLInputElement | null)?.value ?? "";
+
 const globalError = document.getElementById("global-error");
 const showError = (message: string): void => {
   if (!globalError) return;
@@ -222,6 +331,65 @@ const clearError = (): void => {
   if (!globalError) return;
   globalError.textContent = "";
   globalError.classList.add("hidden");
+};
+
+const sendError = document.getElementById("send-error");
+const showSendError = (message: string): void => {
+  if (!sendError) return;
+  sendError.textContent = message;
+  sendError.classList.remove("hidden");
+};
+const clearSendStatus = (): void => {
+  sendError?.classList.add("hidden");
+  const result = document.getElementById("send-result");
+  result?.classList.add("hidden");
+  if (result) result.textContent = "";
+};
+
+let currentState: DesktopState | null = null;
+let activeWalletAddress = "";
+let activeWalletName = "";
+let lastPreviewInput: {
+  selector: string;
+  recipient: string;
+  amount: string;
+} | null = null;
+
+const activeWallet = (): WalletMetadata | undefined =>
+  currentState?.wallets.find((wallet) => wallet.address === activeWalletAddress);
+
+const renderWalletSelector = (wallets: WalletMetadata[]): void => {
+  const selector = document.getElementById("wallet-selector") as HTMLSelectElement | null;
+  if (!selector) return;
+
+  const previous = activeWalletAddress;
+  selector.replaceChildren();
+
+  if (wallets.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No wallet";
+    selector.append(option);
+    activeWalletAddress = "";
+    activeWalletName = "";
+    selector.disabled = true;
+    return;
+  }
+
+  selector.disabled = false;
+  for (const wallet of wallets) {
+    const option = document.createElement("option");
+    option.value = wallet.address;
+    option.textContent = wallet.name || wallet.address.slice(0, 14) + "…";
+    selector.append(option);
+  }
+
+  const chosen = wallets.some((wallet) => wallet.address === previous)
+    ? previous
+    : wallets[0].address;
+  selector.value = chosen;
+  activeWalletAddress = chosen;
+  activeWalletName = wallets.find((wallet) => wallet.address === chosen)?.name || "VALDR Wallet";
 };
 
 const renderWallets = (wallets: WalletMetadata[]): void => {
@@ -238,8 +406,12 @@ const renderWallets = (wallets: WalletMetadata[]): void => {
   }
 
   for (const wallet of wallets) {
-    const item = document.createElement("div");
-    item.className = "wallet-item";
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "wallet-item wallet-item-button";
+    if (wallet.address === activeWalletAddress) {
+      item.classList.add("selected");
+    }
 
     const identity = document.createElement("div");
     const name = document.createElement("strong");
@@ -252,11 +424,42 @@ const renderWallets = (wallets: WalletMetadata[]): void => {
     created.textContent = new Date(wallet.created_at).toLocaleDateString();
 
     item.append(identity, created);
+    item.addEventListener("click", () => {
+      activeWalletAddress = wallet.address;
+      activeWalletName = wallet.name || "VALDR Wallet";
+      const selector = document.getElementById("wallet-selector") as HTMLSelectElement | null;
+      if (selector) selector.value = wallet.address;
+      lastPreviewInput = null;
+      void refreshWalletPresentation();
+      renderWallets(wallets);
+    });
     list.append(item);
   }
 };
 
+const refreshWalletPresentation = async (): Promise<void> => {
+  const wallet = activeWallet();
+  text("send-from", wallet ? wallet.address : "");
+  const sendFrom = document.getElementById("send-from") as HTMLInputElement | null;
+  if (sendFrom) sendFrom.value = wallet?.address ?? "";
+  text("receive-address", wallet?.address ?? "Select a wallet");
+  text("overview-wallet-label", wallet ? activeWalletName : "Create or select an encrypted wallet.");
+
+  if (!wallet || !currentState?.node_status) {
+    text("overview-balance", "—");
+    return;
+  }
+
+  try {
+    const balance = await api().GetWalletBalance(wallet.address);
+    text("overview-balance", balance.balance_vdr);
+  } catch {
+    text("overview-balance", "—");
+  }
+};
+
 const renderState = (state: DesktopState): void => {
+  currentState = state;
   const status = state.node_status;
   text("network-name", state.network.toUpperCase());
   text("chain-id", state.chain_id);
@@ -287,7 +490,9 @@ const renderState = (state: DesktopState): void => {
     text("node-detail", "Desktop uses outbound-only P2P by default.");
   }
 
+  renderWalletSelector(state.wallets);
   renderWallets(state.wallets);
+  void refreshWalletPresentation();
 };
 
 const refresh = async (): Promise<void> => {
@@ -309,6 +514,18 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item[data-view]").forEach((bu
     document.getElementById(`view-${view}`)?.classList.add("active");
     text("view-title", button.textContent?.trim() || "VALDR");
   });
+});
+
+document.getElementById("wallet-selector")?.addEventListener("change", (event) => {
+  const selector = event.currentTarget as HTMLSelectElement;
+  activeWalletAddress = selector.value;
+  activeWalletName = activeWallet()?.name || "VALDR Wallet";
+  lastPreviewInput = null;
+  clearSendStatus();
+  document.getElementById("send-preview")?.classList.add("hidden");
+  document.getElementById("send-preview-empty")?.classList.remove("hidden");
+  if (currentState) renderWallets(currentState.wallets);
+  void refreshWalletPresentation();
 });
 
 document.getElementById("start-node")?.addEventListener("click", async () => {
@@ -335,9 +552,9 @@ document.getElementById("create-wallet-form")?.addEventListener("submit", async 
   event.preventDefault();
   clearError();
 
-  const name = (document.getElementById("wallet-name") as HTMLInputElement | null)?.value ?? "";
-  const pass = (document.getElementById("wallet-passphrase") as HTMLInputElement | null)?.value ?? "";
-  const confirm = (document.getElementById("wallet-passphrase-confirm") as HTMLInputElement | null)?.value ?? "";
+  const name = value("wallet-name");
+  const pass = value("wallet-passphrase");
+  const confirm = value("wallet-passphrase-confirm");
 
   if (!pass) {
     showError("Wallet passphrase is required.");
@@ -349,7 +566,9 @@ document.getElementById("create-wallet-form")?.addEventListener("submit", async 
   }
 
   try {
-    await api().CreateWallet(name, pass);
+    const created = await api().CreateWallet(name, pass);
+    activeWalletAddress = created.address;
+    activeWalletName = created.name || "VALDR Wallet";
     const passInput = document.getElementById("wallet-passphrase") as HTMLInputElement | null;
     const confirmInput = document.getElementById("wallet-passphrase-confirm") as HTMLInputElement | null;
     if (passInput) passInput.value = "";
@@ -357,6 +576,104 @@ document.getElementById("create-wallet-form")?.addEventListener("submit", async 
     await refresh();
   } catch (error) {
     showError(error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.getElementById("send-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  clearSendStatus();
+
+  const wallet = activeWallet();
+  if (!wallet) {
+    showSendError("Select or create a wallet first.");
+    return;
+  }
+
+  const recipient = value("send-recipient").trim();
+  const amount = value("send-amount").trim();
+  const passphrase = value("send-passphrase");
+  if (!recipient || !amount || !passphrase) {
+    showSendError("Recipient, amount and wallet passphrase are required.");
+    return;
+  }
+
+  try {
+    const preview = await api().PreviewSend(
+      wallet.address,
+      passphrase,
+      recipient,
+      amount,
+    );
+    lastPreviewInput = {
+      selector: wallet.address,
+      recipient,
+      amount,
+    };
+    text("preview-amount", preview.amount_vdr);
+    text("preview-fee", preview.fee_vdr);
+    text("preview-total", preview.total_vdr);
+    document.getElementById("send-preview-empty")?.classList.add("hidden");
+    document.getElementById("send-preview")?.classList.remove("hidden");
+  } catch (error) {
+    lastPreviewInput = null;
+    showSendError(error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.getElementById("confirm-send")?.addEventListener("click", async () => {
+  clearSendStatus();
+  const input = lastPreviewInput;
+  const passphrase = value("send-passphrase");
+  if (!input || !passphrase) {
+    showSendError("Preview the transaction again before broadcasting.");
+    return;
+  }
+
+  const recipientNow = value("send-recipient").trim();
+  const amountNow = value("send-amount").trim();
+  if (recipientNow !== input.recipient || amountNow !== input.amount) {
+    lastPreviewInput = null;
+    document.getElementById("send-preview")?.classList.add("hidden");
+    document.getElementById("send-preview-empty")?.classList.remove("hidden");
+    showSendError("Transaction details changed. Preview the fee again.");
+    return;
+  }
+
+  try {
+    const result = await api().SendTransaction(
+      input.selector,
+      passphrase,
+      input.recipient,
+      input.amount,
+    );
+    const passInput = document.getElementById("send-passphrase") as HTMLInputElement | null;
+    if (passInput) passInput.value = "";
+    lastPreviewInput = null;
+
+    const box = document.getElementById("send-result");
+    if (box) {
+      box.textContent = `Broadcast accepted. Transaction ID: ${result.transaction_id}`;
+      box.classList.remove("hidden");
+    }
+    document.getElementById("send-preview")?.classList.add("hidden");
+    document.getElementById("send-preview-empty")?.classList.remove("hidden");
+    await refresh();
+  } catch (error) {
+    showSendError(error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.getElementById("copy-address")?.addEventListener("click", async () => {
+  const wallet = activeWallet();
+  if (!wallet) {
+    text("copy-status", "Select a wallet first.");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(wallet.address);
+    text("copy-status", "Address copied.");
+  } catch {
+    text("copy-status", "Clipboard unavailable. Select and copy the address manually.");
   }
 });
 
