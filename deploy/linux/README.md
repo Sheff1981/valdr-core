@@ -19,6 +19,9 @@ Testnet VDR has no promised monetary value.
 ```bash
 sudo useradd --system --home /var/lib/valdr --create-home --shell /usr/sbin/nologin valdr
 sudo install -d -o valdr -g valdr -m 0700 /var/lib/valdr /etc/valdr
+printf 'VALDR_ADVERTISE_ADDRESS=node.example.org:17333\n' | sudo tee /etc/valdr/valdr.env >/dev/null
+sudo chown root:valdr /etc/valdr/valdr.env
+sudo chmod 0640 /etc/valdr/valdr.env
 sudo install -o root -g root -m 0755 valdrd valdr-cli valdr-miner valdr-explorer /usr/local/bin/
 sudo install -o root -g root -m 0644 deploy/systemd/valdrd.service /etc/systemd/system/valdrd.service
 sudo install -o root -g root -m 0644 deploy/systemd/valdr-explorer.service /etc/systemd/system/valdr-explorer.service
@@ -35,6 +38,8 @@ journalctl -u valdr-explorer -f
 ```
 
 ## Firewall and reverse proxy
+
+Set `VALDR_ADVERTISE_ADDRESS` to the real routable DNS name or public IP plus `:17333`. Do not use `0.0.0.0`, loopback, private, multicast or link-local addresses for a public Testnet advertisement.
 
 Expose only P2P from the node host:
 
