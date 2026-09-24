@@ -458,11 +458,25 @@ func (a *App) BackupWallet(selector string) (string, error) {
 	if filepath.Ext(path) == "" {
 		path += ".valdr-wallet"
 	}
-	if err := wallet.NewStore(a.paths.Wallets).
-		BackupEncrypted(selector, path); err != nil {
+	if err := a.backupWalletTo(selector, path); err != nil {
 		return "", err
 	}
 	return path, nil
+}
+
+func (a *App) backupWalletTo(
+	selector string,
+	destination string,
+) error {
+	selector = strings.TrimSpace(selector)
+	if selector == "" {
+		return wallet.ErrWalletNotFound
+	}
+	store := a.walletStore
+	if store == nil {
+		store = wallet.NewStore(a.paths.Wallets)
+	}
+	return store.BackupEncrypted(selector, destination)
 }
 
 func (a *App) RestoreWallet(
@@ -474,10 +488,7 @@ func (a *App) RestoreWallet(
 	if a.walletSessions == nil {
 		return wallet.Metadata{}, desktopcore.ErrWalletLocked
 	}
-
-	secret := []byte(passphrase)
-	defer clearSecret(secret)
-	if len(secret) == 0 {
+	if passphrase == "" {
 		return wallet.Metadata{}, wallet.ErrPassphraseRequired
 	}
 
@@ -493,6 +504,21 @@ func (a *App) RestoreWallet(
 	)
 	if err != nil || path == "" {
 		return wallet.Metadata{}, err
+	}
+	return a.restoreWalletFrom(path, passphrase)
+}
+
+func (a *App) restoreWalletFrom(
+	path string,
+	passphrase string,
+) (wallet.Metadata, error) {
+	if a.walletSessions == nil {
+		return wallet.Metadata{}, desktopcore.ErrWalletLocked
+	}
+	secret := []byte(passphrase)
+	defer clearSecret(secret)
+	if len(secret) == 0 {
+		return wallet.Metadata{}, wallet.ErrPassphraseRequired
 	}
 
 	store := a.walletStore

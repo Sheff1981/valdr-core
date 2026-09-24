@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/Sheff1981/valdr-core/config"
 	desktopcore "github.com/Sheff1981/valdr-core/desktop"
+	"github.com/Sheff1981/valdr-core/wallet"
 )
 
 func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
@@ -197,6 +200,89 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if _, err := app.UnlockWallet(recipient.Address, recipientPassphrase); err != nil {
 		t.Fatal(err)
 	}
+
+	backupPath := filepath.Join(root, "runtime-source.valdr-wallet")
+	if err := app.backupWalletTo(source.Address, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	backupRaw, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(backupRaw, []byte(sourcePassphrase)) ||
+		bytes.Contains(backupRaw, []byte("private_key")) {
+		t.Fatal("encrypted Desktop backup contains plaintext secret material")
+	}
+
+	privateKey, err := app.ExportPrivateKey(
+		source.Address,
+		privateKeyExportConfirmation,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if privateKey == "" {
+		t.Fatal("private key export returned empty value")
+	}
+	if bytes.Contains(backupRaw, []byte(privateKey)) {
+		t.Fatal("encrypted Desktop backup contains plaintext private key")
+	}
+
+	restoreDir := filepath.Join(root, "restored-wallets")
+	restoreStore := wallet.NewStore(restoreDir)
+	restoreSessions, err := desktopcore.NewWalletSessionManager(
+		restoreStore,
+		desktopcore.DefaultWalletAutoLock,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoreApp := &App{
+		paths: desktopcore.Paths{
+			Root:    filepath.Join(root, "restore-root"),
+			Wallets: restoreDir,
+			Network: config.NetworkTestnetV02,
+		},
+		walletStore:    restoreStore,
+		walletSessions: restoreSessions,
+	}
+
+	if _, err := restoreApp.restoreWalletFrom(
+		backupPath,
+		"wrong-backup-passphrase",
+	); !errors.Is(err, wallet.ErrWalletAuthentication) {
+		t.Fatalf("wrong backup passphrase error=%v", err)
+	}
+	items, err := restoreStore.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("wrong-passphrase restore imported wallet: %+v", items)
+	}
+
+	restored, err := restoreApp.restoreWalletFrom(
+		backupPath,
+		sourcePassphrase,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.Address != source.Address {
+		t.Fatalf("restored address=%s want=%s", restored.Address, source.Address)
+	}
+	if !restoreSessions.IsUnlocked(source.Address) {
+		t.Fatal("restored Desktop wallet is not unlocked")
+	}
+
+	assertRuntimeSecretsAbsent(
+		t,
+		root,
+		sourcePassphrase,
+		recipientPassphrase,
+		privateKey,
+	)
+	privateKey = ""
 }
 
 func waitForRuntimeNode(
@@ -261,4 +347,37 @@ func runtimeHistoryItem(
 		}
 	}
 	return nil
+}
+
+func assertRuntimeSecretsAbsent(
+	t *testing.T,
+	root string,
+	secrets ...string,
+) {
+	t.Helper()
+	err := filepath.WalkDir(root, func(
+		path string,
+		entry os.DirEntry,
+		err error,
+	) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, secret := range secrets {
+			if secret != "" && bytes.Contains(raw, []byte(secret)) {
+				t.Fatalf("plaintext secret material persisted in %s", path)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
