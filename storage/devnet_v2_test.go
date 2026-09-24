@@ -29,7 +29,8 @@ func TestDevnetV02BadgerRestartPreservesExactTargetChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	timestamp := profile.GenesisTimestamp + 60
-	coinbase, err := transaction.NewCoinbase(
+	coinbase, err := transaction.NewCoinbaseForChain(
+		profile.ChainID,
 		1,
 		miner.Address,
 		config.InitialMiningReward,
