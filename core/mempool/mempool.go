@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/transaction"
 )
 
@@ -30,6 +31,7 @@ type Config struct {
 	MaxBytes           int
 	Expiry             time.Duration
 	MinRelayFeePerByte uint64
+	ChainID            string
 	Now                func() time.Time
 }
 
@@ -48,6 +50,7 @@ type Pool struct {
 	maxBytes           int
 	expiry             time.Duration
 	minRelayFeePerByte uint64
+	chainID            string
 	now                func() time.Time
 	totalBytes         int
 }
@@ -57,6 +60,10 @@ func New() *Pool {
 }
 
 func NewWithConfig(cfg Config) *Pool {
+	chainID := cfg.ChainID
+	if chainID == "" {
+		chainID = config.ChainID
+	}
 	maxBytes := cfg.MaxBytes
 	if maxBytes <= 0 {
 		maxBytes = DefaultMaxBytes
@@ -75,7 +82,38 @@ func NewWithConfig(cfg Config) *Pool {
 		maxBytes:           maxBytes,
 		expiry:             expiry,
 		minRelayFeePerByte: cfg.MinRelayFeePerByte,
+		chainID:            chainID,
 		now:                now,
+	}
+}
+
+func (p *Pool) ConfigureNetwork(
+	chainID string,
+	minRelayFeePerByte uint64,
+) {
+	if chainID == "" {
+		chainID = config.ChainID
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.chainID = chainID
+	p.minRelayFeePerByte = minRelayFeePerByte
+
+	ids := make([]string, 0, len(p.txs))
+	for id := range p.txs {
+		ids = append(ids, id)
+	}
+	for _, id := range ids {
+		candidate := p.txs[id]
+		if candidate.tx == nil ||
+			candidate.tx.ValidateForChain(chainID) != nil ||
+			!meetsRelayFee(
+				candidate.fee,
+				candidate.size,
+				minRelayFeePerByte,
+			) {
+			p.removeLocked(id)
+		}
 	}
 }
 
@@ -89,7 +127,7 @@ func (p *Pool) AddWithFee(tx *transaction.Transaction, fee uint64) error {
 	if tx == nil {
 		return ErrInvalidTransaction
 	}
-	if err := tx.Validate(); err != nil {
+	if err := tx.ValidateForChain(p.chainID); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
 	}
 	size := tx.SerializedSize()
