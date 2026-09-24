@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"time"
 
 	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 	"github.com/Sheff1981/valdr-core/core/transaction"
@@ -303,4 +302,3 @@ func historyOutpointKey(
 	)
 }
 
-var _ = time.Time{}
