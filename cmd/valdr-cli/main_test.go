@@ -238,6 +238,42 @@ func TestRPCBackedCLIStatusBalanceSendAndQueries(t *testing.T) {
 	}
 }
 
+func TestWalletCLIRejectsUnprotectedPasswordFile(t *testing.T) {
+	dir := t.TempDir()
+	file, err := os.CreateTemp(t.TempDir(), "unsafe-password-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if err := file.Chmod(0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString("secret\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut bytes.Buffer
+	code := run(
+		[]string{
+			"wallet", "create",
+			"--dir", dir,
+			"--name", "unsafe",
+			"--password-fd", strconv.Itoa(int(file.Fd())),
+		},
+		&out,
+		&errOut,
+	)
+	if code != 1 {
+		t.Fatalf("exit=%d want=1 stderr=%s", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "unprotected") {
+		t.Fatalf("unexpected stderr: %s", errOut.String())
+	}
+}
+
 func TestWalletCLIRejectsPasswordArgument(t *testing.T) {
 	dir := t.TempDir()
 	var out, errOut bytes.Buffer
