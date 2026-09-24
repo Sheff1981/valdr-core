@@ -22,7 +22,16 @@ func TestDevnetV02AppendUsesExactTargetConsensus(t *testing.T) {
 	}
 	miner := testMinerAddress(t)
 	timestamp := profile.GenesisTimestamp + 60
-	coinbase := testCoinbase(t, 1, miner, timestamp)
+	coinbase, err := transaction.NewCoinbaseForChain(
+		profile.ChainID,
+		1,
+		miner,
+		config.InitialMiningReward,
+		timestamp,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	candidate, err := chain.Append(
 		timestamp,
@@ -57,7 +66,16 @@ func TestDevnetV02RejectsUnexpectedExactTarget(t *testing.T) {
 	}
 	miner := testMinerAddress(t)
 	timestamp := profile.GenesisTimestamp + 60
-	coinbase := testCoinbase(t, 1, miner, timestamp)
+	coinbase, err := transaction.NewCoinbaseForChain(
+		profile.ChainID,
+		1,
+		miner,
+		config.InitialMiningReward,
+		timestamp,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	powLimit, err := consensus.PowLimitForProfile(profile)
 	if err != nil {
