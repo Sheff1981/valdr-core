@@ -79,7 +79,38 @@ CLI wallet operations accept passphrases only through hidden interactive termina
 
 `wallet migrate` validates a legacy v0.1 plaintext wallet, preserves its name/address/public/private key identity, then atomically rewrites the same wallet path as encrypted v2 with directory mode 0700 and wallet mode 0600. Legacy plaintext wallets cannot be used for signing until migrated.
 
-**Stage 10 is not started.** Next master-spec milestone: Explorer + reorg-safe indexer.
+**Stage 10 — Explorer + reorg-safe indexer: implemented and CI-verified.**
+
+`cmd/valdr-explorer` is a standalone read-only HTTP service. Its default listen address is `127.0.0.1:8080`; it talks only to the node RPC endpoint supplied with `--node` and exposes no signing, mining or privileged RPC controls.
+
+The Explorer provides search by block height/hash, txid and VDR address; HTML views for overview/block/transaction/address; and the required REST surface: `/api/v1/status`, `/api/v1/blocks`, `/api/v1/block/{height-or-hash}`, `/api/v1/tx/{txid}`, `/api/v1/address/{address}`, and `/api/v1/mempool`. Status includes peers, network identity, chainwork, current target/difficulty and recent block intervals.
+
+The Explorer keeps its own persistent index with active block hashes, confirmed address activity and UTXOs. On an active-chain change it locates the common ancestor, rolls the index back by rebuilding through that ancestor, then indexes the new active branch. The index records Chain ID + Genesis identity and refuses cross-network reuse.
+
+**Stage 11 is not started.** Next master-spec milestone: Testnet profile completion + Docker + Linux deployment.
+
+## Stage 10 Explorer/reorg gate
+
+Stage 10 implements and tests:
+
+- standalone `cmd/valdr-explorer`;
+- localhost default `127.0.0.1:8080`;
+- read-only node RPC client;
+- block height/hash, txid and VDR-address search;
+- latest blocks, block detail, transaction detail and address views;
+- address confirmed history and current UTXO display;
+- mempool, peers, network identity, chainwork, target/difficulty and recent block intervals;
+- required `/api/v1` REST endpoints;
+- persistent Explorer-owned index;
+- Chain ID + Genesis identity binding;
+- restart-safe index reload;
+- common-ancestor detection on reorg;
+- stale history/UTXO rollback followed by active-branch reindex;
+- security headers and GET/HEAD-only HTTP surface;
+- live Devnet2 Explorer test against the real RPC server;
+- dedicated Explorer API/reorg CI gate.
+
+The Explorer index is deliberately separate from consensus storage. It derives only public chain data from read-only RPC and can be rebuilt without changing node consensus state.
 
 ## Stage 9 wallet-v2 encryption gate
 
