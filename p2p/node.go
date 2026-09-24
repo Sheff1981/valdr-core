@@ -168,12 +168,20 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 	}
 
 	pool := cfg.Mempool
+	minRelayFeePerByte := uint64(0)
+	if cfg.EnableV2 && cfg.NetworkProfile != nil {
+		minRelayFeePerByte = cfg.NetworkProfile.MinRelayFeePerByte
+	}
 	if pool == nil {
-		poolConfig := mempool.Config{}
-		if cfg.EnableV2 && cfg.NetworkProfile != nil {
-			poolConfig.MinRelayFeePerByte = cfg.NetworkProfile.MinRelayFeePerByte
-		}
-		pool = mempool.NewWithConfig(poolConfig)
+		pool = mempool.NewWithConfig(mempool.Config{
+			ChainID:            chainID,
+			MinRelayFeePerByte: minRelayFeePerByte,
+		})
+	} else {
+		pool.ConfigureNetwork(
+			chainID,
+			minRelayFeePerByte,
+		)
 	}
 
 	handshakeTimeout := cfg.HandshakeTimeout
