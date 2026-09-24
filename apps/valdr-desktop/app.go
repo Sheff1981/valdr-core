@@ -23,10 +23,11 @@ var ErrPrivateKeyExportConfirmation = errors.New(
 const privateKeyExportConfirmation = "EXPORT PRIVATE KEY"
 
 type DesktopState struct {
-	Network               string             `json:"network"`
-	ChainID               string             `json:"chain_id"`
-	MainnetEnabled        bool               `json:"mainnet_enabled"`
-	Paths                 desktopcore.Paths  `json:"paths"`
+	Network               string                         `json:"network"`
+	ChainID               string                         `json:"chain_id"`
+	MainnetEnabled        bool                           `json:"mainnet_enabled"`
+	Paths                 desktopcore.Paths              `json:"paths"`
+	Preferences           desktopcore.DesktopPreferences `json:"preferences"`
 	NodeRunning           bool               `json:"node_running"`
 	NodeStatus            *rpc.StatusResult  `json:"node_status,omitempty"`
 	NodeError             string             `json:"node_error,omitempty"`
@@ -43,9 +44,11 @@ type App struct {
 	walletService   *desktopcore.WalletService
 	walletSessions  *desktopcore.WalletSessionManager
 	historyService  *desktopcore.HistoryService
+	preferenceStore *desktopcore.PreferenceStore
 
-	mu        sync.Mutex
-	nodeError string
+	mu          sync.Mutex
+	nodeError   string
+	preferences desktopcore.DesktopPreferences
 }
 
 func NewApp() (*App, error) {
@@ -54,6 +57,14 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 	if err := paths.Ensure(); err != nil {
+		return nil, err
+	}
+
+	preferenceStore := desktopcore.NewPreferenceStore(
+		filepath.Join(paths.Root, "desktop-settings.json"),
+	)
+	preferences, err := preferenceStore.Load()
+	if err != nil {
 		return nil, err
 	}
 
@@ -100,13 +111,18 @@ func NewApp() (*App, error) {
 		node:           node,
 		walletStore:    walletStore,
 		walletService:  walletService,
-		walletSessions: walletSessions,
-		historyService: historyService,
+		walletSessions:  walletSessions,
+		historyService:  historyService,
+		preferenceStore: preferenceStore,
+		preferences:     preferences,
 	}, nil
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	if !a.preferencesSnapshot().StartNode {
+		return
+	}
 	if err := a.node.Start(); err != nil {
 		a.setNodeError(err.Error())
 	}
@@ -139,6 +155,7 @@ func (a *App) GetState() (DesktopState, error) {
 		NodeRunning:     a.node.Running(),
 		NodeError:       a.getNodeError(),
 		Wallets:         items,
+		Preferences:     a.preferencesSnapshot(),
 		UnlockedWallets: []string{},
 	}
 	if a.walletSessions != nil {
@@ -446,6 +463,31 @@ func (a *App) RestoreWallet(
 	return meta, nil
 }
 
+func (a *App) SetDesktopPreferences(
+	startNode bool,
+	advanced bool,
+) (desktopcore.DesktopPreferences, error) {
+	prefs := a.preferencesSnapshot()
+	prefs.StartNode = startNode
+	prefs.Advanced = advanced
+
+	store := a.preferenceStore
+	if store == nil {
+		store = desktopcore.NewPreferenceStore(
+			filepath.Join(a.paths.Root, "desktop-settings.json"),
+		)
+	}
+	if err := store.Save(prefs); err != nil {
+		return desktopcore.DesktopPreferences{}, err
+	}
+
+	a.mu.Lock()
+	a.preferenceStore = store
+	a.preferences = prefs
+	a.mu.Unlock()
+	return prefs, nil
+}
+
 func (a *App) StartNode() error {
 	if err := a.node.Start(); err != nil {
 		a.setNodeError(err.Error())
@@ -471,6 +513,15 @@ func (a *App) walletPassphrase(selector string) ([]byte, error) {
 		return nil, desktopcore.ErrWalletLocked
 	}
 	return a.walletSessions.Passphrase(strings.TrimSpace(selector))
+}
+
+func (a *App) preferencesSnapshot() desktopcore.DesktopPreferences {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.preferences.Version != desktopcore.DesktopPreferencesVersion {
+		return desktopcore.DefaultDesktopPreferences()
+	}
+	return a.preferences
 }
 
 func (a *App) setNodeError(value string) {

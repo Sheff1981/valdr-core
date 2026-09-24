@@ -19,6 +19,14 @@ type NodeStatus = {
   mempool_count: number;
 };
 
+type DesktopPreferences = {
+  version: number;
+  language: "en";
+  theme: "dark";
+  start_node: boolean;
+  advanced: boolean;
+};
+
 type DesktopState = {
   network: string;
   chain_id: string;
@@ -36,6 +44,7 @@ type DesktopState = {
   wallets: WalletMetadata[];
   unlocked_wallets: string[];
   wallet_auto_lock_minutes: number;
+  preferences: DesktopPreferences;
 };
 
 type PeerInfo = {
@@ -103,6 +112,10 @@ type AppAPI = {
   BackupWallet(selector: string): Promise<string>;
   RestoreWallet(passphrase: string): Promise<WalletMetadata>;
   GetTransactionHistory(address: string): Promise<TransactionHistoryItem[]>;
+  SetDesktopPreferences(
+    startNode: boolean,
+    advanced: boolean,
+  ): Promise<DesktopPreferences>;
   StartNode(): Promise<void>;
   StopNode(): Promise<void>;
 };
@@ -224,7 +237,8 @@ root.innerHTML = `
         <button class="nav-item" data-view="receive">Receive</button>
         <button class="nav-item" data-view="wallet">Wallet</button>
         <button class="nav-item" data-view="transactions">Transactions</button>
-        <button class="nav-item" data-view="network">Network</button>
+        <button class="nav-item advanced-only hidden" data-view="network">Network</button>
+        <button class="nav-item" data-view="settings">Settings</button>
       </nav>
 
       <div class="sidebar-foot">
@@ -538,6 +552,62 @@ root.innerHTML = `
           <p class="subtle">Desktop remains outbound-only. Public-node mode will be exposed only in Advanced mode.</p>
         </article>
       </section>
+
+      <section class="view" id="view-settings">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">DESKTOP PREFERENCES</p>
+            <h2>Settings</h2>
+            <p class="subtle">Only non-secret convenience settings are stored locally.</p>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <article class="card">
+            <h3>Application</h3>
+            <form id="desktop-settings-form">
+              <label>
+                Language
+                <select id="settings-language" disabled>
+                  <option value="en">English · current build</option>
+                </select>
+              </label>
+              <label>
+                Theme
+                <select id="settings-theme" disabled>
+                  <option value="dark">Dark · current build</option>
+                </select>
+              </label>
+              <label>
+                Network
+                <select id="settings-network" disabled>
+                  <option value="testnet">Testnet · valdr-testnet-1</option>
+                </select>
+              </label>
+              <label class="settings-check">
+                <input id="settings-start-node" type="checkbox">
+                <span>Start managed local node when VALDR Desktop launches</span>
+              </label>
+              <label class="settings-check">
+                <input id="settings-advanced" type="checkbox">
+                <span>Enable Advanced mode</span>
+              </label>
+              <button class="primary" type="submit">Save settings</button>
+            </form>
+            <p id="settings-status" class="subtle"></p>
+          </article>
+
+          <article class="card">
+            <h3>Local data</h3>
+            <dl class="details">
+              <div><dt>Application data</dt><dd><code id="settings-root">—</code></dd></div>
+              <div><dt>Node data</dt><dd><code id="settings-node-data">—</code></dd></div>
+              <div><dt>Wallets</dt><dd><code id="settings-wallets">—</code></dd></div>
+              <div><dt>Logs</dt><dd><code id="settings-logs">—</code></dd></div>
+            </dl>
+            <p class="subtle">Data-directory editing is intentionally disabled while the managed-node migration flow is not yet implemented.</p>
+          </article>
+        </div>
+      </section>
     </main>
   </div>
 `;
@@ -653,6 +723,25 @@ const clearPrivateKeyExport = (): void => {
   if (confirmation) confirmation.value = "";
   document.getElementById("export-warning")?.classList.add("hidden");
   document.getElementById("private-key-result")?.classList.add("hidden");
+};
+
+const renderDesktopPreferences = (): void => {
+  const prefs = currentState?.preferences;
+  if (!prefs) return;
+
+  const startNode = document.getElementById("settings-start-node") as HTMLInputElement | null;
+  const advanced = document.getElementById("settings-advanced") as HTMLInputElement | null;
+  if (startNode) startNode.checked = prefs.start_node;
+  if (advanced) advanced.checked = prefs.advanced;
+
+  document.querySelectorAll<HTMLElement>(".advanced-only").forEach((element) => {
+    element.classList.toggle("hidden", !prefs.advanced);
+  });
+
+  if (!prefs.advanced && currentView === "network") {
+    const overview = document.querySelector<HTMLButtonElement>('.nav-item[data-view="overview"]');
+    overview?.click();
+  }
 };
 
 const renderWalletSecurity = (): void => {
@@ -1013,6 +1102,11 @@ const renderState = (state: DesktopState): void => {
   text("detail-data", state.paths.node_data);
   text("detail-wallets", state.paths.wallets);
   text("detail-logs", state.paths.logs);
+  text("settings-root", state.paths.root);
+  text("settings-node-data", state.paths.node_data);
+  text("settings-wallets", state.paths.wallets);
+  text("settings-logs", state.paths.logs);
+  renderDesktopPreferences();
 
   text(
     "height",
@@ -1132,6 +1226,23 @@ document.getElementById("wallet-selector")?.addEventListener("change", (event) =
   void refreshWalletPresentation();
   if (currentView === "transactions") {
     void refreshTransactionHistory();
+  }
+});
+
+document.getElementById("desktop-settings-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const startNode = (document.getElementById("settings-start-node") as HTMLInputElement | null)?.checked ?? true;
+  const advanced = (document.getElementById("settings-advanced") as HTMLInputElement | null)?.checked ?? false;
+  try {
+    const preferences = await api().SetDesktopPreferences(startNode, advanced);
+    if (currentState) currentState.preferences = preferences;
+    renderDesktopPreferences();
+    text(
+      "settings-status",
+      "Settings saved locally. Startup behavior applies on the next application launch.",
+    );
+  } catch (error) {
+    text("settings-status", error instanceof Error ? error.message : String(error));
   }
 });
 
