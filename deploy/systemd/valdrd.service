@@ -9,7 +9,8 @@ Type=simple
 User=valdr
 Group=valdr
 UMask=0077
-ExecStart=/usr/local/bin/valdrd start --network testnet --data /var/lib/valdr --node-id=%H --p2p-host 0.0.0.0 --rpc-host 127.0.0.1
+EnvironmentFile=-/etc/valdr/valdr.env
+ExecStart=/usr/local/bin/valdrd start --network testnet --data /var/lib/valdr --node-id=%H --p2p-host 0.0.0.0 --advertise-address=${VALDR_ADVERTISE_ADDRESS} --rpc-host 127.0.0.1
 Restart=on-failure
 RestartSec=5s
 NoNewPrivileges=true
