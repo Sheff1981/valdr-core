@@ -162,7 +162,9 @@ Observed on 2026-09-24:
 VALDR decision:
 
 - Stage 12 baseline is Wails v2 stable;
-- pin the actual Wails v2 release in Go module/build metadata;
+- implementation pin: **Wails v2.12.0**;
+- v2.12.0 is used because its module declares Go 1.22 and is compatible with the current VALDR Go 1.23.x toolchain;
+- Wails v2.13.0-v2.15.0 currently declare Go 1.25, so adopting them would require a deliberate VALDR toolchain upgrade rather than an incidental GUI dependency change;
 - native CI runners are required for real platform packaging/smoke;
 - no remote CDN frontend dependencies;
 - Stage 13 owns signing/notarization/installers.
