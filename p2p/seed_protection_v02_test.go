@@ -153,6 +153,15 @@ func TestPublicDiscoveryRejectsUnsafeNumericAddresses(t *testing.T) {
 	if err := validateDiscoveredAddress("seed.example.org:17333", true); err != nil {
 		t.Fatalf("valid DNS seed rejected: %v", err)
 	}
+	for _, address := range []string{
+		"node1:17333",
+		"node-a.example:17333",
+		"node-b.example:17333",
+	} {
+		if err := validateDiscoveredAddress(address, true); err != nil {
+			t.Fatalf("valid advertised DNS %q rejected: %v", address, err)
+		}
+	}
 	if err := validateDiscoveredAddress("127.0.0.1:7333", false); err != nil {
 		t.Fatalf("private devnet discovery rejected: %v", err)
 	}
