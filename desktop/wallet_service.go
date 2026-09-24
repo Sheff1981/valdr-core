@@ -112,7 +112,8 @@ func (s *WalletService) Send(
 		return SendResult{}, err
 	}
 
-	tx, fee, err := source.CreateTransactionWithFeeRate(
+	tx, fee, err := source.CreateTransactionForChain(
+		profile.ChainID,
 		available,
 		recipient,
 		amount,
