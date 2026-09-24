@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,7 +16,7 @@ import (
 	"github.com/Sheff1981/valdr-core/rpc"
 )
 
-const explorerIndexVersion = 1
+const explorerIndexVersion = 2
 
 var (
 	ErrInvalidClient       = errors.New("explorer RPC client is nil")
@@ -35,6 +36,7 @@ type AddressActivity struct {
 	Timestamp     int64  `json:"timestamp"`
 	ReceivedVal   uint64 `json:"received_val"`
 	SpentVal      uint64 `json:"spent_val"`
+	FeeVal        uint64 `json:"fee_val,omitempty"`
 }
 
 type indexedOutput struct {
@@ -283,6 +285,9 @@ func (i *Index) applyTransactionLocked(
 	tx *transaction.Transaction,
 ) error {
 	activity := make(map[string]*AddressActivity)
+	var totalInput uint64
+	var totalOutput uint64
+	spenderAddress := ""
 	entryFor := func(address string) *AddressActivity {
 		entry := activity[address]
 		if entry == nil {
@@ -307,11 +312,24 @@ func (i *Index) applyTransactionLocked(
 			if !ok {
 				return fmt.Errorf("%w: %s", ErrIndexMissingOutpoint, key)
 			}
+			if math.MaxUint64-totalInput < previous.AmountVal {
+				return errors.New("explorer input amount overflow")
+			}
+			totalInput += previous.AmountVal
+			if spenderAddress == "" {
+				spenderAddress = previous.Address
+			} else if spenderAddress != previous.Address {
+				return errors.New("explorer transaction has multiple input owners")
+			}
 			entryFor(previous.Address).SpentVal += previous.AmountVal
 			delete(i.state.Outpoints, key)
 		}
 	}
 	for outputIndex, output := range tx.Outputs {
+		if math.MaxUint64-totalOutput < output.Amount {
+			return errors.New("explorer output amount overflow")
+		}
+		totalOutput += output.Amount
 		index := uint32(outputIndex)
 		entryFor(output.Recipient).ReceivedVal += output.Amount
 		i.state.Outpoints[outpointKey(tx.TransactionID, index)] = indexedOutput{
@@ -319,6 +337,14 @@ func (i *Index) applyTransactionLocked(
 			OutputIndex:   index,
 			Address:       output.Recipient,
 			AmountVal:     output.Amount,
+		}
+	}
+	if !tx.IsCoinbase() {
+		if totalInput < totalOutput {
+			return errors.New("explorer transaction outputs exceed inputs")
+		}
+		if spenderAddress != "" {
+			entryFor(spenderAddress).FeeVal = totalInput - totalOutput
 		}
 	}
 	for address, item := range activity {
@@ -356,8 +382,13 @@ func (i *Index) load() error {
 	if err := json.Unmarshal(raw, &loaded); err != nil {
 		return err
 	}
-	if loaded.Version != explorerIndexVersion ||
-		loaded.ChainID == "" ||
+	if loaded.Version != explorerIndexVersion {
+		// Explorer data is derived from the active chain. An older index
+		// schema is discarded in memory and rebuilt on the next Refresh.
+		i.state = indexState{}
+		return nil
+	}
+	if loaded.ChainID == "" ||
 		loaded.GenesisHash == "" ||
 		loaded.Blocks == nil ||
 		loaded.Activities == nil ||
