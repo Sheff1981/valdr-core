@@ -1,19 +1,9 @@
-## Stage 7 implementation note — target encoding must be frozen
-
-The master specification requires headers-first synchronization to validate header continuity, PoW, timestamp and **Difficulty v2** before downloading block bodies. It also requires exact big-int targets and stores `target` in `header/<hash>`.
-
-The current frozen v0.1 `Block` header, however, contains only `difficulty uint64`; it has no exact 256-bit target or compact-target field. Arbitrary v0.2 retarget results cannot be represented losslessly by the legacy integer multiplier.
-
-Therefore full Devnet2/Testnet header validation cannot be declared consensus-complete until the master-TZ freezes one representation, for example an exact 32-byte target or a separately specified compact-target encoding, and includes that field in the hashed canonical header. This is a consensus-format change relative to v0.1, so it must not be invented silently in code.
-
-Transport/locator/header-batch scaffolding can be developed independently, but activation of v0.2 header consensus is blocked on this specification decision.
-
 # VALDR Core
 
 VALDR is a standalone cryptocurrency and blockchain project.
 
 The frozen working baseline is **VALDR Devnet v0.1** at `release/valdr-devnet-v0.1`.
-Active development on branch `valdr-v0.2` follows `docs/VALDR_Master_TZ_v0.2.md`.
+Active development on branch `valdr-v0.2` follows the current baseline `docs/VALDR_Master_TZ_v0.2.2.md`. Earlier v0.2/v0.2.1 specifications remain preserved.
 
 ## v0.2 development status
 
@@ -37,7 +27,7 @@ Current Stage 1 changes:
 
 Stage 2 adds the master-spec network profiles for legacy v0.1, `devnet2` and `testnet`, plus the v2 wire envelope (network magic, uint16 protocol/message type, bounded payload length, SHA-256 checksum and strict UTF-8 JSON). The node has an explicit v2 handshake path with `hello/hello_ack`, highest-mutual version selection, wrong-network rejection, ping/pong and peer discovery.
 
-The existing v0.1-compatible runtime remains the default while chainwork/reorg and headers-first synchronization are still pending. v2 block/transaction/header data messages are intentionally not activated yet; they belong to later v0.2 stages and are not silently routed through the legacy `get_block` synchronizer.
+The frozen v0.1-compatible runtime remains available on the legacy profile. Devnet2 uses the separate v2 path; later stages have since activated exact-target blocks, chainwork/reorg and headers-first synchronization without changing the frozen v0.1 wire/consensus format.
 
 **Stage 3 — Chainwork + side branches + reorganization: implemented and CI-verified.**
 
@@ -63,7 +53,35 @@ The mempool is bounded to 64 MiB of canonical transaction bytes with 72-hour exp
 
 Node admission calculates the real implicit fee against the active UTXO set. After active-chain connect/reorg the pool is revalidated, confirmed transactions are removed, and valid non-coinbase transactions from disconnected blocks can be reconsidered. Miner template selection uses fee-rate order and skips transactions that would exceed the 1,000,000-byte block limit.
 
-**Stage 7 is not completed.** Next master-spec milestone: headers-first full synchronization. Before activating v0.2 header consensus on Devnet2/Testnet, the block-header representation of the exact v2 PoW target must be frozen explicitly; see the Stage 7 implementation note below.
+**Stage 7 — Full headers-first synchronization: implemented and CI-verified.**
+
+Devnet2 P2P v2 now performs block-locator based synchronization. A peer may return at most 2,000 headers per batch; the receiver verifies network/version, linkage, exact target, MTP/future timestamp rules, difficulty transition and PoW before requesting any block body. Block bodies are requested in bounded windows of at most 32 outstanding items and must exactly match a previously validated/requested header.
+
+Sync uses cumulative chainwork rather than height as the fork-choice trigger, while height remains only a compatibility fallback when chainwork metadata is unavailable. Valid side branches flow through the Stage 3 persistence/reorg path. Session state is ephemeral; persisted blocks and branches are the resume source after restart.
+
+CI covers fresh Genesis-to-tip sync, restart/offline resume using BadgerDB, greater-chainwork reorg sync, live `inv → get_headers → headers → get_data → block` catch-up, strict locator/header/inventory payload rules and chainwork-based sync decisions.
+
+**Stage 8 is not started.** Next master-spec milestone: seed nodes + P2P protection.
+
+## Stage 7 headers-first sync gate
+
+Stage 7 implements and tests:
+
+- active-chain block locator with recent hashes then exponential backoff to Genesis;
+- strict `get_headers/headers/get_data/block/get_blocks/inv/tx` v2 payload contracts;
+- locator limit 128 hashes;
+- header batches up to 2,000;
+- exact v2 header validation before body download;
+- maximum 32 outstanding/requested block bodies;
+- body/header identity enforcement;
+- fresh Devnet2 Genesis-to-tip synchronization;
+- persisted Badger restart/offline resume without deleting the DB;
+- competing-branch synchronization and reorg to greater cumulative chainwork;
+- live v2 block announcements through `inv` followed by headers-first catch-up;
+- v2 transaction relay through the Stage 6 mempool policy;
+- cumulative-chainwork based sync trigger instead of height-only selection.
+
+Master-TZ v0.2.1 froze exact 32-byte target encoding in block header v2. Master-TZ v0.2.2 then froze the Stage 7 JSON sync-wire contract and restart semantics. Frozen v0.1 header/P2P formats remain unchanged.
 
 ## Stage 6 mempool/miner-policy gate
 
@@ -155,7 +173,7 @@ The Stage 4 consensus module implements:
 
 Golden tests pin exact target hex values, clamps, MTP rejects, future-time rejects, Testnet escape/recovery and retarget behavior.
 
-**Implementation clarification:** the master spec fixes the 60-block window and formula but does not explicitly name the two timestamp endpoints used for `actual_timespan`. The implementation freezes the boundary as: for candidate height divisible by 60, use the first and last timestamps in the preceding 60 accepted headers. This keeps the retarget a pure function of already accepted history. This endpoint convention should be added explicitly to the next master-TZ revision before Public Testnet so independent implementations cannot interpret the window differently.
+**Implementation clarification:** the master spec fixes the 60-block window and formula but does not explicitly name the two timestamp endpoints used for `actual_timespan`. The implementation freezes the boundary as: for candidate height divisible by 60, use the first and last timestamps in the preceding 60 accepted headers. This keeps the retarget a pure function of already accepted history. This endpoint convention is now frozen explicitly in Master-TZ v0.2.1/v0.2.2 so independent implementations use the same retarget window.
 
 ## Stage 3 chainwork/reorg gate
 
