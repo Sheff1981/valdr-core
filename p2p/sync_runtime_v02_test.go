@@ -71,24 +71,23 @@ func TestV2FreshNodeHeadersFirstSync(t *testing.T) {
 		t.Fatalf("target connect source: %v", err)
 	}
 
-	deadline := time.Now().Add(4 * time.Second)
-	for time.Now().Before(deadline) {
-		if targetChain.Height() == sourceChain.Height() &&
-			targetChain.Tip() != nil &&
-			sourceChain.Tip() != nil &&
-			targetChain.Tip().BlockHash == sourceChain.Tip().BlockHash {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitForSameTip(t, targetChain, sourceChain, 5*time.Second)
 
-	t.Fatalf(
-		"sync did not converge: target height=%d tip=%v source height=%d tip=%v",
-		targetChain.Height(),
-		targetChain.Tip(),
-		sourceChain.Height(),
-		sourceChain.Tip(),
+	nextHeight := int64(sourceChain.Height() + 1)
+	liveBlock, err := mining.MineBlock(
+		sourceChain,
+		minerAddress,
+		profile.GenesisTimestamp+
+			nextHeight*profile.TargetBlockTimeSeconds,
+		nil,
 	)
+	if err != nil {
+		t.Fatalf("mine live source block: %v", err)
+	}
+	if err := source.BroadcastBlock(liveBlock); err != nil {
+		t.Fatalf("broadcast live v2 block: %v", err)
+	}
+	waitForSameTip(t, targetChain, sourceChain, 5*time.Second)
 }
 
 
