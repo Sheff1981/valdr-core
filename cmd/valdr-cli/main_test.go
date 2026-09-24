@@ -242,6 +242,92 @@ func TestRPCBackedCLIStatusBalanceSendAndQueries(t *testing.T) {
 	}
 }
 
+func TestTestnetCLISendPaysRelayFee(t *testing.T) {
+	dir := t.TempDir()
+	store := wallet.NewStore(dir)
+	password := "testnet-cli-passphrase"
+	alice, err := store.CreateEncrypted("alice-testnet", []byte(password))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bob, err := wallet.New("bob-testnet")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain, err := blockchain.NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mining.MineBlock(
+		chain,
+		alice.Address,
+		profile.GenesisTimestamp+profile.TargetBlockTimeSeconds,
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	pool := mempool.NewWithConfig(mempool.Config{
+		MinRelayFeePerByte: profile.MinRelayFeePerByte,
+	})
+	node, err := p2p.NewNode(p2p.NodeConfig{
+		NodeID:         "cli-testnet-node",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Blockchain:     chain,
+		Mempool:        pool,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := rpc.NewServer(chain, node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	var out, errOut bytes.Buffer
+	if code := run(
+		[]string{
+			"send",
+			"--node", httpServer.URL,
+			"--wallet-dir", dir,
+			"--from", "alice-testnet",
+			"--to", bob.Address,
+			"--amount", "10",
+			"--password-fd", testPasswordFD(t, password),
+		},
+		&out,
+		&errOut,
+	); code != 0 {
+		t.Fatalf("Testnet send exit=%d stderr=%s", code, errOut.String())
+	}
+	if pool.Len() != 1 {
+		t.Fatalf("Testnet mempool length=%d want=1", pool.Len())
+	}
+
+	txs := pool.Transactions()
+	fee, err := chain.CalculateFees(txs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fee < uint64(txs[0].SerializedSize())*profile.MinRelayFeePerByte {
+		t.Fatalf(
+			"fee=%d below Testnet relay minimum for size=%d rate=%d",
+			fee,
+			txs[0].SerializedSize(),
+			profile.MinRelayFeePerByte,
+		)
+	}
+}
+
 func TestWalletCLIMigratesLegacyPlaintextWallet(t *testing.T) {
 	dir := t.TempDir()
 	legacy, err := wallet.New("legacy")
