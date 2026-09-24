@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"errors"
+	"os/exec"
 	"slices"
 	"testing"
 
@@ -98,4 +99,56 @@ func containsSequence(values []string, sequence []string) bool {
 		}
 	}
 	return false
+}
+
+
+func TestDesktopNodeSurfacesUnexpectedExitButNotIntentionalStop(t *testing.T) {
+	manager, err := NewNodeManager(NodeProcessConfig{
+		BinaryPath: "/tmp/valdrd",
+		Network:    config.NetworkTestnetV02,
+		DataDir:    "/tmp/valdr-desktop-crash-test",
+		NodeID:     "desktop-crash-test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	crashed := &exec.Cmd{}
+	manager.command = crashed
+	manager.recordProcessExit(crashed, errors.New("exit status 2"))
+	if manager.Running() {
+		t.Fatal("manager still reports running after child exit")
+	}
+	if !errors.Is(manager.LastExitError(), ErrNodeExitedUnexpectedly) {
+		t.Fatalf("last exit error=%v want ErrNodeExitedUnexpectedly", manager.LastExitError())
+	}
+
+	manager.lastExit = nil
+	stopped := &exec.Cmd{}
+	manager.command = stopped
+	manager.stopping = true
+	manager.recordProcessExit(stopped, errors.New("signal: terminated"))
+	if manager.LastExitError() != nil {
+		t.Fatalf("intentional stop was surfaced as crash: %v", manager.LastExitError())
+	}
+}
+
+func TestDesktopNodeStartClearsPreviousCrashState(t *testing.T) {
+	manager, err := NewNodeManager(NodeProcessConfig{
+		BinaryPath: "/path/that/does/not/exist/valdrd",
+		Network:    config.NetworkTestnetV02,
+		DataDir:    "/tmp/valdr-desktop-restart-test",
+		NodeID:     "desktop-restart-test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.lastExit = ErrNodeExitedUnexpectedly
+	if err := manager.Start(); err == nil {
+		t.Fatal("expected missing binary start to fail")
+	}
+	if manager.LastExitError() != nil {
+		t.Fatalf("restart attempt did not clear previous crash state: %v", manager.LastExitError())
+	}
 }

@@ -113,6 +113,11 @@ func (a *App) GetState() (DesktopState, error) {
 		NodeError:      a.getNodeError(),
 		Wallets:        items,
 	}
+	if !state.NodeRunning {
+		if exitErr := a.node.LastExitError(); exitErr != nil {
+			state.NodeError = exitErr.Error()
+		}
+	}
 
 	if state.NodeRunning {
 		ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)

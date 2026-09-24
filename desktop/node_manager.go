@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	ErrNodeAlreadyRunning = errors.New("VALDR Desktop node is already running")
-	ErrDesktopMainnet     = errors.New("VALDR Desktop Mainnet is not enabled")
+	ErrNodeAlreadyRunning    = errors.New("VALDR Desktop node is already running")
+	ErrNodeExitedUnexpectedly = errors.New("VALDR Desktop node exited unexpectedly")
+	ErrDesktopMainnet        = errors.New("VALDR Desktop Mainnet is not enabled")
 )
 
 type NodeProcessConfig struct {
@@ -35,11 +36,13 @@ type NodeProcessConfig struct {
 }
 
 type NodeManager struct {
-	mu      sync.Mutex
-	config  NodeProcessConfig
-	command *exec.Cmd
-	stdin   io.WriteCloser
-	waitCh  chan error
+	mu       sync.Mutex
+	config   NodeProcessConfig
+	command  *exec.Cmd
+	stdin    io.WriteCloser
+	waitCh   chan error
+	stopping bool
+	lastExit error
 }
 
 func NewNodeManager(cfg NodeProcessConfig) (*NodeManager, error) {
@@ -85,6 +88,8 @@ func (m *NodeManager) Start() error {
 	if m.command != nil {
 		return ErrNodeAlreadyRunning
 	}
+	m.stopping = false
+	m.lastExit = nil
 
 	args, err := desktopNodeArgs(m.config)
 	if err != nil {
@@ -108,12 +113,7 @@ func (m *NodeManager) Start() error {
 	m.waitCh = waitCh
 	go func() {
 		err := cmd.Wait()
-		m.mu.Lock()
-		if m.command == cmd {
-			m.command = nil
-			m.stdin = nil
-		}
-		m.mu.Unlock()
+		m.recordProcessExit(cmd, err)
 		waitCh <- err
 		close(waitCh)
 	}()
@@ -125,6 +125,9 @@ func (m *NodeManager) Stop(ctx context.Context) error {
 	cmd := m.command
 	stdin := m.stdin
 	waitCh := m.waitCh
+	if cmd != nil {
+		m.stopping = true
+	}
 	m.mu.Unlock()
 	if cmd == nil {
 		return nil
@@ -157,6 +160,34 @@ func (m *NodeManager) Running() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.command != nil
+}
+
+func (m *NodeManager) LastExitError() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastExit
+}
+
+func (m *NodeManager) recordProcessExit(cmd *exec.Cmd, waitErr error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.command != cmd {
+		return
+	}
+
+	unexpected := !m.stopping
+	m.command = nil
+	m.stdin = nil
+	m.stopping = false
+
+	if !unexpected {
+		return
+	}
+	if waitErr == nil {
+		m.lastExit = ErrNodeExitedUnexpectedly
+		return
+	}
+	m.lastExit = fmt.Errorf("%w: %v", ErrNodeExitedUnexpectedly, waitErr)
 }
 
 func (m *NodeManager) Endpoint() string {
