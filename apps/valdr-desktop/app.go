@@ -25,9 +25,10 @@ type DesktopState struct {
 }
 
 type App struct {
-	ctx   context.Context
-	paths desktopcore.Paths
-	node  *desktopcore.NodeManager
+	ctx           context.Context
+	paths         desktopcore.Paths
+	node          *desktopcore.NodeManager
+	walletService *desktopcore.WalletService
 
 	mu        sync.Mutex
 	nodeError string
@@ -52,10 +53,18 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	walletService, err := desktopcore.NewWalletService(
+		wallet.NewStore(paths.Wallets),
+		rpc.NewClient(node.Endpoint()),
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	return &App{
-		paths: paths,
-		node:  node,
+		paths:         paths,
+		node:          node,
+		walletService: walletService,
 	}, nil
 }
 
@@ -115,6 +124,71 @@ func (a *App) CreateWallet(
 		return wallet.Metadata{}, err
 	}
 	return created.Metadata(), nil
+}
+
+func (a *App) GetWalletBalance(
+	address string,
+) (desktopcore.WalletBalance, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		2*time.Second,
+	)
+	defer cancel()
+	return a.walletService.Balance(ctx, strings.TrimSpace(address))
+}
+
+func (a *App) PreviewSend(
+	selector string,
+	passphrase string,
+	recipient string,
+	amountVDR string,
+) (desktopcore.SendPreview, error) {
+	amount, err := desktopcore.ParseVDR(amountVDR)
+	if err != nil || amount == 0 {
+		return desktopcore.SendPreview{}, desktopcore.ErrInvalidVDRAmt
+	}
+	secret := []byte(passphrase)
+	defer clearSecret(secret)
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+	return a.walletService.PreviewSend(
+		ctx,
+		strings.TrimSpace(selector),
+		secret,
+		strings.TrimSpace(recipient),
+		amount,
+	)
+}
+
+func (a *App) SendTransaction(
+	selector string,
+	passphrase string,
+	recipient string,
+	amountVDR string,
+) (desktopcore.SendResult, error) {
+	amount, err := desktopcore.ParseVDR(amountVDR)
+	if err != nil || amount == 0 {
+		return desktopcore.SendResult{}, desktopcore.ErrInvalidVDRAmt
+	}
+	secret := []byte(passphrase)
+	defer clearSecret(secret)
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		8*time.Second,
+	)
+	defer cancel()
+	return a.walletService.Send(
+		ctx,
+		strings.TrimSpace(selector),
+		secret,
+		strings.TrimSpace(recipient),
+		amount,
+	)
 }
 
 func (a *App) StartNode() error {
