@@ -275,6 +275,64 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 		t.Fatal("restored Desktop wallet is not unlocked")
 	}
 
+	beforeCrash, err := app.GetState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if beforeCrash.NodeStatus == nil {
+		t.Fatal("node status unavailable before crash recovery test")
+	}
+	beforeCrashHeight := beforeCrash.NodeStatus.Height
+	beforeCrashTip := beforeCrash.NodeStatus.TipHash
+	if beforeCrashTip == "" {
+		t.Fatal("node tip is empty before crash recovery test")
+	}
+
+	nodePID := app.node.ProcessID()
+	if nodePID <= 0 {
+		t.Fatalf("managed valdrd PID=%d", nodePID)
+	}
+	process, err := os.FindProcess(nodePID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+
+	crashed := waitForRuntimeNodeCrash(t, app, 15*time.Second)
+	if crashed.NodeRunning {
+		t.Fatalf("Desktop still reports crashed node running: %+v", crashed)
+	}
+	if crashed.NodeError == "" ||
+		!strings.Contains(
+			crashed.NodeError,
+			desktopcore.ErrNodeExitedUnexpectedly.Error(),
+		) {
+		t.Fatalf("Desktop did not surface unexpected node exit: %+v", crashed)
+	}
+
+	if err := app.StartNode(); err != nil {
+		t.Fatal(err)
+	}
+	recovered := waitForRuntimeNode(t, app, 30*time.Second)
+	if recovered.NodeStatus == nil {
+		t.Fatal("node status unavailable after crash recovery")
+	}
+	if recovered.NodeError != "" {
+		t.Fatalf("Desktop retained node crash error after recovery: %q", recovered.NodeError)
+	}
+	if recovered.NodeStatus.Height != beforeCrashHeight ||
+		recovered.NodeStatus.TipHash != beforeCrashTip {
+		t.Fatalf(
+			"chain state changed across crash recovery: before=%d/%s after=%d/%s",
+			beforeCrashHeight,
+			beforeCrashTip,
+			recovered.NodeStatus.Height,
+			recovered.NodeStatus.TipHash,
+		)
+	}
+
 	if err := app.StopNode(); err != nil {
 		t.Fatal(err)
 	}
@@ -307,6 +365,32 @@ func waitForRuntimeNode(
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf("Desktop node did not become ready within %s: %+v", timeout, last)
+	return DesktopState{}
+}
+
+func waitForRuntimeNodeCrash(
+	t *testing.T,
+	app *App,
+	timeout time.Duration,
+) DesktopState {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last DesktopState
+	for time.Now().Before(deadline) {
+		state, err := app.GetState()
+		if err == nil {
+			last = state
+			if !state.NodeRunning && state.NodeError != "" {
+				return state
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"Desktop did not surface managed node crash within %s: %+v",
+		timeout,
+		last,
+	)
 	return DesktopState{}
 }
 

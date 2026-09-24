@@ -162,6 +162,18 @@ func (m *NodeManager) Running() bool {
 	return m.command != nil
 }
 
+// ProcessID returns the PID of the currently managed valdrd child.
+// It is exposed to the Desktop backend for local diagnostics and runtime
+// recovery checks; it is not part of node RPC or the frontend API.
+func (m *NodeManager) ProcessID() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.command == nil || m.command.Process == nil {
+		return 0
+	}
+	return m.command.Process.Pid
+}
+
 func (m *NodeManager) LastExitError() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
