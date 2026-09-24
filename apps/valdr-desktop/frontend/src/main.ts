@@ -53,6 +53,20 @@ type SendResult = SendPreview & {
   transaction_id: string;
 };
 
+type TransactionHistoryItem = {
+  status: "pending" | "confirmed";
+  direction: "received" | "sent" | "self";
+  transaction_id: string;
+  timestamp: number;
+  amount_val: number;
+  amount_vdr: string;
+  fee_val: number;
+  fee_vdr: string;
+  block_height?: number;
+  block_hash?: string;
+  confirmations: number;
+};
+
 type AppAPI = {
   GetState(): Promise<DesktopState>;
   CreateWallet(name: string, passphrase: string): Promise<WalletMetadata>;
@@ -71,6 +85,7 @@ type AppAPI = {
   ): Promise<SendResult>;
   BackupWallet(selector: string): Promise<string>;
   RestoreWallet(): Promise<WalletMetadata>;
+  GetTransactionHistory(address: string): Promise<TransactionHistoryItem[]>;
   StartNode(): Promise<void>;
   StopNode(): Promise<void>;
 };
@@ -106,8 +121,8 @@ root.innerHTML = `
         <button class="nav-item" data-view="send">Send</button>
         <button class="nav-item" data-view="receive">Receive</button>
         <button class="nav-item" data-view="wallet">Wallet</button>
+        <button class="nav-item" data-view="transactions">Transactions</button>
         <button class="nav-item" data-view="network">Network</button>
-        <button class="nav-item muted" disabled>Transactions <small>next</small></button>
       </nav>
 
       <div class="sidebar-foot">
@@ -250,6 +265,20 @@ root.innerHTML = `
         </article>
       </section>
 
+      <section class="view" id="view-transactions">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">LOCAL WALLET HISTORY</p>
+            <h2>Transactions</h2>
+            <p class="subtle">Confirmed history is reorg-safe. Pending transactions come from the local node mempool.</p>
+          </div>
+          <button class="secondary" id="refresh-history">Refresh</button>
+        </div>
+        <div id="history-empty" class="card subtle">Select a wallet to view transactions.</div>
+        <div id="history-list" class="history-list"></div>
+        <div id="history-error" class="error-box hidden" role="alert"></div>
+      </section>
+
       <section class="view" id="view-wallet">
         <div class="section-head">
           <div>
@@ -359,6 +388,7 @@ const clearSendStatus = (): void => {
 };
 
 let currentState: DesktopState | null = null;
+let currentView = "overview";
 let activeWalletAddress = "";
 let activeWalletName = "";
 let lastPreviewInput: {
@@ -470,6 +500,92 @@ const refreshWalletPresentation = async (): Promise<void> => {
   }
 };
 
+const renderHistory = (items: TransactionHistoryItem[]): void => {
+  const list = document.getElementById("history-list");
+  const empty = document.getElementById("history-empty");
+  if (!list || !empty) return;
+  list.replaceChildren();
+
+  if (items.length === 0) {
+    empty.textContent = activeWallet()
+      ? "No transactions for this wallet yet."
+      : "Select a wallet to view transactions.";
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  for (const item of items) {
+    const card = document.createElement("article");
+    card.className = "card history-item";
+
+    const head = document.createElement("div");
+    head.className = "history-head";
+    const identity = document.createElement("div");
+    const direction = document.createElement("strong");
+    direction.className = "history-direction " + item.direction;
+    direction.textContent =
+      item.direction === "received"
+        ? "Received"
+        : item.direction === "sent"
+          ? "Sent"
+          : "Self transfer";
+    const when = document.createElement("small");
+    when.textContent = new Date(item.timestamp * 1000).toLocaleString();
+    identity.append(direction, when);
+
+    const amount = document.createElement("strong");
+    amount.className = "history-amount";
+    const prefix = item.direction === "received" ? "+" : item.direction === "sent" ? "−" : "";
+    amount.textContent = `${prefix}${item.amount_vdr} VDR`;
+    head.append(identity, amount);
+
+    const meta = document.createElement("dl");
+    meta.className = "details compact history-details";
+
+    const addDetail = (label: string, valueText: string): void => {
+      const row = document.createElement("div");
+      const dt = document.createElement("dt");
+      const dd = document.createElement("dd");
+      dt.textContent = label;
+      dd.textContent = valueText;
+      row.append(dt, dd);
+      meta.append(row);
+    };
+
+    addDetail("Status", item.status);
+    addDetail(
+      "Confirmations",
+      item.status === "pending" ? "0" : String(item.confirmations),
+    );
+    if (item.fee_val > 0) addDetail("Network fee", item.fee_vdr + " VDR");
+    if (item.block_height) addDetail("Block", String(item.block_height));
+    addDetail("Transaction ID", item.transaction_id);
+
+    card.append(head, meta);
+    list.append(card);
+  }
+};
+
+const refreshTransactionHistory = async (): Promise<void> => {
+  const errorBox = document.getElementById("history-error");
+  errorBox?.classList.add("hidden");
+  const wallet = activeWallet();
+  if (!wallet || !currentState?.node_status) {
+    renderHistory([]);
+    return;
+  }
+  try {
+    const items = await api().GetTransactionHistory(wallet.address);
+    renderHistory(items);
+  } catch (error) {
+    if (errorBox) {
+      errorBox.textContent = error instanceof Error ? error.message : String(error);
+      errorBox.classList.remove("hidden");
+    }
+  }
+};
+
 const renderState = (state: DesktopState): void => {
   currentState = state;
   const status = state.node_status;
@@ -520,11 +636,15 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item[data-view]").forEach((bu
   button.addEventListener("click", () => {
     const view = button.dataset.view;
     if (!view) return;
+    currentView = view;
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
     document.getElementById(`view-${view}`)?.classList.add("active");
     text("view-title", button.textContent?.trim() || "VALDR");
+    if (view === "transactions") {
+      void refreshTransactionHistory();
+    }
   });
 });
 
@@ -538,6 +658,9 @@ document.getElementById("wallet-selector")?.addEventListener("change", (event) =
   document.getElementById("send-preview-empty")?.classList.remove("hidden");
   if (currentState) renderWallets(currentState.wallets);
   void refreshWalletPresentation();
+  if (currentView === "transactions") {
+    void refreshTransactionHistory();
+  }
 });
 
 document.getElementById("start-node")?.addEventListener("click", async () => {
@@ -709,9 +832,16 @@ document.getElementById("confirm-send")?.addEventListener("click", async () => {
     document.getElementById("send-preview")?.classList.add("hidden");
     document.getElementById("send-preview-empty")?.classList.remove("hidden");
     await refresh();
+    if (currentView === "transactions") {
+      await refreshTransactionHistory();
+    }
   } catch (error) {
     showSendError(error instanceof Error ? error.message : String(error));
   }
+});
+
+document.getElementById("refresh-history")?.addEventListener("click", async () => {
+  await refreshTransactionHistory();
 });
 
 document.getElementById("copy-address")?.addEventListener("click", async () => {
@@ -731,4 +861,7 @@ document.getElementById("copy-address")?.addEventListener("click", async () => {
 void refresh();
 window.setInterval(() => {
   void refresh();
+  if (currentView === "transactions") {
+    void refreshTransactionHistory();
+  }
 }, 5000);
