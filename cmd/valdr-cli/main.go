@@ -224,6 +224,22 @@ func sendCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
+	var status rpc.StatusResult
+	if err := rpcCall(
+		*node,
+		rpc.MethodGetStatus,
+		nil,
+		&status,
+	); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	profile, err := config.ResolveNetworkProfile(status.Network)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+
 	var available []utxo.UTXO
 	if err := rpcCall(
 		*node,
@@ -235,10 +251,11 @@ func sendCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
-	tx, err := source.CreateTransaction(
+	tx, _, err := source.CreateTransactionWithFeeRate(
 		available,
 		*to,
 		amount,
+		profile.MinRelayFeePerByte,
 		time.Now().UTC().Unix(),
 	)
 	if err != nil {
