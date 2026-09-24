@@ -43,8 +43,31 @@ for idx, raw in enumerate(sys.argv[1:], 1):
     status=json.loads(raw)
     assert status["chain_id"] == "valdr-testnet-1", (idx, status)
     assert status["network"] == "testnet", (idx, status)
-    assert status["peer_count"] >= 1, (idx, status)
 PY
+
+wait_peer_count() {
+  local service="$1"
+  local status peers
+  for _ in $(seq 1 30); do
+    status=$("${compose[@]}" exec -T "$service" valdrd status --node http://127.0.0.1:17332)
+    peers=$(python3 - "$status" <<'PY'
+import json, sys
+print(json.loads(sys.argv[1])["peer_count"])
+PY
+)
+    if [[ "$peers" -ge 1 ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "P2P convergence failed for $service" >&2
+  "${compose[@]}" logs node1 node2 node3 >&2
+  return 1
+}
+
+wait_peer_count node1
+wait_peer_count node2
+wait_peer_count node3
 
 wallet_json=$("${compose[@]}" exec -T node1 sh -ec '
   umask 077
