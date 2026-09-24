@@ -460,50 +460,26 @@ func (n *Node) handleInbound(conn net.Conn) {
 func (n *Node) servePeer(peerID string, pc *peerConnection) {
 	defer n.dropPeer(peerID, pc)
 
+	var idleDone chan struct{}
+	if n.enableV2 {
+		idleDone = make(chan struct{})
+		defer close(idleDone)
+		go n.monitorPeerIdle(peerID, pc, idleDone)
+	}
+
 	for {
 		if n.enableV2 {
-			awaitingPong := false
-			if pc.traffic != nil {
-				awaitingPong, _ = pc.traffic.pingState()
-			}
-			timeout := n.protection.IdleTimeout
-			if awaitingPong {
-				timeout = n.protection.PingTimeout
-			}
-			_ = pc.conn.SetReadDeadline(n.protection.Now().Add(timeout))
-
 			frame, err := ReadV2Frame(pc.conn, n.networkProfile)
 			if err != nil {
 				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
 					return
-				}
-				var netErr net.Error
-				if errors.As(err, &netErr) && netErr.Timeout() {
-					if awaitingPong {
-						return
-					}
-					nonce := uint64(n.protection.Now().UnixNano())
-					if pc.traffic != nil {
-						pc.traffic.setAwaitingPong(nonce, true)
-					}
-					_ = pc.conn.SetReadDeadline(time.Time{})
-					if err := n.sendV2To(
-						peerID,
-						V2MessagePing,
-						struct {
-							Nonce uint64 `json:"nonce"`
-						}{Nonce: nonce},
-					); err != nil {
-						return
-					}
-					continue
 				}
 				n.recordPeerViolation(peerID, 1)
 				return
 			}
 
 			if pc.traffic != nil {
-				pc.traffic.setAwaitingPong(0, false)
+				pc.traffic.markActivity(n.protection.Now())
 			}
 			if !n.allowPeerTraffic(peerID, len(frame.Payload)+v2FrameHeaderSize) {
 				n.recordPeerViolation(peerID, 3)
@@ -525,6 +501,61 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 		}
 		if err := n.handlePayload(peerID, payload); err != nil {
 			return
+		}
+	}
+}
+
+func (n *Node) monitorPeerIdle(
+	peerID string,
+	pc *peerConnection,
+	done <-chan struct{},
+) {
+	interval := n.protection.IdleTimeout / 4
+	if pingInterval := n.protection.PingTimeout / 2; pingInterval < interval {
+		interval = pingInterval
+	}
+	if interval < 5*time.Millisecond {
+		interval = 5 * time.Millisecond
+	}
+	if interval > 30*time.Second {
+		interval = 30 * time.Second
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			if pc.traffic == nil {
+				continue
+			}
+			now := n.protection.Now()
+			lastActivity, awaiting, pingSentAt, _ := pc.traffic.idleState()
+			if awaiting {
+				if now.Sub(pingSentAt) >= n.protection.PingTimeout {
+					_ = pc.conn.Close()
+					return
+				}
+				continue
+			}
+			if now.Sub(lastActivity) < n.protection.IdleTimeout {
+				continue
+			}
+
+			nonce := uint64(now.UnixNano())
+			pc.traffic.setAwaitingPong(nonce, now)
+			if err := n.sendV2To(
+				peerID,
+				V2MessagePing,
+				struct {
+					Nonce uint64 `json:"nonce"`
+				}{Nonce: nonce},
+			); err != nil {
+				_ = pc.conn.Close()
+				return
+			}
 		}
 	}
 }
