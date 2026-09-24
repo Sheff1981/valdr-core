@@ -142,6 +142,73 @@ jobs:
           apps/valdr-desktop/build/bin/valdrd version
           apps/valdr-desktop/build/bin/valdr-miner version
 
+      - name: Clean-launch Desktop smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends xvfb
+          export HOME="$(mktemp -d)"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          LOG="$RUNNER_TEMP/valdr-desktop-linux.log"
+          STATUS="$RUNNER_TEMP/valdr-desktop-linux-status.json"
+
+          Xvfb :99 -screen 0 1280x800x24 >"$RUNNER_TEMP/xvfb.log" 2>&1 &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          apps/valdr-desktop/build/bin/VALDR >"$LOG" 2>&1 &
+          DESKTOP_PID=$!
+
+          cleanup() {
+            kill "$DESKTOP_PID" 2>/dev/null || true
+            wait "$DESKTOP_PID" 2>/dev/null || true
+            kill "$XVFB_PID" 2>/dev/null || true
+            wait "$XVFB_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          READY=0
+          for _ in $(seq 1 30); do
+            if ! kill -0 "$DESKTOP_PID" 2>/dev/null; then
+              cat "$LOG"
+              exit 1
+            fi
+            if curl -fsS -X POST http://127.0.0.1:17332/rpc \
+              -H 'Content-Type: application/json' \
+              --data '{"method":"getStatus"}' >"$STATUS"; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            cat "$LOG"
+            exit 1
+          fi
+          grep -q '"network":"testnet"' "$STATUS"
+
+          kill "$DESKTOP_PID"
+          wait "$DESKTOP_PID" 2>/dev/null || true
+
+          CLOSED=0
+          for _ in $(seq 1 10); do
+            if ! curl -fsS -X POST http://127.0.0.1:17332/rpc \
+              -H 'Content-Type: application/json' \
+              --data '{"method":"getStatus"}' >/dev/null 2>&1; then
+              CLOSED=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$CLOSED" -ne 1 ]; then
+            echo "managed valdrd RPC remained online after Desktop exit"
+            exit 1
+          fi
+
+          kill "$XVFB_PID" 2>/dev/null || true
+          wait "$XVFB_PID" 2>/dev/null || true
+          trap - EXIT
+
       - name: Upload Linux Desktop build
         uses: actions/upload-artifact@v4
         with:
@@ -238,6 +305,114 @@ jobs:
           codesign --force --sign - "$APP/Contents/MacOS/valdr-miner"
           codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict "$APP"
+
+      - name: Clean-launch Desktop smoke on Windows
+        if: matrix.name == 'windows-amd64'
+        shell: pwsh
+        run: |
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "valdr-desktop-smoke"
+          New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA | Out-Null
+          $stdout = Join-Path $env:RUNNER_TEMP "valdr-desktop-windows.out.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "valdr-desktop-windows.err.log"
+          $desktop = Start-Process -FilePath "apps/valdr-desktop/build/bin/VALDR.exe" -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $ready = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            if ($desktop.HasExited) {
+              Get-Content $stdout -ErrorAction SilentlyContinue
+              Get-Content $stderr -ErrorAction SilentlyContinue
+              throw "VALDR Desktop exited before local RPC became ready"
+            }
+            try {
+              $status = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:17332/rpc" -ContentType "application/json" -Body '{"method":"getStatus"}'
+              if ($status.result.network -eq "testnet") {
+                $ready = $true
+                break
+              }
+            } catch {
+            }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $ready) {
+            Get-Content $stdout -ErrorAction SilentlyContinue
+            Get-Content $stderr -ErrorAction SilentlyContinue
+            Stop-Process -Id $desktop.Id -Force -ErrorAction SilentlyContinue
+            throw "VALDR Desktop did not start bundled valdrd"
+          }
+
+          Stop-Process -Id $desktop.Id -Force
+          $desktop.WaitForExit()
+
+          $closed = $false
+          for ($i = 0; $i -lt 10; $i++) {
+            try {
+              Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:17332/rpc" -ContentType "application/json" -Body '{"method":"getStatus"}' | Out-Null
+            } catch {
+              $closed = $true
+              break
+            }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $closed) {
+            throw "managed valdrd RPC remained online after Desktop exit"
+          }
+
+      - name: Clean-launch Desktop smoke on macOS
+        if: startsWith(matrix.name, 'macos-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$(mktemp -d)"
+          APP="apps/valdr-desktop/build/bin/VALDR Desktop.app"
+          LOG="$RUNNER_TEMP/valdr-desktop-macos.log"
+          STATUS="$RUNNER_TEMP/valdr-desktop-macos-status.json"
+
+          "$APP/Contents/MacOS/VALDR" >"$LOG" 2>&1 &
+          DESKTOP_PID=$!
+          cleanup() {
+            kill "$DESKTOP_PID" 2>/dev/null || true
+            wait "$DESKTOP_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          READY=0
+          for _ in $(seq 1 30); do
+            if ! kill -0 "$DESKTOP_PID" 2>/dev/null; then
+              cat "$LOG"
+              exit 1
+            fi
+            if curl -fsS -X POST http://127.0.0.1:17332/rpc \
+              -H 'Content-Type: application/json' \
+              --data '{"method":"getStatus"}' >"$STATUS"; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            cat "$LOG"
+            exit 1
+          fi
+          grep -q '"network":"testnet"' "$STATUS"
+
+          kill "$DESKTOP_PID"
+          wait "$DESKTOP_PID" 2>/dev/null || true
+
+          CLOSED=0
+          for _ in $(seq 1 10); do
+            if ! curl -fsS -X POST http://127.0.0.1:17332/rpc \
+              -H 'Content-Type: application/json' \
+              --data '{"method":"getStatus"}' >/dev/null 2>&1; then
+              CLOSED=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$CLOSED" -ne 1 ]; then
+            echo "managed valdrd RPC remained online after Desktop exit"
+            exit 1
+          fi
+          trap - EXIT
 
       - name: Upload native Desktop build
         uses: actions/upload-artifact@v4
