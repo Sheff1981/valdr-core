@@ -232,6 +232,7 @@ func TestTemplateSelectionRespectsBlockByteLimit(t *testing.T) {
 		ownerAddress,
 		config.GenesisTimestamp+180,
 		reward,
+		chain.Profile(),
 		[]transactionCandidate{
 			{tx: low, fee: lowFee, size: low.SerializedSize()},
 			{tx: high, fee: highFee, size: high.SerializedSize()},
