@@ -2,11 +2,14 @@ package p2p
 
 import (
 	"errors"
+	"fmt"
+	"math/big"
 	"strings"
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/block"
+	"github.com/Sheff1981/valdr-core/core/blockchain"
 )
 
 func TestV2LocatorContract(t *testing.T) {
@@ -122,4 +125,49 @@ func hexByte(value int) string {
 	const digits = "0123456789abcdef"
 	value &= 0xff
 	return string([]byte{digits[value>>4], digits[value&0x0f]})
+}
+
+
+func TestV2SyncDecisionUsesCumulativeChainwork(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain, err := blockchain.NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "chainwork-sync-node",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Blockchain:     chain,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	local, ok := new(big.Int).SetString(chain.Chainwork(), 16)
+	if !ok {
+		t.Fatalf("invalid local chainwork %q", chain.Chainwork())
+	}
+	greater := new(big.Int).Add(new(big.Int).Set(local), big.NewInt(1))
+	if !node.shouldSyncV2(Peer{
+		Height:              chain.Height(),
+		CumulativeChainwork: fmt.Sprintf("%x", greater),
+	}) {
+		t.Fatal("equal-height peer with greater chainwork did not trigger sync")
+	}
+
+	lower := new(big.Int).Sub(new(big.Int).Set(local), big.NewInt(1))
+	if lower.Sign() < 0 {
+		lower.SetInt64(0)
+	}
+	if node.shouldSyncV2(Peer{
+		Height:              chain.Height() + 100,
+		CumulativeChainwork: fmt.Sprintf("%x", lower),
+	}) {
+		t.Fatal("higher peer height incorrectly overrode lower cumulative chainwork")
+	}
 }
