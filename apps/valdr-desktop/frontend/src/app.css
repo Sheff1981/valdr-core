@@ -623,3 +623,40 @@ button:disabled {
 .latest-transaction strong {
   color: #d5e0e8;
 }
+
+
+.send-confirm-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 8, 12, .82);
+}
+
+.send-confirm-dialog.hidden {
+  display: none;
+}
+
+.send-confirm-card {
+  width: min(560px, 100%);
+  padding: 24px;
+  border: 1px solid rgba(185,156,123,.28);
+  border-radius: 14px;
+  background: #101821;
+  box-shadow: 0 24px 80px rgba(0,0,0,.48);
+}
+
+.send-confirm-details {
+  margin-top: 18px;
+}
+
+.send-confirm-details code {
+  user-select: text;
+}
+
+.send-confirm-actions {
+  justify-content: flex-end;
+  margin-top: 18px;
+}

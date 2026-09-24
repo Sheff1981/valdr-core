@@ -113,6 +113,24 @@ if (!root) {
 }
 
 root.innerHTML = `
+  <div id="send-confirm-dialog" class="send-confirm-dialog hidden" aria-modal="true" role="dialog" aria-labelledby="send-confirm-title">
+    <div class="send-confirm-card">
+      <p class="eyebrow">FINAL CONFIRMATION</p>
+      <h2 id="send-confirm-title">Broadcast transaction?</h2>
+      <p class="warning">VALDR transactions are irreversible after broadcast. Verify every value before continuing.</p>
+      <dl class="details compact send-confirm-details">
+        <div><dt>Recipient</dt><dd><code id="confirm-recipient">—</code></dd></div>
+        <div><dt>Amount</dt><dd><strong id="confirm-amount">—</strong> VDR</dd></div>
+        <div><dt>Network fee</dt><dd><strong id="confirm-fee">—</strong> VDR</dd></div>
+        <div><dt>Total spend</dt><dd><strong id="confirm-total">—</strong> VDR</dd></div>
+      </dl>
+      <div class="actions send-confirm-actions">
+        <button class="danger" id="broadcast-send" type="button">Broadcast transaction</button>
+        <button class="secondary" id="cancel-send-confirmation" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div id="first-run" class="first-run hidden" aria-modal="true" role="dialog">
     <div class="first-run-card">
       <div class="brand first-run-brand">
@@ -501,11 +519,16 @@ const showSendError = (message: string): void => {
   sendError.textContent = message;
   sendError.classList.remove("hidden");
 };
+const closeSendConfirmation = (): void => {
+  document.getElementById("send-confirm-dialog")?.classList.add("hidden");
+};
+
 const clearSendStatus = (): void => {
   sendError?.classList.add("hidden");
   const result = document.getElementById("send-result");
   result?.classList.add("hidden");
   if (result) result.textContent = "";
+  closeSendConfirmation();
 };
 
 let currentState: DesktopState | null = null;
@@ -517,6 +540,12 @@ let lastPreviewInput: {
   selector: string;
   recipient: string;
   amount: string;
+} | null = null;
+
+let lastPreviewSummary: {
+  amount: string;
+  fee: string;
+  total: string;
 } | null = null;
 
 const activeWallet = (): WalletMetadata | undefined =>
@@ -630,8 +659,10 @@ const renderWallets = (wallets: WalletMetadata[]): void => {
       const selector = document.getElementById("wallet-selector") as HTMLSelectElement | null;
       if (selector) selector.value = wallet.address;
       lastPreviewInput = null;
+      lastPreviewSummary = null;
       renderedReceiveQRAddress = "";
       clearPrivateKeyExport();
+      closeSendConfirmation();
       void refreshWalletPresentation();
       renderWalletSecurity();
       renderWallets(wallets);
@@ -928,7 +959,9 @@ document.getElementById("wallet-selector")?.addEventListener("change", (event) =
   activeWalletName = activeWallet()?.name || "VALDR Wallet";
   renderedReceiveQRAddress = "";
   lastPreviewInput = null;
+  lastPreviewSummary = null;
   clearPrivateKeyExport();
+  closeSendConfirmation();
   clearSendStatus();
   document.getElementById("send-preview")?.classList.add("hidden");
   document.getElementById("send-preview-empty")?.classList.remove("hidden");
@@ -1106,6 +1139,7 @@ document.getElementById("lock-wallet")?.addEventListener("click", async () => {
   try {
     await api().LockWallet(wallet.address);
     lastPreviewInput = null;
+    lastPreviewSummary = null;
     clearSendStatus();
     document.getElementById("send-preview")?.classList.add("hidden");
     document.getElementById("send-preview-empty")?.classList.remove("hidden");
@@ -1202,6 +1236,11 @@ document.getElementById("send-form")?.addEventListener("submit", async (event) =
       recipient,
       amount,
     };
+    lastPreviewSummary = {
+      amount: preview.amount_vdr,
+      fee: preview.fee_vdr,
+      total: preview.total_vdr,
+    };
     text("preview-amount", preview.amount_vdr);
     text("preview-fee", preview.fee_vdr);
     text("preview-total", preview.total_vdr);
@@ -1209,14 +1248,16 @@ document.getElementById("send-form")?.addEventListener("submit", async (event) =
     document.getElementById("send-preview")?.classList.remove("hidden");
   } catch (error) {
     lastPreviewInput = null;
+    lastPreviewSummary = null;
     showSendError(error instanceof Error ? error.message : String(error));
   }
 });
 
-document.getElementById("confirm-send")?.addEventListener("click", async () => {
+document.getElementById("confirm-send")?.addEventListener("click", () => {
   clearSendStatus();
   const input = lastPreviewInput;
-  if (!input) {
+  const summary = lastPreviewSummary;
+  if (!input || !summary) {
     showSendError("Preview the transaction again before broadcasting.");
     return;
   }
@@ -1238,6 +1279,46 @@ document.getElementById("confirm-send")?.addEventListener("click", async () => {
     return;
   }
 
+  text("confirm-recipient", input.recipient);
+  text("confirm-amount", summary.amount);
+  text("confirm-fee", summary.fee);
+  text("confirm-total", summary.total);
+  document.getElementById("send-confirm-dialog")?.classList.remove("hidden");
+});
+
+document.getElementById("cancel-send-confirmation")?.addEventListener("click", () => {
+  closeSendConfirmation();
+});
+
+document.getElementById("broadcast-send")?.addEventListener("click", async () => {
+  const input = lastPreviewInput;
+  if (!input || !lastPreviewSummary) {
+    closeSendConfirmation();
+    showSendError("Preview the transaction again before broadcasting.");
+    return;
+  }
+  if (!walletIsUnlocked()) {
+    closeSendConfirmation();
+    lastPreviewInput = null;
+    lastPreviewSummary = null;
+    document.getElementById("send-preview")?.classList.add("hidden");
+    document.getElementById("send-preview-empty")?.classList.remove("hidden");
+    showSendError("The wallet is locked. Unlock it and preview the transaction again.");
+    return;
+  }
+
+  const recipientNow = value("send-recipient").trim();
+  const amountNow = value("send-amount").trim();
+  if (recipientNow !== input.recipient || amountNow !== input.amount) {
+    closeSendConfirmation();
+    lastPreviewInput = null;
+    lastPreviewSummary = null;
+    document.getElementById("send-preview")?.classList.add("hidden");
+    document.getElementById("send-preview-empty")?.classList.remove("hidden");
+    showSendError("Transaction details changed. Preview the fee again.");
+    return;
+  }
+
   try {
     const result = await api().SendTransaction(
       input.selector,
@@ -1245,6 +1326,8 @@ document.getElementById("confirm-send")?.addEventListener("click", async () => {
       input.amount,
     );
     lastPreviewInput = null;
+    lastPreviewSummary = null;
+    closeSendConfirmation();
 
     const box = document.getElementById("send-result");
     if (box) {
@@ -1258,7 +1341,14 @@ document.getElementById("confirm-send")?.addEventListener("click", async () => {
       await refreshTransactionHistory();
     }
   } catch (error) {
+    closeSendConfirmation();
     showSendError(error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeSendConfirmation();
   }
 });
 
