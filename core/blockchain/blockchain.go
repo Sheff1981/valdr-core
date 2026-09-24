@@ -790,10 +790,11 @@ func (bc *Blockchain) reorganizeUTXOLocked(newTip *chainNode) (*utxo.Set, error)
 		connect[left], connect[right] = connect[right], connect[left]
 	}
 	for _, node := range connect {
-		if err := working.ApplyBlockTransactions(
+		if err := working.ApplyBlockTransactionsForChain(
 			node.block.Height,
 			node.block.Transactions,
 			consensus.BlockReward(node.block.Height),
+			bc.profile.ChainID,
 		); err != nil {
 			return nil, fmt.Errorf("connect block %s: %w", node.block.BlockHash, err)
 		}
