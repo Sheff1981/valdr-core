@@ -71,7 +71,39 @@ Operational defaults not numerically fixed by the master spec are currently: 30-
 
 **Public Testnet seed deployment note:** the repository does not invent public seed addresses before infrastructure exists. The Testnet compiled seed list remains unpopulated until Stage 12 provisions at least 3 stable public full nodes across at least 2 independent regions/providers. Those real endpoints must then be frozen into the Testnet profile and the seed gate rerun before public launch.
 
-**Stage 9 is not started.** Next master-spec milestone: wallet encryption v2.
+**Stage 9 — Wallet encryption v2: implemented and CI-verified.**
+
+New wallet files never persist the private key in plaintext. Wallet v2 derives a 256-bit encryption key with scrypt and encrypts the private-key payload with AES-256-GCM using a random salt and nonce. Public metadata remains readable without unlocking so `wallet list` does not need a passphrase.
+
+CLI wallet operations accept passphrases only through hidden interactive terminal input or `--password-fd N`. There is no `--password` string argument. Regular files supplied through `--password-fd` must not expose group/other permissions. `send` unlocks locally before signing; private keys never enter RPC/P2P payloads. `wallet export` remains an explicit high-risk operation and prints a warning.
+
+`wallet migrate` validates a legacy v0.1 plaintext wallet, preserves its name/address/public/private key identity, then atomically rewrites the same wallet path as encrypted v2 with directory mode 0700 and wallet mode 0600. Legacy plaintext wallets cannot be used for signing until migrated.
+
+**Stage 10 is not started.** Next master-spec milestone: Explorer + reorg-safe indexer.
+
+## Stage 9 wallet-v2 encryption gate
+
+Stage 9 implements and tests:
+
+- wallet file version `2`;
+- scrypt-derived 256-bit key;
+- scrypt parameters `N=32768, r=8, p=1`;
+- independent random 16-byte salt per wallet;
+- AES-256-GCM with a fresh random nonce per encrypted file;
+- authenticated metadata binding for version, name, address, public key and creation time;
+- no plaintext private key or `private_key` field in v2 wallet files;
+- metadata-only wallet listing without unlock;
+- wrong-passphrase rejection;
+- ciphertext and metadata tamper rejection;
+- secure `--password-fd` / hidden terminal passphrase input and no `--password` CLI flag;
+- protected regular password-file descriptors;
+- explicit high-risk private-key export warning;
+- v0.1 plaintext-wallet migration to encrypted v2;
+- legacy wallet signing blocked until migration;
+- CLI send/signing from an unlocked encrypted wallet;
+- complete build, tests, race detector, Wallet v2 CI gate and legacy three-node smoke.
+
+The master specification fixes scrypt + AES-256-GCM but does not specify the exact scrypt work factors or JSON wallet-v2 envelope. The values above are therefore the current implementation file format, not consensus parameters. They should be copied into a future master-TZ revision if cross-implementation wallet-file compatibility becomes a requirement.
 
 ## Stage 8 seed/P2P protection gate
 
