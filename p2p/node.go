@@ -47,6 +47,7 @@ type NodeConfig struct {
 	Blockchain       *blockchain.Blockchain
 	Mempool          *mempool.Pool
 	HandshakeTimeout time.Duration
+	Protection       ProtectionConfig
 }
 
 type Peer struct {
@@ -64,8 +65,10 @@ type DiscoveredPeer struct {
 }
 
 type peerConnection struct {
-	conn    net.Conn
-	writeMu sync.Mutex
+	conn     net.Conn
+	writeMu  sync.Mutex
+	remoteIP string
+	traffic  *peerTrafficState
 }
 
 type Node struct {
@@ -79,8 +82,15 @@ type Node struct {
 	blockchain       *blockchain.Blockchain
 	mempool          *mempool.Pool
 	handshakeTimeout time.Duration
+	protection       ProtectionConfig
 
-	mu         sync.RWMutex
+	mu                 sync.RWMutex
+	inboundPending     int
+	inboundPendingByIP map[string]int
+	bannedUntil        map[string]time.Time
+	violations         map[string]int
+	seenTx             *boundedStringSet
+	seenInv            *boundedStringSet
 	listener   net.Listener
 	peers      map[string]Peer
 	conns      map[string]*peerConnection
@@ -139,6 +149,7 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 	if handshakeTimeout <= 0 {
 		handshakeTimeout = defaultHandshakeTimeout
 	}
+	protection := normalizeProtectionConfig(cfg.Protection)
 
 	return &Node{
 		nodeID:           nodeID,
@@ -151,10 +162,16 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 		blockchain:       cfg.Blockchain,
 		mempool:          pool,
 		handshakeTimeout: handshakeTimeout,
+		protection:       protection,
 		peers:            make(map[string]Peer),
 		conns:            make(map[string]*peerConnection),
 		discovered:       make(map[string]string),
 		syncV2:           make(map[string]*v2SyncState),
+		inboundPendingByIP: make(map[string]int),
+		bannedUntil:        make(map[string]time.Time),
+		violations:         make(map[string]int),
+		seenTx:             newBoundedStringSet(protection.DuplicateCacheSize),
+		seenInv:            newBoundedStringSet(protection.DuplicateCacheSize),
 	}, nil
 }
 
@@ -211,6 +228,11 @@ func (n *Node) Connect(ctx context.Context, address string) error {
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
 		return err
+	}
+	ip := remoteIP(conn.RemoteAddr())
+	if n.isIPBanned(ip) {
+		_ = conn.Close()
+		return ErrPeerBanned
 	}
 
 	peer, err := n.exchangeHello(conn, false)
@@ -411,8 +433,16 @@ func (n *Node) acceptLoop(listener net.Listener) {
 func (n *Node) handleInbound(conn net.Conn) {
 	defer n.wg.Done()
 
+	ip := remoteIP(conn.RemoteAddr())
+	if err := n.reserveInbound(ip); err != nil {
+		_ = conn.Close()
+		return
+	}
+	defer n.releaseInboundReservation(ip)
+
 	peer, err := n.exchangeHello(conn, true)
 	if err != nil {
+		n.recordIPViolation(ip, 1)
 		_ = conn.Close()
 		return
 	}
@@ -1387,7 +1417,11 @@ func (n *Node) registerPeer(peer Peer, conn net.Conn) (*peerConnection, error) {
 		return nil, fmt.Errorf("%w: %s", ErrDuplicatePeer, peer.NodeID)
 	}
 
-	pc := &peerConnection{conn: conn}
+	pc := &peerConnection{
+		conn:     conn,
+		remoteIP: remoteIP(conn.RemoteAddr()),
+		traffic:  newPeerTrafficState(n.protection),
+	}
 	n.peers[peer.NodeID] = peer
 	n.conns[peer.NodeID] = pc
 	delete(n.discovered, peer.NodeID)
