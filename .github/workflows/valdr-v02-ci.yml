@@ -114,6 +114,13 @@ jobs:
           npm install --no-audit --no-fund
           npm run build
 
+      - name: Verify Desktop module lock
+        working-directory: apps/valdr-desktop
+        run: |
+          go mod tidy
+          git diff -- go.mod go.sum
+          git diff --exit-code -- go.mod go.sum
+
       - name: Test Wails Desktop backend
         working-directory: apps/valdr-desktop
         run: go test -tags webkit2_41 ./...
