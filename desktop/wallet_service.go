@@ -109,7 +109,7 @@ func (s *WalletService) Send(
 		amount,
 	)
 	if err != nil {
-		return nil, 0, err
+		return SendResult{}, err
 	}
 
 	var sent rpc.SendTransactionResult
@@ -119,7 +119,7 @@ func (s *WalletService) Send(
 		rpc.SendTransactionParams{Transaction: tx},
 		&sent,
 	); err != nil {
-		return nil, 0, err
+		return SendResult{}, err
 	}
 
 	preview, err := sendPreview(amount, fee)
@@ -154,11 +154,11 @@ func (s *WalletService) buildTransaction(
 		nil,
 		&status,
 	); err != nil {
-		return SendResult{}, err
+		return nil, 0, err
 	}
 	profile, err := config.ResolveNetworkProfile(status.Network)
 	if err != nil {
-		return SendResult{}, err
+		return nil, 0, err
 	}
 	if profile.Name != config.NetworkTestnetV02 &&
 		profile.Name != config.NetworkDevnetV02 {
@@ -172,7 +172,7 @@ func (s *WalletService) buildTransaction(
 		rpc.AddressParams{Address: source.Address},
 		&available,
 	); err != nil {
-		return SendResult{}, err
+		return nil, 0, err
 	}
 
 	tx, fee, err := source.CreateTransactionForChain(
@@ -184,7 +184,7 @@ func (s *WalletService) buildTransaction(
 		time.Now().UTC().Unix(),
 	)
 	if err != nil {
-		return SendResult{}, err
+		return nil, 0, err
 	}
 
 	return tx, fee, nil
