@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/transaction"
 	"github.com/Sheff1981/valdr-core/core/utxo"
 	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
@@ -134,6 +135,24 @@ func (w *Wallet) CreateTransactionWithFeeRate(
 	minFeePerByte uint64,
 	timestamp int64,
 ) (*transaction.Transaction, uint64, error) {
+	return w.CreateTransactionForChain(
+		config.ChainID,
+		available,
+		recipient,
+		amount,
+		minFeePerByte,
+		timestamp,
+	)
+}
+
+func (w *Wallet) CreateTransactionForChain(
+	chainID string,
+	available []utxo.UTXO,
+	recipient string,
+	amount uint64,
+	minFeePerByte uint64,
+	timestamp int64,
+) (*transaction.Transaction, uint64, error) {
 	if amount == 0 {
 		return nil, 0, ErrInvalidAmount
 	}
@@ -175,6 +194,7 @@ func (w *Wallet) CreateTransactionWithFeeRate(
 		})
 
 		outputs, fee, ok, err := feeAwareOutputs(
+			chainID,
 			inputs,
 			publicHex,
 			recipient,
@@ -191,7 +211,12 @@ func (w *Wallet) CreateTransactionWithFeeRate(
 			continue
 		}
 
-		tx := transaction.New(inputs, outputs, timestamp)
+		tx := transaction.NewForChain(
+			chainID,
+			inputs,
+			outputs,
+			timestamp,
+		)
 		if err := tx.Sign(key); err != nil {
 			return nil, 0, err
 		}
@@ -216,6 +241,7 @@ func (w *Wallet) CreateTransactionWithFeeRate(
 }
 
 func feeAwareOutputs(
+	chainID string,
 	inputs []transaction.Input,
 	publicHex string,
 	recipient string,
@@ -237,6 +263,7 @@ func feeAwareOutputs(
 		{Amount: 1, Recipient: changeAddress},
 	}
 	changeFee, err := estimatedSignedFee(
+		chainID,
 		inputs,
 		withChange,
 		publicHex,
@@ -257,6 +284,7 @@ func feeAwareOutputs(
 	// creating a zero-value output.
 	oneOutput := []transaction.Output{recipientOutput}
 	minimumFee, err := estimatedSignedFee(
+		chainID,
 		inputs,
 		oneOutput,
 		publicHex,
@@ -274,13 +302,19 @@ func feeAwareOutputs(
 }
 
 func estimatedSignedFee(
+	chainID string,
 	inputs []transaction.Input,
 	outputs []transaction.Output,
 	publicHex string,
 	minFeePerByte uint64,
 	timestamp int64,
 ) (uint64, error) {
-	tx := transaction.New(inputs, outputs, timestamp)
+	tx := transaction.NewForChain(
+		chainID,
+		inputs,
+		outputs,
+		timestamp,
+	)
 	tx.PublicKey = publicHex
 	tx.Signature = strings.Repeat("0", maxP256DERSignatureHexLength)
 	return feeForSize(minFeePerByte, tx.SerializedSize())
