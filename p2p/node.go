@@ -14,6 +14,7 @@ import (
 	valdrconfig "github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/blockchain"
+	"github.com/Sheff1981/valdr-core/core/consensus"
 	"github.com/Sheff1981/valdr-core/core/mempool"
 	"github.com/Sheff1981/valdr-core/core/transaction"
 	"github.com/Sheff1981/valdr-core/logging"
@@ -82,6 +83,7 @@ type Node struct {
 	peers      map[string]Peer
 	conns      map[string]*peerConnection
 	discovered map[string]string
+	syncV2     map[string]*v2SyncState
 	closed     bool
 	wg         sync.WaitGroup
 }
@@ -150,6 +152,7 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 		peers:            make(map[string]Peer),
 		conns:            make(map[string]*peerConnection),
 		discovered:       make(map[string]string),
+		syncV2:           make(map[string]*v2SyncState),
 	}, nil
 }
 
@@ -347,6 +350,7 @@ func (n *Node) Close() error {
 	}
 	n.peers = make(map[string]Peer)
 	n.conns = make(map[string]*peerConnection)
+	n.syncV2 = make(map[string]*v2SyncState)
 	n.mu.Unlock()
 
 	var firstErr error
@@ -630,6 +634,9 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 func (n *Node) afterPeerConnected(peerID string, peerHeight uint64) {
 	if n.enableV2 {
 		_ = n.sendV2To(peerID, V2MessageGetPeers, struct{}{})
+		if n.blockchain != nil && peerHeight > n.blockchain.Height() {
+			_ = n.requestHeadersV2(peerID)
+		}
 		return
 	}
 
@@ -888,6 +895,58 @@ func (n *Node) handleV2Frame(peerID string, frame V2Frame) error {
 		}
 		return DecodeV2Payload(frame, &pong)
 
+	case V2MessageGetHeaders:
+		var request V2LocatorRequest
+		if err := DecodeV2Payload(frame, &request); err != nil {
+			return err
+		}
+		return n.handleGetHeadersV2(peerID, request)
+
+	case V2MessageHeaders:
+		var payload V2HeadersPayload
+		if err := DecodeV2Payload(frame, &payload); err != nil {
+			return err
+		}
+		return n.handleHeadersV2(peerID, payload)
+
+	case V2MessageGetData:
+		var payload V2GetDataPayload
+		if err := DecodeV2Payload(frame, &payload); err != nil {
+			return err
+		}
+		return n.handleGetDataV2(peerID, payload)
+
+	case V2MessageBlock:
+		var payload V2BlockPayload
+		if err := DecodeV2Payload(frame, &payload); err != nil {
+			return err
+		}
+		return n.handleBlockV2(peerID, payload)
+
+	case V2MessageTx:
+		var payload V2TxPayload
+		if err := DecodeV2Payload(frame, &payload); err != nil {
+			return err
+		}
+		if payload.Transaction == nil {
+			return ErrInvalidFrame
+		}
+		return n.handleTransaction(peerID, payload.Transaction)
+
+	case V2MessageGetBlocks:
+		var request V2LocatorRequest
+		if err := DecodeV2Payload(frame, &request); err != nil {
+			return err
+		}
+		return n.handleGetBlocksV2(peerID, request)
+
+	case V2MessageInv:
+		var payload V2InvPayload
+		if err := DecodeV2Payload(frame, &payload); err != nil {
+			return err
+		}
+		return n.handleInvV2(peerID, payload)
+
 	case V2MessageGetPeers:
 		var request struct{}
 		if err := DecodeV2Payload(frame, &request); err != nil {
@@ -911,6 +970,267 @@ func (n *Node) handleV2Frame(peerID string, frame V2Frame) error {
 			frame.MessageType,
 		)
 	}
+}
+
+func (n *Node) requestHeadersV2(peerID string) error {
+	if n.blockchain == nil {
+		return ErrDataLayerUnavailable
+	}
+	locator := n.blockchain.BlockLocator()
+	if len(locator) == 0 || len(locator) > V2MaxLocatorEntries {
+		return ErrV2InvalidLocator
+	}
+	return n.sendV2To(peerID, V2MessageGetHeaders, V2LocatorRequest{
+		Locator:  locator,
+		StopHash: "",
+	})
+}
+
+func (n *Node) handleGetHeadersV2(peerID string, request V2LocatorRequest) error {
+	if n.blockchain == nil {
+		return ErrDataLayerUnavailable
+	}
+	if err := ValidateV2LocatorRequest(request); err != nil {
+		return err
+	}
+	headers, _, err := n.blockchain.HeadersAfterLocator(
+		request.Locator,
+		V2MaxHeaders,
+	)
+	if err != nil {
+		return err
+	}
+	if request.StopHash != "" {
+		for index, header := range headers {
+			if header.BlockHash == request.StopHash {
+				headers = headers[:index+1]
+				break
+			}
+		}
+	}
+	return n.sendV2To(peerID, V2MessageHeaders, V2HeadersPayload{
+		Headers: headers,
+	})
+}
+
+func (n *Node) handleHeadersV2(peerID string, payload V2HeadersPayload) error {
+	if n.blockchain == nil {
+		return ErrDataLayerUnavailable
+	}
+	if err := ValidateV2HeadersPayload(payload); err != nil {
+		return err
+	}
+	if len(payload.Headers) == 0 {
+		n.mu.Lock()
+		delete(n.syncV2, peerID)
+		n.mu.Unlock()
+		return nil
+	}
+
+	history, ok := n.blockchain.HeaderHistoryByHash(
+		payload.Headers[0].PreviousBlockHash,
+	)
+	if !ok {
+		return fmt.Errorf("%w: first header parent is unknown", ErrV2InvalidHeaders)
+	}
+
+	state := &v2SyncState{
+		pending:     make(map[string]block.Header),
+		requested:   make(map[string]struct{}),
+		moreHeaders: len(payload.Headers) == V2MaxHeaders,
+	}
+	for index, header := range payload.Headers {
+		special, err := consensus.ValidateHeaderV2(
+			header,
+			history,
+			n.networkProfile,
+			time.Now().UTC().Unix(),
+		)
+		if err != nil {
+			return fmt.Errorf(
+				"%w: header[%d]: %v",
+				ErrV2InvalidHeaders,
+				index,
+				err,
+			)
+		}
+		target, err := consensus.ParseTargetHexV2(header.Target)
+		if err != nil {
+			return fmt.Errorf("%w: header[%d] target", ErrV2InvalidHeaders, index)
+		}
+		history = append(history, consensus.V2DifficultyHeader{
+			Height:               header.Height,
+			BlockHash:            header.BlockHash,
+			Timestamp:            header.Timestamp,
+			Target:               target,
+			SpecialMinDifficulty: special,
+		})
+		if n.blockchain.HasBlock(header.BlockHash) {
+			continue
+		}
+		state.order = append(state.order, header.BlockHash)
+		state.pending[header.BlockHash] = header
+	}
+
+	n.mu.Lock()
+	n.syncV2[peerID] = state
+	n.mu.Unlock()
+	return n.requestNextBodiesV2(peerID)
+}
+
+func (n *Node) requestNextBodiesV2(peerID string) error {
+	n.mu.Lock()
+	state := n.syncV2[peerID]
+	if state == nil {
+		n.mu.Unlock()
+		return nil
+	}
+	items := make([]V2InventoryItem, 0, V2MaxInventoryItems)
+	for _, hash := range state.order {
+		if len(items) >= V2MaxInventoryItems {
+			break
+		}
+		if _, pending := state.pending[hash]; !pending {
+			continue
+		}
+		if _, requested := state.requested[hash]; requested {
+			continue
+		}
+		state.requested[hash] = struct{}{}
+		items = append(items, V2InventoryItem{
+			Kind: V2InventoryBlock,
+			Hash: hash,
+		})
+	}
+	moreHeaders := state.moreHeaders
+	done := len(state.pending) == 0 && len(state.requested) == 0
+	if done {
+		delete(n.syncV2, peerID)
+	}
+	n.mu.Unlock()
+
+	if len(items) > 0 {
+		return n.sendV2To(peerID, V2MessageGetData, V2GetDataPayload{
+			Items: items,
+		})
+	}
+	if done && moreHeaders {
+		return n.requestHeadersV2(peerID)
+	}
+	return nil
+}
+
+func (n *Node) handleGetDataV2(peerID string, payload V2GetDataPayload) error {
+	if n.blockchain == nil {
+		return ErrDataLayerUnavailable
+	}
+	if err := ValidateV2GetDataPayload(payload); err != nil {
+		return err
+	}
+	for _, item := range payload.Items {
+		candidate, ok := n.blockchain.BlockByHash(item.Hash)
+		if !ok {
+			continue
+		}
+		if err := n.sendV2To(peerID, V2MessageBlock, V2BlockPayload{
+			Block: candidate,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (n *Node) handleBlockV2(peerID string, payload V2BlockPayload) error {
+	if n.blockchain == nil {
+		return ErrDataLayerUnavailable
+	}
+	if payload.Block == nil {
+		return ErrInvalidFrame
+	}
+	candidate := payload.Block
+
+	n.mu.Lock()
+	state := n.syncV2[peerID]
+	if state == nil {
+		n.mu.Unlock()
+		return fmt.Errorf("%w: unsolicited v2 block", ErrUnknownBlock)
+	}
+	expected, exists := state.pending[candidate.BlockHash]
+	_, requested := state.requested[candidate.BlockHash]
+	n.mu.Unlock()
+	if !exists || !requested || candidate.Header() != expected {
+		return fmt.Errorf("%w: block body does not match requested header", ErrUnknownBlock)
+	}
+
+	update, err := n.blockchain.AddBlockWithUpdate(candidate)
+	if err != nil {
+		return err
+	}
+	n.applyMempoolChainUpdate(update)
+	n.updatePeerHeight(peerID, candidate.Height)
+
+	n.mu.Lock()
+	if state := n.syncV2[peerID]; state != nil {
+		delete(state.pending, candidate.BlockHash)
+		delete(state.requested, candidate.BlockHash)
+	}
+	n.mu.Unlock()
+
+	logging.Printf(
+		logging.CategorySync,
+		"v2 body accepted height=%d hash=%s peer=%s",
+		candidate.Height,
+		candidate.BlockHash,
+		peerID,
+	)
+	return n.requestNextBodiesV2(peerID)
+}
+
+func (n *Node) handleGetBlocksV2(peerID string, request V2LocatorRequest) error {
+	if n.blockchain == nil {
+		return ErrDataLayerUnavailable
+	}
+	if err := ValidateV2LocatorRequest(request); err != nil {
+		return err
+	}
+	headers, _, err := n.blockchain.HeadersAfterLocator(
+		request.Locator,
+		V2MaxInventoryItems,
+	)
+	if err != nil {
+		return err
+	}
+	items := make([]V2InventoryItem, 0, len(headers))
+	for _, header := range headers {
+		items = append(items, V2InventoryItem{
+			Kind: V2InventoryBlock,
+			Hash: header.BlockHash,
+		})
+		if request.StopHash != "" && header.BlockHash == request.StopHash {
+			break
+		}
+	}
+	return n.sendV2To(peerID, V2MessageInv, V2InvPayload{Items: items})
+}
+
+func (n *Node) handleInvV2(peerID string, payload V2InvPayload) error {
+	if n.blockchain == nil {
+		return ErrDataLayerUnavailable
+	}
+	if err := ValidateV2InvPayload(payload); err != nil {
+		return err
+	}
+	items := make([]V2InventoryItem, 0, len(payload.Items))
+	for _, item := range payload.Items {
+		if !n.blockchain.HasBlock(item.Hash) {
+			items = append(items, item)
+		}
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return n.sendV2To(peerID, V2MessageGetData, V2GetDataPayload{Items: items})
 }
 
 func (n *Node) handleGetPeersV2(peerID string) error {
@@ -1026,6 +1346,9 @@ func (n *Node) dropPeer(peerID string, expected *peerConnection) {
 	n.mu.Unlock()
 
 	if exists && current == expected {
+		n.mu.Lock()
+		delete(n.syncV2, peerID)
+		n.mu.Unlock()
 		_ = current.conn.Close()
 		logging.Printf(logging.CategoryP2P, "peer disconnected node=%s", peerID)
 	}
