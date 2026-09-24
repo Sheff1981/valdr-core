@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"sort"
 	"strings"
@@ -49,11 +50,12 @@ type NodeConfig struct {
 }
 
 type Peer struct {
-	NodeID          string `json:"node_id"`
-	Address         string `json:"address"`
-	Height          uint64 `json:"height"`
-	ProtocolVersion uint32 `json:"protocol_version"`
-	Inbound         bool   `json:"inbound"`
+	NodeID              string `json:"node_id"`
+	Address             string `json:"address"`
+	Height              uint64 `json:"height"`
+	CumulativeChainwork string `json:"cumulative_chainwork,omitempty"`
+	ProtocolVersion     uint32 `json:"protocol_version"`
+	Inbound             bool   `json:"inbound"`
 }
 
 type DiscoveredPeer struct {
@@ -228,7 +230,7 @@ func (n *Node) Connect(ctx context.Context, address string) error {
 		n.servePeer(peer.NodeID, pc)
 	}()
 
-	n.afterPeerConnected(peer.NodeID, peer.Height)
+	n.afterPeerConnected(peer)
 	return nil
 }
 
@@ -420,7 +422,7 @@ func (n *Node) handleInbound(conn net.Conn) {
 		return
 	}
 
-	n.afterPeerConnected(peer.NodeID, peer.Height)
+	n.afterPeerConnected(peer)
 	n.servePeer(peer.NodeID, pc)
 }
 
@@ -644,20 +646,43 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 	return nil
 }
 
-func (n *Node) afterPeerConnected(peerID string, peerHeight uint64) {
+func (n *Node) afterPeerConnected(peer Peer) {
 	if n.enableV2 {
-		_ = n.sendV2To(peerID, V2MessageGetPeers, struct{}{})
-		if n.blockchain != nil && peerHeight > n.blockchain.Height() {
-			_ = n.requestHeadersV2(peerID)
+		_ = n.sendV2To(peer.NodeID, V2MessageGetPeers, struct{}{})
+		if n.shouldSyncV2(peer) {
+			_ = n.requestHeadersV2(peer.NodeID)
 		}
 		return
 	}
 
-	_ = n.sendTo(peerID, getPeersMessage{Type: messageTypeGetPeers})
+	_ = n.sendTo(peer.NodeID, getPeersMessage{Type: messageTypeGetPeers})
 
-	if n.blockchain != nil && peerHeight > n.blockchain.Height() {
-		_ = n.requestBlock(peerID, n.blockchain.Height()+1)
+	if n.blockchain != nil && peer.Height > n.blockchain.Height() {
+		_ = n.requestBlock(peer.NodeID, n.blockchain.Height()+1)
 	}
+}
+
+func (n *Node) shouldSyncV2(peer Peer) bool {
+	if n.blockchain == nil {
+		return false
+	}
+	localHeight := n.blockchain.Height()
+	localWorkText := n.blockchain.Chainwork()
+
+	remoteWork := new(big.Int)
+	localWork := new(big.Int)
+	remoteOK := false
+	localOK := false
+	if peer.CumulativeChainwork != "" {
+		_, remoteOK = remoteWork.SetString(peer.CumulativeChainwork, 16)
+	}
+	if localWorkText != "" {
+		_, localOK = localWork.SetString(localWorkText, 16)
+	}
+	if remoteOK && localOK {
+		return remoteWork.Cmp(localWork) > 0
+	}
+	return peer.Height > localHeight
 }
 
 func (n *Node) revalidateMempool() {
@@ -805,8 +830,12 @@ func (n *Node) exchangeHelloV2(conn net.Conn, inbound bool) (Peer, error) {
 	}()
 
 	tipHash := ""
+	chainwork := "0"
 	if n.blockchain != nil && n.blockchain.Tip() != nil {
 		tipHash = n.blockchain.Tip().BlockHash
+		if value := n.blockchain.Chainwork(); value != "" {
+			chainwork = value
+		}
 	}
 
 	local := V2Hello{
@@ -818,7 +847,7 @@ func (n *Node) exchangeHelloV2(conn net.Conn, inbound bool) (Peer, error) {
 		ListenAddress:       n.Address(),
 		Height:              n.heightProvider(),
 		TipHash:             tipHash,
-		CumulativeChainwork: "0",
+		CumulativeChainwork: chainwork,
 		UserAgent:           "/" + valdrconfig.ProjectName + ":" + valdrconfig.Version + "/",
 		Timestamp:           time.Now().UTC().Unix(),
 		Nonce:               uint64(time.Now().UnixNano()),
@@ -883,11 +912,12 @@ func (n *Node) exchangeHelloV2(conn net.Conn, inbound bool) (Peer, error) {
 	}
 
 	return Peer{
-		NodeID:          remote.NodeID,
-		Address:         remote.ListenAddress,
-		Height:          remote.Height,
-		ProtocolVersion: uint32(selected),
-		Inbound:         inbound,
+		NodeID:              remote.NodeID,
+		Address:             remote.ListenAddress,
+		Height:              remote.Height,
+		CumulativeChainwork: remote.CumulativeChainwork,
+		ProtocolVersion:     uint32(selected),
+		Inbound:             inbound,
 	}, nil
 }
 
