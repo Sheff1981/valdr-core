@@ -251,7 +251,8 @@ func sendCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
-	tx, _, err := source.CreateTransactionWithFeeRate(
+	tx, _, err := source.CreateTransactionForChain(
+		profile.ChainID,
 		available,
 		*to,
 		amount,
