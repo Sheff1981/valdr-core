@@ -23,33 +23,33 @@ var (
 )
 
 type V2LocatorRequest struct {
-	Locator  []string \`json:"locator"\`
-	StopHash string   \`json:"stop_hash"\`
+	Locator  []string `json:"locator"`
+	StopHash string   `json:"stop_hash"`
 }
 
 type V2HeadersPayload struct {
-	Headers []block.Header \`json:"headers"\`
+	Headers []block.Header `json:"headers"`
 }
 
 type V2InventoryItem struct {
-	Kind string \`json:"kind"\`
-	Hash string \`json:"hash"\`
+	Kind string `json:"kind"`
+	Hash string `json:"hash"`
 }
 
 type V2GetDataPayload struct {
-	Items []V2InventoryItem \`json:"items"\`
+	Items []V2InventoryItem `json:"items"`
 }
 
 type V2InvPayload struct {
-	Items []V2InventoryItem \`json:"items"\`
+	Items []V2InventoryItem `json:"items"`
 }
 
 type V2BlockPayload struct {
-	Block *block.Block \`json:"block"\`
+	Block *block.Block `json:"block"`
 }
 
 type V2TxPayload struct {
-	Transaction *transaction.Transaction \`json:"transaction"\`
+	Transaction *transaction.Transaction `json:"transaction"`
 }
 
 func ValidateV2LocatorRequest(request V2LocatorRequest) error {
