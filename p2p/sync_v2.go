@@ -22,6 +22,13 @@ var (
 	ErrV2InvalidInventory = errors.New("invalid P2P v2 inventory payload")
 )
 
+type v2SyncState struct {
+	order       []string
+	pending     map[string]block.Header
+	requested   map[string]struct{}
+	moreHeaders bool
+}
+
 type V2LocatorRequest struct {
 	Locator  []string `json:"locator"`
 	StopHash string   `json:"stop_hash"`
