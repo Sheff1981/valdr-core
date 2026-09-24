@@ -67,6 +67,9 @@ jobs:
       - name: Stage 12 Desktop foundation gate
         run: go test ./desktop ./p2p -run "Test(Desktop|ResolveDesktop|OutboundOnly)" -count=1
 
+      - name: Stage 12 outbound-only runtime smoke
+        run: bash scripts/desktop-outbound-smoke.sh
+
       - name: Docker image build
         run: docker build -t valdr:testnet-v0.2 .
 
