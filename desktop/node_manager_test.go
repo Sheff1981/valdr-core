@@ -31,6 +31,7 @@ func TestDesktopNodeArgsUseCanonicalOutboundNode(t *testing.T) {
 		{"--data", cfg.DataDir},
 		{"--node-id", cfg.NodeID},
 		{"--outbound-only"},
+		{"--managed-stdin-shutdown"},
 		{"--rpc-host", "127.0.0.1"},
 		{"--rpc-port", "28332"},
 		{"--seed", "seed-a.example:17333"},
