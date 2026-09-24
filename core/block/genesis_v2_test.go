@@ -1,10 +1,11 @@
 package block
 
 import (
+	"encoding/hex"
+	"math/big"
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
-	"github.com/Sheff1981/valdr-core/core/consensus"
 )
 
 func TestDevnetV02GenesisGolden(t *testing.T) {
@@ -45,11 +46,15 @@ func TestTestnetV02GenesisGolden(t *testing.T) {
 		genesis.BlockHash != config.TestnetV02GenesisHash {
 		t.Fatalf("unexpected Testnet Genesis: %+v", genesis)
 	}
-	target, err := consensus.ParseTargetHexV2(genesis.Target)
+	targetBytes, err := hex.DecodeString(genesis.Target)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := consensus.ValidatePoWTarget(genesis.BlockHash, target); err != nil {
-		t.Fatalf("frozen Testnet Genesis PoW invalid: %v", err)
+	hashBytes, err := hex.DecodeString(genesis.BlockHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if new(big.Int).SetBytes(hashBytes).Cmp(new(big.Int).SetBytes(targetBytes)) > 0 {
+		t.Fatalf("frozen Testnet Genesis hash exceeds target")
 	}
 }
