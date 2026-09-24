@@ -1,7 +1,9 @@
 package explorer
 
 import (
-	"context"\n\t"encoding/json"\n\t"io"
+	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
