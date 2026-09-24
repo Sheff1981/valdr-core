@@ -87,7 +87,50 @@ The Explorer provides search by block height/hash, txid and VDR address; HTML vi
 
 The Explorer keeps its own persistent index with active block hashes, confirmed address activity and UTXOs. On an active-chain change it locates the common ancestor, rolls the index back by rebuilding through that ancestor, then indexes the new active branch. The index records Chain ID + Genesis identity and refuses cross-network reuse.
 
-**Stage 11 is not started.** Next master-spec milestone: Testnet profile completion + Docker + Linux deployment.
+**Stage 11 — Testnet + Docker + Linux deployment: implemented and CI-verified.**
+
+The Testnet runtime is active under profile `testnet` / Chain ID `valdr-testnet-1`, protocol v2, P2P port 17333 and RPC port 17332. `valdrd init/start/verify-db --network testnet` bind storage identity to the frozen Testnet Genesis and reject databases from another network.
+
+The frozen Testnet Genesis is:
+- timestamp: `1790208000` (2026-09-24 00:00:00 UTC);
+- target: `000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff`;
+- nonce: `12480`;
+- message: `VALDR genesis block | valdr-testnet-1 | 2026-09-24`;
+- hash: `0009d956448a8caefcd798af1a7957840d0aa7b72f8350362909f241ea100122`.
+
+The root multi-stage Docker image builds `valdrd`, `valdr-cli`, `valdr-miner` and `valdr-explorer`, then runs as the unprivileged `valdr` user with persistent state under `/var/lib/valdr` and operator configuration under `/etc/valdr`. The Testnet Compose topology starts three v2 nodes plus Explorer, publishes P2P only for the first node, does not publish node RPC to the host, and binds the Explorer host port to localhost.
+
+Public-profile P2P now separates bind address from advertised address. A node may listen on `0.0.0.0:17333` while advertising a routable DNS/IP endpoint through `--advertise-address`; public gossip still rejects unspecified, loopback, private, multicast and link-local numeric addresses. Linux deployment reads `VALDR_ADVERTISE_ADDRESS` from `/etc/valdr/valdr.env`.
+
+The Linux reference deployment targets Ubuntu Server 24.04 LTS x86_64 with a dedicated non-login `valdr` account, hardened systemd units, journald/stdout logging, localhost RPC/Explorer, P2P-only firewall exposure, HTTPS reverse-proxy guidance, and documented backup/restore/verify/upgrade/rollback procedures.
+
+CI verifies Testnet Genesis/runtime identity, Docker image construction, a three-node container Testnet that maintains P2P connectivity and synchronizes a newly mined block, Explorer visibility of that chain, Linux restart with the same BadgerDB plus `verify-db`, and the frozen legacy three-node smoke.
+
+**Stage 12 is not started.** Next master-spec milestone: private then public Testnet. It still requires at least 3 stable public full nodes across at least 2 independent regions/providers, real compiled seed endpoints, a minimum 24-hour private soak, then the 7-day public stability gate.
+
+## Stage 11 Testnet/Docker/Linux gate
+
+Stage 11 implements and tests:
+
+- frozen `valdr-testnet-1` Genesis and golden PoW verification;
+- `valdrd --network testnet` runtime selection with network-specific storage identity;
+- Testnet P2P v2 on 17333 and RPC on 17332;
+- explicit routable P2P advertise-address distinct from the bind address;
+- multi-stage Docker build containing node, CLI, miner and Explorer binaries;
+- unprivileged container runtime user;
+- persistent `/var/lib/valdr` and `/etc/valdr` layout;
+- three-node Testnet Docker Compose with health checks;
+- node RPC not host-published by the Compose deployment;
+- localhost-bound host Explorer on 8080;
+- real container mining followed by headers-first synchronization to all three nodes;
+- Explorer observation/indexing of the synchronized Testnet block;
+- Ubuntu 24.04 LTS x86_64 deployment documentation;
+- hardened `valdrd` and Explorer systemd units;
+- Linux node/Explorer process smoke, persistent restart and `verify-db`;
+- backup, restore, upgrade and rollback procedures;
+- legacy v0.1 three-node regression smoke after all Stage 11 gates.
+
+The explicit `--advertise-address` option is operational configuration, not a consensus parameter, and does not change the master-TZ architecture. Freezing the Testnet Genesis fulfills the Stage 11 requirement in Master-TZ v0.2.2; Mainnet remains disabled.
 
 ## Stage 10 Explorer/reorg gate
 
