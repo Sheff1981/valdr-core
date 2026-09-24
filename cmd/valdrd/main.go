@@ -65,11 +65,17 @@ func initCommand(args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	dataDir := fs.String("data", "./data", "VALDR node data directory")
+	networkName := fs.String("network", config.NetworkLegacyV01, "VALDR network profile")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(errOut, "usage: valdrd init [--data PATH]")
+		fmt.Fprintln(errOut, "usage: valdrd init [--data PATH] [--network PROFILE]")
+		return 2
+	}
+	profile, err := config.ResolveNetworkProfile(*networkName)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
 		return 2
 	}
 
@@ -90,7 +96,7 @@ func initCommand(args []string, out, errOut io.Writer) int {
 		ChainID string `json:"chain_id"`
 		Version string `json:"version"`
 	}{
-		ChainID: config.ChainID,
+		ChainID: profile.ChainID,
 		Version: config.Version,
 	}
 	raw, err := json.MarshalIndent(metadata, "", "  ")
@@ -104,13 +110,13 @@ func initCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
-	blockStore, err := storage.NewBadgerStore(*dataDir, config.ChainID, config.GenesisBlockHash)
+	blockStore, err := storage.NewBadgerStore(*dataDir, profile.ChainID, profile.GenesisHash)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
 	defer blockStore.Close()
-	chain, err := blockchain.NewPersistent(blockStore)
+	chain, err := blockchain.NewPersistentForProfile(blockStore, profile)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
@@ -118,7 +124,8 @@ func initCommand(args []string, out, errOut io.Writer) int {
 
 	return writeJSON(out, map[string]any{
 		"data":              *dataDir,
-		"chain_id":          config.ChainID,
+		"network":           profile.Name,
+		"chain_id":          profile.ChainID,
 		"blockchain_db":     blockStore.Path(),
 		"storage_schema":    storage.StorageSchemaVersion,
 		"blockchain_height": chain.Height(),
@@ -152,11 +159,12 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	fs.SetOutput(errOut)
 
 	dataDir := fs.String("data", "./data", "VALDR node data directory")
+	networkName := fs.String("network", config.NetworkLegacyV01, "VALDR network profile")
 	nodeID := fs.String("node-id", "valdr-node", "P2P node id")
 	p2pHost := fs.String("p2p-host", "127.0.0.1", "P2P listen host")
-	p2pPort := fs.Uint("p2p-port", uint(config.DefaultP2PPort), "P2P listen port")
+	p2pPort := fs.Uint("p2p-port", 0, "P2P listen port; 0 uses network default")
 	rpcHost := fs.String("rpc-host", "127.0.0.1", "RPC listen host")
-	rpcPort := fs.Uint("rpc-port", uint(config.DefaultRPCPort), "RPC listen port")
+	rpcPort := fs.Uint("rpc-port", 0, "RPC listen port; 0 uses network default")
 	var peers stringListFlag
 	var seeds stringListFlag
 	fs.Var(&peers, "peer", "P2P peer address; may be repeated")
@@ -169,6 +177,19 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "invalid valdrd start arguments")
 		return 2
 	}
+	profile, err := config.ResolveNetworkProfile(*networkName)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 2
+	}
+	resolvedP2PPort := *p2pPort
+	if resolvedP2PPort == 0 {
+		resolvedP2PPort = uint(profile.P2PPort)
+	}
+	resolvedRPCPort := *rpcPort
+	if resolvedRPCPort == 0 {
+		resolvedRPCPort = uint(profile.RPCPort)
+	}
 
 	if err := rejectUnmigratedLegacy(*dataDir); err != nil {
 		fmt.Fprintln(errOut, err)
@@ -179,26 +200,28 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
-	blockStore, err := storage.NewBadgerStore(*dataDir, config.ChainID, config.GenesisBlockHash)
+	blockStore, err := storage.NewBadgerStore(*dataDir, profile.ChainID, profile.GenesisHash)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		logging.Printf(logging.CategoryError, "storage init failed data=%s error=%v", *dataDir, err)
 		return 1
 	}
 	defer blockStore.Close()
-	chain, err := blockchain.NewPersistent(blockStore)
+	chain, err := blockchain.NewPersistentForProfile(blockStore, profile)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		logging.Printf(logging.CategoryError, "blockchain load failed data=%s error=%v", *dataDir, err)
 		return 1
 	}
 	pool := mempool.New()
-	p2pAddress := *p2pHost + ":" + strconv.FormatUint(uint64(*p2pPort), 10)
+	p2pAddress := *p2pHost + ":" + strconv.FormatUint(uint64(resolvedP2PPort), 10)
 	node, err := p2p.NewNode(p2p.NodeConfig{
-		NodeID:        *nodeID,
-		ListenAddress: p2pAddress,
-		Blockchain:    chain,
-		Mempool:       pool,
+		NodeID:         *nodeID,
+		ListenAddress:  p2pAddress,
+		NetworkProfile: &profile,
+		EnableV2:       profile.ProtocolMax >= 2,
+		Blockchain:     chain,
+		Mempool:        pool,
 	})
 	if err != nil {
 		fmt.Fprintln(errOut, err)
@@ -214,7 +237,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		logging.CategoryNode,
 		"started node=%s chain=%s height=%d p2p=%s data=%s",
 		*nodeID,
-		config.ChainID,
+		profile.ChainID,
 		chain.Height(),
 		node.Address(),
 		*dataDir,
@@ -249,7 +272,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	}
 
 	httpServer := &http.Server{
-		Addr:              *rpcHost + ":" + strconv.FormatUint(uint64(*rpcPort), 10),
+		Addr:              *rpcHost + ":" + strconv.FormatUint(uint64(resolvedRPCPort), 10),
 		Handler:           rpcServer.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -265,7 +288,8 @@ func startCommand(args []string, out, errOut io.Writer) int {
 
 	if err := writeJSON(out, map[string]any{
 		"node_id":     node.NodeID(),
-		"chain_id":    config.ChainID,
+		"network":     profile.Name,
+		"chain_id":    profile.ChainID,
 		"p2p_address": node.Address(),
 		"rpc_address": httpServer.Addr,
 		"data":        *dataDir,
@@ -326,20 +350,26 @@ func verifyDBCommand(args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("verify-db", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	dataDir := fs.String("data", "./data", "VALDR v0.2 data directory")
+	networkName := fs.String("network", config.NetworkLegacyV01, "VALDR network profile")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(errOut, "usage: valdrd verify-db --data PATH")
+		fmt.Fprintln(errOut, "usage: valdrd verify-db --data PATH [--network PROFILE]")
 		return 2
 	}
-	store, err := storage.NewBadgerStore(*dataDir, config.ChainID, config.GenesisBlockHash)
+	profile, err := config.ResolveNetworkProfile(*networkName)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 2
+	}
+	store, err := storage.NewBadgerStore(*dataDir, profile.ChainID, profile.GenesisHash)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
 	defer store.Close()
-	chain, err := blockchain.NewPersistent(store)
+	chain, err := blockchain.NewPersistentForProfile(store, profile)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
