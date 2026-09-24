@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	"github.com/Sheff1981/valdr-core/p2p"
 	"github.com/Sheff1981/valdr-core/rpc"
 	"github.com/Sheff1981/valdr-core/wallet"
+	"golang.org/x/term"
 )
 
 const defaultRPCEndpoint = "http://127.0.0.1:7332"
@@ -187,6 +189,7 @@ func sendCommand(args []string, out, errOut io.Writer) int {
 	from := fs.String("from", "", "wallet name or address")
 	to := fs.String("to", "", "recipient VDR address")
 	amountText := fs.String("amount", "", "amount in VDR")
+	passwordFD := fs.Int("password-fd", -1, "read wallet passphrase from protected file descriptor")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -208,7 +211,14 @@ func sendCommand(args []string, out, errOut io.Writer) int {
 	if code != 0 {
 		return code
 	}
-	source, err := store.Export(*from)
+	passphrase, err := readWalletPassphrase(*passwordFD, errOut)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	defer clearBytes(passphrase)
+
+	source, err := store.Unlock(*from, passphrase)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
@@ -316,7 +326,7 @@ func miningCommand(args []string, out, errOut io.Writer) int {
 
 func runWallet(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(errOut, "usage: valdr-cli wallet <create|list|export>")
+		fmt.Fprintln(errOut, "usage: valdr-cli wallet <create|list|export|migrate>")
 		return 2
 	}
 
@@ -327,6 +337,8 @@ func runWallet(args []string, out, errOut io.Writer) int {
 		return walletList(args[1:], out, errOut)
 	case "export":
 		return walletExport(args[1:], out, errOut)
+	case "migrate":
+		return walletMigrate(args[1:], out, errOut)
 	default:
 		fmt.Fprintf(errOut, "unknown wallet command %q\n", args[0])
 		return 2
@@ -339,6 +351,7 @@ func walletCreate(args []string, out, errOut io.Writer) int {
 
 	dir := fs.String("dir", "", "wallet directory")
 	name := fs.String("name", "", "wallet name")
+	passwordFD := fs.Int("password-fd", -1, "read wallet passphrase from protected file descriptor")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -347,7 +360,14 @@ func walletCreate(args []string, out, errOut io.Writer) int {
 	if code != 0 {
 		return code
 	}
-	w, err := store.Create(*name)
+	passphrase, err := readWalletPassphrase(*passwordFD, errOut)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	defer clearBytes(passphrase)
+
+	w, err := store.CreateEncrypted(*name, passphrase)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
@@ -381,13 +401,14 @@ func walletExport(args []string, out, errOut io.Writer) int {
 	fs.SetOutput(errOut)
 
 	dir := fs.String("dir", "", "wallet directory")
+	passwordFD := fs.Int("password-fd", -1, "read wallet passphrase from protected file descriptor")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 1 {
 		fmt.Fprintln(
 			errOut,
-			"usage: valdr-cli wallet export [--dir PATH] <name|address>",
+			"usage: valdr-cli wallet export [--dir PATH] [--password-fd FD] <name|address>",
 		)
 		return 2
 	}
@@ -396,7 +417,14 @@ func walletExport(args []string, out, errOut io.Writer) int {
 	if code != 0 {
 		return code
 	}
-	w, err := store.Export(fs.Arg(0))
+	passphrase, err := readWalletPassphrase(*passwordFD, errOut)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	defer clearBytes(passphrase)
+
+	w, err := store.Export(fs.Arg(0), passphrase)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
@@ -409,6 +437,42 @@ func walletExport(args []string, out, errOut io.Writer) int {
 	return writeJSON(out, w, errOut)
 }
 
+func walletMigrate(args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("wallet migrate", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+
+	dir := fs.String("dir", "", "wallet directory")
+	passwordFD := fs.Int("password-fd", -1, "read new wallet passphrase from protected file descriptor")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprintln(
+			errOut,
+			"usage: valdr-cli wallet migrate [--dir PATH] [--password-fd FD] <name|address>",
+		)
+		return 2
+	}
+
+	store, code := walletStore(*dir, errOut)
+	if code != 0 {
+		return code
+	}
+	passphrase, err := readWalletPassphrase(*passwordFD, errOut)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	defer clearBytes(passphrase)
+
+	meta, err := store.Migrate(fs.Arg(0), passphrase)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return writeJSON(out, meta, errOut)
+}
+
 func walletStore(dir string, errOut io.Writer) (*wallet.Store, int) {
 	if dir == "" {
 		resolved, err := wallet.DefaultDir()
@@ -419,6 +483,59 @@ func walletStore(dir string, errOut io.Writer) (*wallet.Store, int) {
 		dir = resolved
 	}
 	return wallet.NewStore(dir), 0
+}
+
+func readWalletPassphrase(passwordFD int, errOut io.Writer) ([]byte, error) {
+	if passwordFD >= 0 {
+		file := os.NewFile(uintptr(passwordFD), "valdr-wallet-password")
+		if file == nil {
+			return nil, errors.New("invalid password file descriptor")
+		}
+		info, err := file.Stat()
+		if err != nil {
+			return nil, err
+		}
+		if info.Mode().IsRegular() && info.Mode().Perm()&0o077 != 0 {
+			return nil, errors.New("password file descriptor points to an unprotected file")
+		}
+
+		reader := bufio.NewReader(io.LimitReader(file, 4097))
+		line, err := reader.ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, err
+		}
+		if len(line) > 4096 {
+			return nil, errors.New("wallet passphrase is too long")
+		}
+		line = strings.TrimSuffix(line, "\n")
+		line = strings.TrimSuffix(line, "\r")
+		if line == "" {
+			return nil, wallet.ErrPassphraseRequired
+		}
+		return []byte(line), nil
+	}
+
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return nil, errors.New(
+			"wallet passphrase requires a terminal or --password-fd",
+		)
+	}
+	fmt.Fprint(errOut, "Wallet passphrase: ")
+	passphrase, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(errOut)
+	if err != nil {
+		return nil, err
+	}
+	if len(passphrase) == 0 {
+		return nil, wallet.ErrPassphraseRequired
+	}
+	return passphrase, nil
+}
+
+func clearBytes(value []byte) {
+	for i := range value {
+		value[i] = 0
+	}
 }
 
 func rpcCall(endpoint, method string, params, result any) error {
