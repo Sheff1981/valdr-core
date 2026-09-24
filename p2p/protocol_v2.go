@@ -98,7 +98,8 @@ func WriteV2Frame(
 	if len(payload) == 0 {
 		return ErrInvalidFrame
 	}
-	if len(payload) > v2MaxFramePayload {
+	if len(payload) > v2MaxFramePayload ||
+		len(payload) > v2MessagePayloadLimit(messageType) {
 		return ErrFrameTooLarge
 	}
 
@@ -148,7 +149,8 @@ func ReadV2Frame(r io.Reader, profile config.NetworkProfile) (V2Frame, error) {
 	if size == 0 {
 		return V2Frame{}, ErrInvalidFrame
 	}
-	if size > v2MaxFramePayload {
+	if size > v2MaxFramePayload ||
+		size > uint32(v2MessagePayloadLimit(messageType)) {
 		return V2Frame{}, ErrFrameTooLarge
 	}
 
@@ -229,6 +231,29 @@ func NegotiateV2Hello(
 		return 0, fmt.Errorf("%w: listen address: %v", ErrInvalidHello, err)
 	}
 	return maxVersion, nil
+}
+
+func v2MessagePayloadLimit(messageType V2MessageType) int {
+	switch messageType {
+	case V2MessageHello:
+		return 16 * 1024
+	case V2MessageHelloAck, V2MessagePing, V2MessagePong, V2MessageGetPeers:
+		return 1024
+	case V2MessageInv, V2MessageGetData, V2MessageGetHeaders, V2MessageGetBlocks:
+		return 128 * 1024
+	case V2MessageTx:
+		return 256 * 1024
+	case V2MessagePeers:
+		return 512 * 1024
+	case V2MessageBlock:
+		return 2 * 1024 * 1024
+	case V2MessageHeaders:
+		return 3 * 1024 * 1024
+	case V2MessageReject:
+		return 16 * 1024
+	default:
+		return v2MaxFramePayload
+	}
 }
 
 func validV2MessageType(messageType V2MessageType) bool {
