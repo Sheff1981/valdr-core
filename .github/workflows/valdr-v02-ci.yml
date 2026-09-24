@@ -61,5 +61,17 @@ jobs:
       - name: Explorer API and reorg gate
         run: go test ./explorer -run "TestExplorer" -count=1
 
+      - name: Testnet runtime identity gate
+        run: go test ./config ./core/block ./cmd/valdrd -run "Test(Testnet|V02NetworkProfiles)" -count=1
+
+      - name: Docker image build
+        run: docker build -t valdr:testnet-v0.2 .
+
+      - name: Docker Compose Testnet smoke
+        run: bash scripts/docker-testnet-smoke.sh
+
+      - name: Linux service smoke
+        run: bash scripts/linux-service-smoke.sh
+
       - name: Three-node runtime smoke
         run: ./scripts/start-devnet.sh smoke
