@@ -67,6 +67,9 @@ jobs:
       - name: Stage 12 Desktop foundation gate
         run: go test ./desktop ./p2p -run "Test(Desktop|ResolveDesktop|OutboundOnly)" -count=1
 
+      - name: v0.2.4 transaction network-binding gate
+        run: go test ./core/transaction ./core/mempool ./core/blockchain ./wallet -run "Test(V2TransactionIsBoundToExpectedChain|V2CoinbaseIsBoundToExpectedChain|LegacyTransactionStillOmitsExplicitChainID|MempoolRejectsTransactionFromAnotherV2Network|TestnetRejectsDevnet2TransactionReplay|CreateTransactionForChainBuildsV2NetworkBoundTransaction)$" -count=1
+
       - name: Stage 12 outbound-only runtime smoke
         run: bash scripts/desktop-outbound-smoke.sh
 
