@@ -107,20 +107,10 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			blockVersion = tip.Version
 		}
 		height := s.chain.Height()
-		bestKnownHeight := height
-		for _, peer := range s.node.Peers() {
-			if peer.Height > bestKnownHeight {
-				bestKnownHeight = peer.Height
-			}
-		}
-		syncProgress := 1.0
-		if bestKnownHeight > 0 {
-			syncProgress = float64(height) /
-				float64(bestKnownHeight)
-			if syncProgress > 1 {
-				syncProgress = 1
-			}
-		}
+		bestKnownHeight, syncProgress := calculateSyncProgress(
+			height,
+			s.node.Peers(),
+		)
 		return StatusResult{
 			Project:                config.ProjectName,
 			Ticker:                 config.Ticker,
@@ -361,6 +351,26 @@ func (s *Server) writeError(w http.ResponseWriter, status, code int, err error) 
 			Message: err.Error(),
 		},
 	})
+}
+
+func calculateSyncProgress(
+	height uint64,
+	peers []p2p.Peer,
+) (uint64, float64) {
+	bestKnownHeight := height
+	for _, peer := range peers {
+		if peer.Height > bestKnownHeight {
+			bestKnownHeight = peer.Height
+		}
+	}
+	if bestKnownHeight == 0 {
+		return 0, 1
+	}
+	progress := float64(height) / float64(bestKnownHeight)
+	if progress > 1 {
+		progress = 1
+	}
+	return bestKnownHeight, progress
 }
 
 // Compile-time reference keeps transaction in the RPC surface explicit.
