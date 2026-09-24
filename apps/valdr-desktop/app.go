@@ -16,6 +16,12 @@ import (
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+var ErrPrivateKeyExportConfirmation = errors.New(
+	"private key export requires exact confirmation",
+)
+
+const privateKeyExportConfirmation = "EXPORT PRIVATE KEY"
+
 type DesktopState struct {
 	Network               string             `json:"network"`
 	ChainID               string             `json:"chain_id"`
@@ -230,6 +236,35 @@ func (a *App) GetReceiveQRCode(address string) (string, error) {
 	return desktopcore.AddressQRCodeDataURI(
 		strings.TrimSpace(address),
 	)
+}
+
+func (a *App) ExportPrivateKey(
+	selector string,
+	confirmation string,
+) (string, error) {
+	if strings.TrimSpace(confirmation) != privateKeyExportConfirmation {
+		return "", ErrPrivateKeyExportConfirmation
+	}
+	secret, err := a.walletPassphrase(selector)
+	if err != nil {
+		return "", err
+	}
+	defer clearSecret(secret)
+
+	store := a.walletStore
+	if store == nil {
+		store = wallet.NewStore(a.paths.Wallets)
+	}
+	exported, err := store.Export(
+		strings.TrimSpace(selector),
+		secret,
+	)
+	if err != nil {
+		return "", err
+	}
+	privateKey := exported.PrivateKey
+	exported.PrivateKey = ""
+	return privateKey, nil
 }
 
 func (a *App) GetWalletBalance(

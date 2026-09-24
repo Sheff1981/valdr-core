@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
+	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 	desktopcore "github.com/Sheff1981/valdr-core/desktop"
 	"github.com/Sheff1981/valdr-core/wallet"
 )
@@ -126,5 +127,38 @@ func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
 	if state.WalletAutoLockMinutes != 5 ||
 		len(state.UnlockedWallets) != 1 {
 		t.Fatalf("unexpected unlocked security state: %+v", state)
+	}
+
+	if _, err := app.ExportPrivateKey(
+		meta.Address,
+		"yes",
+	); !errors.Is(err, ErrPrivateKeyExportConfirmation) {
+		t.Fatalf("unsafe export confirmation error=%v", err)
+	}
+	privateKey, err := app.ExportPrivateKey(
+		meta.Address,
+		privateKeyExportConfirmation,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := valdrcrypto.DecodePrivateKey(privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	address, err := valdrcrypto.AddressFromPublicKey(&decoded.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if address != meta.Address {
+		t.Fatalf("exported key address=%s want=%s", address, meta.Address)
+	}
+
+	app.LockWallet(meta.Address)
+	if _, err := app.ExportPrivateKey(
+		meta.Address,
+		privateKeyExportConfirmation,
+	); !errors.Is(err, desktopcore.ErrWalletLocked) {
+		t.Fatalf("locked export error=%v", err)
 	}
 }

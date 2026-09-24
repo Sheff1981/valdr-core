@@ -78,6 +78,7 @@ type AppAPI = {
   LockWallet(selector: string): Promise<void>;
   SetWalletAutoLockMinutes(minutes: number): Promise<void>;
   GetReceiveQRCode(address: string): Promise<string>;
+  ExportPrivateKey(selector: string, confirmation: string): Promise<string>;
   GetWalletBalance(address: string): Promise<WalletBalance>;
   PreviewSend(
     selector: string,
@@ -410,6 +411,26 @@ root.innerHTML = `
                 </label>
               </div>
               <p id="wallet-security-status" class="subtle"></p>
+
+              <div class="private-key-export">
+                <button class="danger" id="show-export-warning" type="button">Export private key</button>
+                <div id="export-warning" class="export-warning hidden">
+                  <p class="warning"><strong>High risk:</strong> anyone with this private key can spend this wallet's funds. Never send it to support, a website, or another person.</p>
+                  <label>
+                    Type <code>EXPORT PRIVATE KEY</code> to continue
+                    <input id="export-confirmation" autocomplete="off" spellcheck="false">
+                  </label>
+                  <div class="actions">
+                    <button class="danger" id="confirm-private-key-export" type="button">Reveal private key</button>
+                    <button class="secondary" id="cancel-private-key-export" type="button">Cancel</button>
+                  </div>
+                </div>
+                <div id="private-key-result" class="private-key-result hidden">
+                  <p class="warning">Private key visible. Store it offline and hide it immediately after use.</p>
+                  <code id="private-key-value"></code>
+                  <button class="secondary" id="hide-private-key" type="button">Hide private key</button>
+                </div>
+              </div>
             </div>
           </article>
         </div>
@@ -496,6 +517,14 @@ const walletIsUnlocked = (): boolean =>
       currentState?.unlocked_wallets.includes(activeWalletAddress),
   );
 
+const clearPrivateKeyExport = (): void => {
+  text("private-key-value", "");
+  const confirmation = document.getElementById("export-confirmation") as HTMLInputElement | null;
+  if (confirmation) confirmation.value = "";
+  document.getElementById("export-warning")?.classList.add("hidden");
+  document.getElementById("private-key-result")?.classList.add("hidden");
+};
+
 const renderWalletSecurity = (): void => {
   const wallet = activeWallet();
   const unlocked = Boolean(wallet) && walletIsUnlocked();
@@ -507,6 +536,10 @@ const renderWalletSecurity = (): void => {
 
   const lockButton = document.getElementById("lock-wallet") as HTMLButtonElement | null;
   if (lockButton) lockButton.disabled = !wallet || !unlocked;
+
+  const exportButton = document.getElementById("show-export-warning") as HTMLButtonElement | null;
+  if (exportButton) exportButton.disabled = !wallet || !unlocked;
+  if (!wallet || !unlocked) clearPrivateKeyExport();
 
   const autoLock = document.getElementById("wallet-auto-lock") as HTMLSelectElement | null;
   if (autoLock && currentState?.wallet_auto_lock_minutes) {
@@ -587,6 +620,7 @@ const renderWallets = (wallets: WalletMetadata[]): void => {
       if (selector) selector.value = wallet.address;
       lastPreviewInput = null;
       renderedReceiveQRAddress = "";
+      clearPrivateKeyExport();
       void refreshWalletPresentation();
       renderWalletSecurity();
       renderWallets(wallets);
@@ -835,6 +869,7 @@ document.getElementById("wallet-selector")?.addEventListener("change", (event) =
   activeWalletName = activeWallet()?.name || "VALDR Wallet";
   renderedReceiveQRAddress = "";
   lastPreviewInput = null;
+  clearPrivateKeyExport();
   clearSendStatus();
   document.getElementById("send-preview")?.classList.add("hidden");
   document.getElementById("send-preview-empty")?.classList.remove("hidden");
@@ -1017,6 +1052,42 @@ document.getElementById("lock-wallet")?.addEventListener("click", async () => {
     document.getElementById("send-preview-empty")?.classList.remove("hidden");
     text("wallet-security-status", "Wallet locked.");
     await refresh();
+  } catch (error) {
+    text(
+      "wallet-security-status",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+});
+
+document.getElementById("show-export-warning")?.addEventListener("click", () => {
+  clearPrivateKeyExport();
+  document.getElementById("export-warning")?.classList.remove("hidden");
+});
+
+document.getElementById("cancel-private-key-export")?.addEventListener("click", () => {
+  clearPrivateKeyExport();
+});
+
+document.getElementById("hide-private-key")?.addEventListener("click", () => {
+  clearPrivateKeyExport();
+});
+
+document.getElementById("confirm-private-key-export")?.addEventListener("click", async () => {
+  const wallet = activeWallet();
+  if (!wallet || !walletIsUnlocked()) {
+    text("wallet-security-status", "Unlock the selected wallet before exporting.");
+    clearPrivateKeyExport();
+    return;
+  }
+  const confirmation = value("export-confirmation").trim();
+  try {
+    const privateKey = await api().ExportPrivateKey(wallet.address, confirmation);
+    text("private-key-value", privateKey);
+    const input = document.getElementById("export-confirmation") as HTMLInputElement | null;
+    if (input) input.value = "";
+    document.getElementById("export-warning")?.classList.add("hidden");
+    document.getElementById("private-key-result")?.classList.remove("hidden");
   } catch (error) {
     text(
       "wallet-security-status",
