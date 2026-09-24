@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -53,6 +54,9 @@ func TestWalletCLIFlow(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "alice") {
 		t.Fatalf("wallet list missing alice: %s", out.String())
+	}
+	if strings.Contains(out.String(), "private_key") {
+		t.Fatal("wallet list leaked private key")
 	}
 
 	out.Reset()
@@ -235,6 +239,71 @@ func TestRPCBackedCLIStatusBalanceSendAndQueries(t *testing.T) {
 	}
 	if strings.TrimSpace(out.String()) != "[]" {
 		t.Fatalf("peers output = %s, want []", out.String())
+	}
+}
+
+func TestWalletCLIMigratesLegacyPlaintextWallet(t *testing.T) {
+	dir := t.TempDir()
+	legacy, err := wallet.New("legacy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.MarshalIndent(legacy, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = append(raw, '\n')
+	path := filepath.Join(dir, legacy.Address+".json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, []byte(legacy.PrivateKey)) {
+		t.Fatal("legacy fixture does not contain plaintext key")
+	}
+
+	password := "migrated-cli-passphrase"
+	var out, errOut bytes.Buffer
+	if code := run(
+		[]string{
+			"wallet", "migrate",
+			"--dir", dir,
+			"--password-fd", testPasswordFD(t, password),
+			"legacy",
+		},
+		&out,
+		&errOut,
+	); code != 0 {
+		t.Fatalf("migrate exit=%d stderr=%s", code, errOut.String())
+	}
+	if strings.Contains(out.String(), "private_key") {
+		t.Fatal("wallet migrate output leaked private key")
+	}
+
+	encrypted, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(encrypted, []byte(legacy.PrivateKey)) ||
+		bytes.Contains(encrypted, []byte("private_key")) {
+		t.Fatal("wallet migrate left plaintext private key on disk")
+	}
+
+	out.Reset()
+	errOut.Reset()
+	if code := run(
+		[]string{
+			"wallet", "export",
+			"--dir", dir,
+			"--password-fd", testPasswordFD(t, password),
+			"legacy",
+		},
+		&out,
+		&errOut,
+	); code != 0 {
+		t.Fatalf("export migrated exit=%d stderr=%s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), legacy.PrivateKey) {
+		t.Fatal("migrated wallet export did not recover original private key")
 	}
 }
 
