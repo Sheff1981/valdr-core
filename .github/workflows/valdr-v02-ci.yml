@@ -111,6 +111,10 @@ jobs:
           npm install --no-audit --no-fund
           npm run build
 
+      - name: Test Wails Desktop backend
+        working-directory: apps/valdr-desktop
+        run: go test -tags webkit2_41 ./...
+
       - name: Build Wails Desktop shell
         working-directory: apps/valdr-desktop
         run: go build -tags webkit2_41 -o ../../build/valdr-desktop-linux .
