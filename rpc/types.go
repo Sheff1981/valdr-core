@@ -66,14 +66,19 @@ type MineBlockParams struct {
 }
 
 type StatusResult struct {
-	Project      string `json:"project"`
-	Ticker       string `json:"ticker"`
-	Version      string `json:"version"`
-	ChainID      string `json:"chain_id"`
-	Height       uint64 `json:"height"`
-	TipHash      string `json:"tip_hash"`
-	PeerCount    int    `json:"peer_count"`
-	MempoolCount int    `json:"mempool_count"`
+	Project                string `json:"project"`
+	Ticker                 string `json:"ticker"`
+	Version                string `json:"version"`
+	Network                string `json:"network"`
+	ChainID                string `json:"chain_id"`
+	Height                 uint64 `json:"height"`
+	TipHash                string `json:"tip_hash"`
+	Chainwork              string `json:"chainwork"`
+	BlockVersion           uint32 `json:"block_version"`
+	Target                 string `json:"target,omitempty"`
+	PeerCount              int    `json:"peer_count"`
+	MempoolCount           int    `json:"mempool_count"`
+	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
 }
 
 type BalanceResult struct {
@@ -96,6 +101,7 @@ type MiningInfoResult struct {
 	Height                 uint64 `json:"height"`
 	NextHeight             uint64 `json:"next_height"`
 	CurrentDifficulty      uint64 `json:"current_difficulty"`
+	CurrentTarget          string `json:"current_target,omitempty"`
 	BlockRewardVal         uint64 `json:"block_reward_val"`
 	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
 }
