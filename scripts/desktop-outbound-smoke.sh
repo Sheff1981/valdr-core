@@ -17,7 +17,19 @@ trap cleanup EXIT
 cd "$root"
 go build -o "$tmp/valdrd" ./cmd/valdrd
 
-"$tmp/valdrd" start   --network testnet   --data "$tmp/data"   --node-id desktop-outbound-smoke   --outbound-only   --p2p-port 29333   --rpc-host 127.0.0.1   --rpc-port 29332   >"$tmp/node.out" 2>"$tmp/node.err" &
+mkfifo "$tmp/managed.stdin"
+exec 3<>"$tmp/managed.stdin"
+
+"$tmp/valdrd" start \
+  --network testnet \
+  --data "$tmp/data" \
+  --node-id desktop-outbound-smoke \
+  --outbound-only \
+  --managed-stdin-shutdown \
+  --p2p-port 29333 \
+  --rpc-host 127.0.0.1 \
+  --rpc-port 29332 \
+  <&3 >"$tmp/node.out" 2>"$tmp/node.err" &
 node_pid=$!
 
 for _ in $(seq 1 40); do
@@ -48,6 +60,7 @@ assert result != 0, "outbound-only Desktop node unexpectedly opened inbound P2P 
 PY
 
 exec 3>&-
+exec 3<&-
 wait "$node_pid"
 node_pid=""
 
