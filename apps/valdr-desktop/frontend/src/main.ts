@@ -56,6 +56,19 @@ type PeerInfo = {
   inbound: boolean;
 };
 
+type MinerStatus = {
+  running: boolean;
+  reward_address?: string;
+  accepted_blocks: number;
+  last_error?: string;
+  height: number;
+  next_height: number;
+  current_target?: string;
+  block_reward_val: number;
+  block_reward_vdr: string;
+  target_block_time_seconds: number;
+};
+
 type WalletBalance = {
   address: string;
   balance_val: number;
@@ -116,6 +129,9 @@ type AppAPI = {
     startNode: boolean,
     advanced: boolean,
   ): Promise<DesktopPreferences>;
+  GetMiningState(): Promise<MinerStatus>;
+  StartMining(rewardAddress: string): Promise<void>;
+  StopMining(): Promise<void>;
   StartNode(): Promise<void>;
   StopNode(): Promise<void>;
 };
@@ -238,6 +254,7 @@ root.innerHTML = `
         <button class="nav-item" data-view="wallet">Wallet</button>
         <button class="nav-item" data-view="transactions">Transactions</button>
         <button class="nav-item advanced-only hidden" data-view="network">Network</button>
+        <button class="nav-item advanced-only hidden" data-view="mining">Mining</button>
         <button class="nav-item" data-view="settings">Settings</button>
       </nav>
 
@@ -553,6 +570,44 @@ root.innerHTML = `
         </article>
       </section>
 
+      <section class="view" id="view-mining">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">ADVANCED · TESTNET ONLY</p>
+            <h2>Mining</h2>
+            <p class="subtle">VALDR Desktop starts a separate local valdr-miner process. Mining never starts automatically.</p>
+          </div>
+        </div>
+        <div class="mining-grid">
+          <article class="card">
+            <h3>Miner control</h3>
+            <label>
+              Reward address
+              <input id="mining-reward-address" autocomplete="off" spellcheck="false" placeholder="VDR1…">
+            </label>
+            <div class="actions mining-actions">
+              <button class="primary" id="start-mining" type="button">Start mining</button>
+              <button class="danger" id="stop-mining" type="button">Stop mining</button>
+            </div>
+            <p class="warning">Testnet/Devnet mining only. Mainnet is disabled. Mining uses the local node RPC and does not expose private keys.</p>
+            <p id="mining-message" class="subtle"></p>
+          </article>
+          <article class="card">
+            <h3>Mining status</h3>
+            <dl class="details compact">
+              <div><dt>Process</dt><dd id="mining-state">Stopped</dd></div>
+              <div><dt>Reward address</dt><dd><code id="mining-reward-current">—</code></dd></div>
+              <div><dt>Accepted blocks</dt><dd id="mining-accepted">0</dd></div>
+              <div><dt>Chain height</dt><dd id="mining-height">—</dd></div>
+              <div><dt>Next height</dt><dd id="mining-next-height">—</dd></div>
+              <div><dt>Block reward</dt><dd id="mining-reward">—</dd></div>
+              <div><dt>Target block interval</dt><dd id="mining-target-time">—</dd></div>
+              <div><dt>Hashrate</dt><dd>Not reported by the current miner</dd></div>
+            </dl>
+          </article>
+        </div>
+      </section>
+
       <section class="view" id="view-settings">
         <div class="section-head">
           <div>
@@ -738,7 +793,7 @@ const renderDesktopPreferences = (): void => {
     element.classList.toggle("hidden", !prefs.advanced);
   });
 
-  if (!prefs.advanced && currentView === "network") {
+  if (!prefs.advanced && (currentView === "network" || currentView === "mining")) {
     const overview = document.querySelector<HTMLButtonElement>('.nav-item[data-view="overview"]');
     overview?.click();
   }
@@ -1072,6 +1127,53 @@ const refreshPeers = async (): Promise<void> => {
   }
 };
 
+const refreshMining = async (): Promise<void> => {
+  const rewardInput = document.getElementById("mining-reward-address") as HTMLInputElement | null;
+  if (rewardInput && !rewardInput.value && activeWalletAddress) {
+    rewardInput.value = activeWalletAddress;
+  }
+
+  const startButton = document.getElementById("start-mining") as HTMLButtonElement | null;
+  const stopButton = document.getElementById("stop-mining") as HTMLButtonElement | null;
+
+  if (!currentState?.preferences.advanced) {
+    if (startButton) startButton.disabled = true;
+    if (stopButton) stopButton.disabled = true;
+    return;
+  }
+  if (!currentState.node_running) {
+    text("mining-state", "Node stopped");
+    text("mining-message", "Start the managed local node before mining.");
+    if (startButton) startButton.disabled = true;
+    if (stopButton) stopButton.disabled = true;
+    return;
+  }
+
+  try {
+    const status = await api().GetMiningState();
+    text("mining-state", status.running ? "Running" : "Stopped");
+    text("mining-reward-current", status.reward_address || "—");
+    text("mining-accepted", String(status.accepted_blocks));
+    text("mining-height", String(status.height));
+    text("mining-next-height", String(status.next_height));
+    text("mining-reward", status.block_reward_vdr ? status.block_reward_vdr + " VDR" : "—");
+    text(
+      "mining-target-time",
+      status.target_block_time_seconds > 0
+        ? status.target_block_time_seconds + " seconds"
+        : "—",
+    );
+    text("mining-message", status.last_error || "");
+    if (startButton) startButton.disabled = status.running;
+    if (stopButton) stopButton.disabled = !status.running;
+  } catch (error) {
+    text("mining-state", "Unavailable");
+    text("mining-message", error instanceof Error ? error.message : String(error));
+    if (startButton) startButton.disabled = true;
+    if (stopButton) stopButton.disabled = true;
+  }
+};
+
 const refreshTransactionHistory = async (): Promise<void> => {
   const errorBox = document.getElementById("history-error");
   errorBox?.classList.add("hidden");
@@ -1204,6 +1306,8 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item[data-view]").forEach((bu
       void refreshOverviewLatestTransaction();
     } else if (view === "network") {
       void refreshPeers();
+    } else if (view === "mining") {
+      void refreshMining();
     }
   });
 });
@@ -1263,6 +1367,31 @@ document.getElementById("stop-node")?.addEventListener("click", async () => {
     await refresh();
   } catch (error) {
     showError(error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.getElementById("start-mining")?.addEventListener("click", async () => {
+  const reward = value("mining-reward-address").trim() || activeWalletAddress;
+  if (!reward) {
+    text("mining-message", "Select a wallet or enter a VALDR reward address.");
+    return;
+  }
+  try {
+    text("mining-message", "");
+    await api().StartMining(reward);
+    await refreshMining();
+  } catch (error) {
+    text("mining-message", error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.getElementById("stop-mining")?.addEventListener("click", async () => {
+  try {
+    text("mining-message", "");
+    await api().StopMining();
+    await refreshMining();
+  } catch (error) {
+    text("mining-message", error instanceof Error ? error.message : String(error));
   }
 });
 
@@ -1674,5 +1803,7 @@ window.setInterval(() => {
   void refresh();
   if (currentView === "transactions") {
     void refreshTransactionHistory();
+  } else if (currentView === "mining") {
+    void refreshMining();
   }
 }, 5000);

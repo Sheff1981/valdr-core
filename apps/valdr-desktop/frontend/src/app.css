@@ -801,3 +801,20 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+
+.mining-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, .9fr) minmax(420px, 1.1fr);
+  gap: 14px;
+}
+
+.mining-actions {
+  margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+  .mining-grid {
+    grid-template-columns: 1fr;
+  }
+}

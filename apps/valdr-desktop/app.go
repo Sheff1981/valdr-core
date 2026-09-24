@@ -16,8 +16,16 @@ import (
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-var ErrPrivateKeyExportConfirmation = errors.New(
-	"private key export requires exact confirmation",
+var (
+	ErrPrivateKeyExportConfirmation = errors.New(
+		"private key export requires exact confirmation",
+	)
+	ErrDesktopAdvancedModeRequired = errors.New(
+		"VALDR Desktop Advanced mode is required",
+	)
+	ErrDesktopNodeRequired = errors.New(
+		"VALDR Desktop local node must be running",
+	)
 )
 
 const privateKeyExportConfirmation = "EXPORT PRIVATE KEY"
@@ -40,6 +48,7 @@ type App struct {
 	ctx            context.Context
 	paths          desktopcore.Paths
 	node           *desktopcore.NodeManager
+	miner          *desktopcore.MinerManager
 	walletStore     *wallet.Store
 	walletService   *desktopcore.WalletService
 	walletSessions  *desktopcore.WalletSessionManager
@@ -78,6 +87,15 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	miner, err := desktopcore.NewMinerManager(desktopcore.MinerProcessConfig{
+		BinaryPath:   strings.TrimSpace(os.Getenv("VALDR_MINER_PATH")),
+		NodeEndpoint: node.Endpoint(),
+		PIDFile:      filepath.Join(paths.Root, "miner.pid"),
+		Interval:     time.Second,
+	})
+	if err != nil {
+		return nil, err
+	}
 	rpcClient := rpc.NewClient(node.Endpoint())
 	walletStore := wallet.NewStore(paths.Wallets)
 	walletService, err := desktopcore.NewWalletService(
@@ -109,6 +127,7 @@ func NewApp() (*App, error) {
 	return &App{
 		paths:          paths,
 		node:           node,
+		miner:          miner,
 		walletStore:    walletStore,
 		walletService:  walletService,
 		walletSessions:  walletSessions,
@@ -131,6 +150,11 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) shutdown(context.Context) {
 	if a.walletSessions != nil {
 		a.walletSessions.LockAll()
+	}
+	if a.miner != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = a.miner.Stop(ctx)
+		cancel()
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -493,6 +517,15 @@ func (a *App) SetDesktopPreferences(
 	prefs.StartNode = startNode
 	prefs.Advanced = advanced
 
+	if !advanced && a.miner != nil && a.miner.Running() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := a.miner.Stop(ctx)
+		cancel()
+		if err != nil {
+			return desktopcore.DesktopPreferences{}, err
+		}
+	}
+
 	store := a.preferenceStore
 	if store == nil {
 		store = desktopcore.NewPreferenceStore(
@@ -510,6 +543,37 @@ func (a *App) SetDesktopPreferences(
 	return prefs, nil
 }
 
+func (a *App) GetMiningState() (desktopcore.MinerStatus, error) {
+	if a.miner == nil {
+		return desktopcore.MinerStatus{}, desktopcore.ErrDesktopMinerConfig
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return a.miner.Status(ctx)
+}
+
+func (a *App) StartMining(rewardAddress string) error {
+	if !a.preferencesSnapshot().Advanced {
+		return ErrDesktopAdvancedModeRequired
+	}
+	if a.node == nil || !a.node.Running() {
+		return ErrDesktopNodeRequired
+	}
+	if a.miner == nil {
+		return desktopcore.ErrDesktopMinerConfig
+	}
+	return a.miner.Start(strings.TrimSpace(rewardAddress))
+}
+
+func (a *App) StopMining() error {
+	if a.miner == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return a.miner.Stop(ctx)
+}
+
 func (a *App) StartNode() error {
 	if err := a.node.Start(); err != nil {
 		a.setNodeError(err.Error())
@@ -520,6 +584,15 @@ func (a *App) StartNode() error {
 }
 
 func (a *App) StopNode() error {
+	if a.miner != nil && a.miner.Running() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := a.miner.Stop(ctx)
+		cancel()
+		if err != nil {
+			a.setNodeError(err.Error())
+			return err
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := a.node.Stop(ctx); err != nil {

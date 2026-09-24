@@ -1,7 +1,7 @@
 # VALDR Desktop Reference Review
 
 **Date reviewed:** 2026-09-24  
-**Master specification:** `docs/VALDR_Master_TZ_v0.2.3.md`  
+**Master specification:** `docs/VALDR_Master_TZ_v0.2.4.md`  
 **Purpose:** mandatory product/reference review before Stage 12 implementation.
 
 This document records product observations only. It does not authorize copying branding, artwork, copyrighted UI text, source code, wallet formats or foreign chain architecture.
