@@ -142,6 +142,15 @@ jobs:
           apps/valdr-desktop/build/bin/valdrd version
           apps/valdr-desktop/build/bin/valdr-miner version
 
+      - name: Live Desktop wallet send/receive/history integration
+        working-directory: apps/valdr-desktop
+        shell: bash
+        env:
+          VALDR_DESKTOP_RUNTIME_E2E: "1"
+          VALDRD_PATH: ${{ github.workspace }}/apps/valdr-desktop/build/bin/valdrd
+          VALDR_MINER_PATH: ${{ github.workspace }}/apps/valdr-desktop/build/bin/valdr-miner
+        run: go test -tags webkit2_41 -run TestDesktopRuntimeWalletSendReceiveHistory -count=1
+
       - name: Clean-launch Desktop smoke
         shell: bash
         run: |
@@ -350,6 +359,26 @@ jobs:
           codesign --force --sign - "$APP/Contents/MacOS/valdr-miner"
           codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict "$APP"
+
+      - name: Live Desktop wallet send/receive/history integration on Windows
+        if: matrix.name == 'windows-amd64'
+        working-directory: apps/valdr-desktop
+        shell: pwsh
+        env:
+          VALDR_DESKTOP_RUNTIME_E2E: "1"
+          VALDRD_PATH: ${{ github.workspace }}\apps\valdr-desktop\build\bin\valdrd.exe
+          VALDR_MINER_PATH: ${{ github.workspace }}\apps\valdr-desktop\build\bin\valdr-miner.exe
+        run: go test -run TestDesktopRuntimeWalletSendReceiveHistory -count=1
+
+      - name: Live Desktop wallet send/receive/history integration on macOS
+        if: startsWith(matrix.name, 'macos-')
+        working-directory: apps/valdr-desktop
+        shell: bash
+        env:
+          VALDR_DESKTOP_RUNTIME_E2E: "1"
+          VALDRD_PATH: ${{ github.workspace }}/apps/valdr-desktop/build/bin/VALDR Desktop.app/Contents/MacOS/valdrd
+          VALDR_MINER_PATH: ${{ github.workspace }}/apps/valdr-desktop/build/bin/VALDR Desktop.app/Contents/MacOS/valdr-miner
+        run: go test -run TestDesktopRuntimeWalletSendReceiveHistory -count=1
 
       - name: Clean-launch Desktop smoke on Windows
         if: matrix.name == 'windows-amd64'
