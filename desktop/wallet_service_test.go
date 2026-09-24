@@ -98,6 +98,25 @@ func TestWalletServiceSendsNetworkBoundTestnetTransaction(t *testing.T) {
 		t.Fatalf("unexpected balance: %+v", balance)
 	}
 
+	preview, err := service.PreviewSend(
+		context.Background(),
+		"source",
+		passphrase,
+		recipient.Address,
+		1_000_000,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mock.sent != nil {
+		t.Fatal("preview unexpectedly broadcast a transaction")
+	}
+	if preview.AmountVal != 1_000_000 ||
+		preview.FeeVal == 0 ||
+		preview.TotalVal != preview.AmountVal+preview.FeeVal {
+		t.Fatalf("unexpected send preview: %+v", preview)
+	}
+
 	result, err := service.Send(
 		context.Background(),
 		"source",
