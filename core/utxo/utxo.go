@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/transaction"
 	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 )
@@ -132,10 +133,17 @@ func (s *Set) ApplyTransaction(tx *transaction.Transaction) error {
 // ApplyTransactionWithFee applies a normal transaction and returns its implicit
 // fee in val. Coinbase is rejected here and only accepted with block context.
 func (s *Set) ApplyTransactionWithFee(tx *transaction.Transaction) (uint64, error) {
+	return s.ApplyTransactionWithFeeForChain(tx, config.ChainID)
+}
+
+func (s *Set) ApplyTransactionWithFeeForChain(
+	tx *transaction.Transaction,
+	chainID string,
+) (uint64, error) {
 	if s == nil {
 		return 0, ErrInvalidUTXO
 	}
-	if err := tx.Validate(); err != nil {
+	if err := tx.ValidateForChain(chainID); err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
 	}
 
@@ -216,13 +224,26 @@ func (s *Set) ApplyTransactions(transactions []*transaction.Transaction) error {
 // implicit fee. Transactions are evaluated sequentially against the working
 // UTXO view.
 func (s *Set) ApplyTransactionsWithFees(transactions []*transaction.Transaction) (uint64, error) {
+	return s.ApplyTransactionsWithFeesForChain(
+		transactions,
+		config.ChainID,
+	)
+}
+
+func (s *Set) ApplyTransactionsWithFeesForChain(
+	transactions []*transaction.Transaction,
+	chainID string,
+) (uint64, error) {
 	if s == nil {
 		return 0, ErrInvalidUTXO
 	}
 	working := s.clone()
 	var totalFees uint64
 	for i, tx := range transactions {
-		fee, err := working.ApplyTransactionWithFee(tx)
+		fee, err := working.ApplyTransactionWithFeeForChain(
+			tx,
+			chainID,
+		)
 		if err != nil {
 			return 0, fmt.Errorf("transaction %d: %w", i, err)
 		}
@@ -244,6 +265,20 @@ func (s *Set) ApplyBlockTransactions(
 	transactions []*transaction.Transaction,
 	expectedReward uint64,
 ) error {
+	return s.ApplyBlockTransactionsForChain(
+		blockHeight,
+		transactions,
+		expectedReward,
+		config.ChainID,
+	)
+}
+
+func (s *Set) ApplyBlockTransactionsForChain(
+	blockHeight uint64,
+	transactions []*transaction.Transaction,
+	expectedReward uint64,
+	chainID string,
+) error {
 	if s == nil {
 		return ErrInvalidUTXO
 	}
@@ -258,7 +293,10 @@ func (s *Set) ApplyBlockTransactions(
 		if tx != nil && tx.HasCoinbaseMarker() {
 			return fmt.Errorf("%w at transaction %d", ErrUnexpectedCoinbase, i+1)
 		}
-		fee, err := working.ApplyTransactionWithFee(tx)
+		fee, err := working.ApplyTransactionWithFeeForChain(
+			tx,
+			chainID,
+		)
 		if err != nil {
 			return fmt.Errorf("transaction %d: %w", i+1, err)
 		}
@@ -272,7 +310,11 @@ func (s *Set) ApplyBlockTransactions(
 		return ErrBalanceOverflow
 	}
 	maxClaim := expectedReward + totalFees
-	if err := coinbase.ValidateCoinbase(blockHeight, maxClaim); err != nil {
+	if err := coinbase.ValidateCoinbaseForChain(
+		blockHeight,
+		maxClaim,
+		chainID,
+	); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidCoinbase, err)
 	}
 
