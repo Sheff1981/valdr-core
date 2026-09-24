@@ -163,6 +163,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	nodeID := fs.String("node-id", "valdr-node", "P2P node id")
 	p2pHost := fs.String("p2p-host", "127.0.0.1", "P2P listen host")
 	advertiseAddress := fs.String("advertise-address", "", "P2P address advertised to peers; empty uses listen address")
+	outboundOnly := fs.Bool("outbound-only", false, "disable inbound P2P listener; intended for Desktop clients")
 	p2pPort := fs.Uint("p2p-port", 0, "P2P listen port; 0 uses network default")
 	rpcHost := fs.String("rpc-host", "127.0.0.1", "RPC listen host")
 	rpcPort := fs.Uint("rpc-port", 0, "RPC listen port; 0 uses network default")
@@ -215,15 +216,20 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 	pool := mempool.New()
-	p2pAddress := *p2pHost + ":" + strconv.FormatUint(uint64(resolvedP2PPort), 10)
+	p2pAddress := ""
+	if !*outboundOnly {
+		p2pAddress = *p2pHost + ":" +
+			strconv.FormatUint(uint64(resolvedP2PPort), 10)
+	}
 	node, err := p2p.NewNode(p2p.NodeConfig{
 		NodeID:           *nodeID,
 		ListenAddress:    p2pAddress,
 		AdvertiseAddress: *advertiseAddress,
+		OutboundOnly:     *outboundOnly,
 		NetworkProfile:   &profile,
-		EnableV2:       profile.ProtocolMax >= 2,
-		Blockchain:     chain,
-		Mempool:        pool,
+		EnableV2:         profile.ProtocolMax >= 2,
+		Blockchain:       chain,
+		Mempool:          pool,
 	})
 	if err != nil {
 		fmt.Fprintln(errOut, err)
@@ -294,6 +300,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		"chain_id":    profile.ChainID,
 		"p2p_address":       node.Address(),
 		"advertise_address": node.AdvertiseAddress(),
+		"outbound_only":     *outboundOnly,
 		"rpc_address":       httpServer.Addr,
 		"data":        *dataDir,
 		"blockchain_db": blockStore.Path(),
