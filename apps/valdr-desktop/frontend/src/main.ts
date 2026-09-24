@@ -162,6 +162,22 @@ if (!root) {
 }
 
 root.innerHTML = `
+  <div id="boot-splash" class="boot-splash" aria-hidden="true">
+    <div class="boot-splash-glow"></div>
+    <div class="boot-splash-panel">
+      <div class="boot-coin">
+        <img src="/valdr-emblem.webp" alt="">
+      </div>
+      <div class="boot-copy">
+        <p class="eyebrow">NOT A TOKEN. A CHAIN.</p>
+        <h1>VALDR DESKTOP</h1>
+        <p>Initializing secure wallet and local node</p>
+        <div class="boot-progress"><span></span></div>
+        <small>TESTNET · MAINNET DISABLED</small>
+      </div>
+    </div>
+  </div>
+
   <div id="transaction-detail-dialog" class="transaction-detail-dialog hidden" aria-modal="true" role="dialog" aria-labelledby="transaction-detail-title">
     <div class="transaction-detail-card">
       <div class="section-head">
@@ -206,7 +222,7 @@ root.innerHTML = `
   <div id="first-run" class="first-run hidden" aria-modal="true" role="dialog">
     <div class="first-run-card">
       <div class="brand first-run-brand">
-        <div class="mark" aria-hidden="true">V</div>
+        <img class="brand-emblem" src="/valdr-emblem.webp" alt="VALDR">
         <div>
           <strong>VALDR</strong>
           <span>Desktop · Testnet</span>
@@ -250,8 +266,8 @@ root.innerHTML = `
 
   <div class="shell">
     <aside class="sidebar">
-      <div class="brand">
-        <div class="mark" aria-hidden="true">V</div>
+      <div class="brand brand-sidebar">
+        <img class="brand-emblem brand-emblem-sidebar" src="/valdr-emblem.webp" alt="VALDR">
         <div>
           <strong>VALDR</strong>
           <span>Desktop</span>
@@ -259,7 +275,7 @@ root.innerHTML = `
       </div>
 
       <nav aria-label="Primary navigation">
-        <button class="nav-item active" data-view="overview">Overview</button>
+        <button class="nav-item active" data-view="overview">Dashboard</button>
         <button class="nav-item" data-view="send">Send</button>
         <button class="nav-item" data-view="receive">Receive</button>
         <button class="nav-item" data-view="wallet">Wallet</button>
@@ -276,31 +292,44 @@ root.innerHTML = `
     </aside>
 
     <main class="content">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">VALDR NETWORK</p>
-          <h1 id="view-title">Overview</h1>
+      <header class="topbar valdr-topbar">
+        <div class="product-heading">
+          <p class="eyebrow">NOT A TOKEN. A CHAIN.</p>
+          <h1 class="product-title">VALDR DESKTOP</h1>
+          <p class="view-label" id="view-title">Dashboard</p>
         </div>
         <div class="top-actions">
           <label class="wallet-select-label">
             Active wallet
             <select id="wallet-selector" aria-label="Active wallet"></select>
           </label>
-          <div class="node-badge" id="node-badge">
-            <span class="dot"></span>
-            <span id="node-badge-text">Checking node…</span>
+          <div class="status-stack">
+            <div class="node-badge" id="node-badge">
+              <span class="dot"></span>
+              <span id="node-badge-text">Checking node…</span>
+            </div>
+            <div class="top-network-meta">
+              <span>Block <strong id="top-block">—</strong></span>
+              <span>Peers <strong id="top-peers">—</strong></span>
+            </div>
           </div>
         </div>
       </header>
 
       <section class="view active" id="view-overview">
-        <div class="hero">
-          <div>
-            <p class="eyebrow">Spendable balance</p>
+        <div class="hero valdr-hero">
+          <img class="hero-watermark" src="/valdr-emblem.webp" alt="">
+          <div class="hero-main">
+            <p class="eyebrow">TOTAL SPENDABLE BALANCE</p>
             <div class="balance"><span id="overview-balance">—</span> <span>VDR</span></div>
             <p class="subtle" id="overview-wallet-label">Create or select an encrypted wallet.</p>
+            <div class="hero-actions">
+              <button class="primary view-shortcut" data-go-view="send" type="button">Send VDR</button>
+              <button class="secondary view-shortcut" data-go-view="receive" type="button">Receive</button>
+              <button class="secondary advanced-only hidden view-shortcut" data-go-view="mining" type="button">Mining</button>
+            </div>
           </div>
-          <div class="network-id">
+          <div class="network-id hero-network-id">
             <span>Network</span>
             <strong id="network-name">Testnet</strong>
             <code id="chain-id">valdr-testnet-1</code>
@@ -1282,6 +1311,8 @@ const renderState = (state: DesktopState): void => {
   text("sync-progress", syncLabel);
   text("peers", status ? String(status.peer_count) : "—");
   text("mempool", status ? String(status.mempool_count) : "—");
+  text("top-block", status ? String(status.height) : "—");
+  text("top-peers", status ? String(status.peer_count) : "—");
   text("detail-tip", status?.tip_hash || "—");
   text("detail-chainwork", status?.chainwork || "—");
   text("detail-peer-count", status ? String(status.peer_count) : "—");
@@ -1358,26 +1389,38 @@ const refresh = async (): Promise<void> => {
   }
 };
 
+const navigateToView = (view: string): void => {
+  const navButton = document.querySelector<HTMLButtonElement>(`.nav-item[data-view="${view}"]`);
+  if (!navButton || navButton.classList.contains("hidden")) return;
+  currentView = view;
+  closeTransactionDetail();
+  document.querySelectorAll(".nav-item").forEach((item) => item.classList.remove("active"));
+  navButton.classList.add("active");
+  document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
+  document.getElementById(`view-${view}`)?.classList.add("active");
+  text("view-title", navButton.textContent?.trim() || "VALDR");
+  if (view === "transactions") {
+    void refreshTransactionHistory();
+  } else if (view === "overview") {
+    void refreshOverviewLatestTransaction();
+  } else if (view === "network") {
+    void refreshPeers();
+  } else if (view === "mining") {
+    void refreshMining();
+  }
+};
+
 document.querySelectorAll<HTMLButtonElement>(".nav-item[data-view]").forEach((button) => {
   button.addEventListener("click", () => {
     const view = button.dataset.view;
-    if (!view) return;
-    currentView = view;
-    closeTransactionDetail();
-    document.querySelectorAll(".nav-item").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
-    document.getElementById(`view-${view}`)?.classList.add("active");
-    text("view-title", button.textContent?.trim() || "VALDR");
-    if (view === "transactions") {
-      void refreshTransactionHistory();
-    } else if (view === "overview") {
-      void refreshOverviewLatestTransaction();
-    } else if (view === "network") {
-      void refreshPeers();
-    } else if (view === "mining") {
-      void refreshMining();
-    }
+    if (view) navigateToView(view);
+  });
+});
+
+document.querySelectorAll<HTMLButtonElement>(".view-shortcut[data-go-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const view = button.dataset.goView;
+    if (view) navigateToView(view);
   });
 });
 
@@ -1886,6 +1929,11 @@ document.getElementById("copy-address")?.addEventListener("click", async () => {
     );
   }
 });
+
+window.setTimeout(() => {
+  document.getElementById("boot-splash")?.classList.add("boot-splash-done");
+  window.setTimeout(() => document.getElementById("boot-splash")?.remove(), 520);
+}, 1250);
 
 void refresh();
 window.setInterval(() => {

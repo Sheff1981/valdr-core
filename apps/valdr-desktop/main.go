@@ -30,9 +30,9 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{
-			R: 12,
-			G: 17,
-			B: 24,
+			R: 7,
+			G: 8,
+			B: 9,
 			A: 1,
 		},
 		OnStartup:  app.startup,
