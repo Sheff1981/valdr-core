@@ -325,7 +325,11 @@ func (bc *Blockchain) ValidateTransaction(tx *transaction.Transaction) error {
 	if err != nil {
 		return err
 	}
-	return working.ApplyTransaction(tx)
+	_, err = working.ApplyTransactionWithFeeForChain(
+		tx,
+		bc.profile.ChainID,
+	)
+	return err
 }
 
 // CalculateFees validates normal transactions against the current active UTXO
@@ -339,7 +343,10 @@ func (bc *Blockchain) CalculateFees(transactions []*transaction.Transaction) (ui
 	if err != nil {
 		return 0, err
 	}
-	return working.ApplyTransactionsWithFees(transactions)
+	return working.ApplyTransactionsWithFeesForChain(
+		transactions,
+		bc.profile.ChainID,
+	)
 }
 
 // Append mines and appends a candidate on the current active tip.
@@ -657,10 +664,11 @@ func (bc *Blockchain) validateCandidateLocked(
 		return nil, err
 	}
 	reward := consensus.BlockReward(candidate.Height)
-	if err := working.ApplyBlockTransactions(
+	if err := working.ApplyBlockTransactionsForChain(
 		candidate.Height,
 		candidate.Transactions,
 		reward,
+		bc.profile.ChainID,
 	); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidTransaction, err)
 	}
