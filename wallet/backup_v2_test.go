@@ -106,3 +106,53 @@ func TestImportEncryptedRejectsDuplicateWallet(t *testing.T) {
 		t.Fatalf("second import error=%v want ErrWalletExists", err)
 	}
 }
+
+
+func TestImportEncryptedVerifiedRequiresCorrectPassphraseBeforeWrite(t *testing.T) {
+	source := NewStore(filepath.Join(t.TempDir(), "source"))
+	passphrase := []byte("verified-restore-passphrase")
+	created, err := source.CreateEncrypted("verified", passphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backupPath := filepath.Join(t.TempDir(), "verified.valdr-wallet")
+	if err := source.BackupEncrypted(created.Address, backupPath); err != nil {
+		t.Fatal(err)
+	}
+
+	destination := NewStore(filepath.Join(t.TempDir(), "destination"))
+	if _, err := destination.ImportEncryptedVerified(
+		backupPath,
+		[]byte("wrong-passphrase"),
+	); !errors.Is(err, ErrWalletAuthentication) {
+		t.Fatalf("wrong passphrase error=%v want ErrWalletAuthentication", err)
+	}
+	items, err := destination.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("wrong passphrase imported wallet: %+v", items)
+	}
+
+	if _, err := destination.ImportEncryptedVerified(
+		backupPath,
+		nil,
+	); !errors.Is(err, ErrPassphraseRequired) {
+		t.Fatalf("empty passphrase error=%v want ErrPassphraseRequired", err)
+	}
+
+	meta, err := destination.ImportEncryptedVerified(
+		backupPath,
+		passphrase,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Address != created.Address {
+		t.Fatalf("restored address=%s want=%s", meta.Address, created.Address)
+	}
+	if _, err := destination.Unlock(meta.Address, passphrase); err != nil {
+		t.Fatal(err)
+	}
+}

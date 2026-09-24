@@ -750,3 +750,20 @@ button:disabled {
     text-align: left;
   }
 }
+
+
+.restore-wallet-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.restore-wallet-form button {
+  min-height: 39px;
+}
+
+@media (max-width: 760px) {
+  .restore-wallet-form {
+    grid-template-columns: 1fr;
+  }
+}

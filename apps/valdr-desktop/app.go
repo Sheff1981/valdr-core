@@ -402,10 +402,22 @@ func (a *App) BackupWallet(selector string) (string, error) {
 	return path, nil
 }
 
-func (a *App) RestoreWallet() (wallet.Metadata, error) {
+func (a *App) RestoreWallet(
+	passphrase string,
+) (wallet.Metadata, error) {
 	if a.ctx == nil {
 		return wallet.Metadata{}, errors.New("VALDR Desktop is not started")
 	}
+	if a.walletSessions == nil {
+		return wallet.Metadata{}, desktopcore.ErrWalletLocked
+	}
+
+	secret := []byte(passphrase)
+	defer clearSecret(secret)
+	if len(secret) == 0 {
+		return wallet.Metadata{}, wallet.ErrPassphraseRequired
+	}
+
 	path, err := wailsruntime.OpenFileDialog(
 		a.ctx,
 		wailsruntime.OpenDialogOptions{
@@ -419,7 +431,19 @@ func (a *App) RestoreWallet() (wallet.Metadata, error) {
 	if err != nil || path == "" {
 		return wallet.Metadata{}, err
 	}
-	return wallet.NewStore(a.paths.Wallets).ImportEncrypted(path)
+
+	store := a.walletStore
+	if store == nil {
+		store = wallet.NewStore(a.paths.Wallets)
+	}
+	meta, err := store.ImportEncryptedVerified(path, secret)
+	if err != nil {
+		return wallet.Metadata{}, err
+	}
+	if _, err := a.walletSessions.Unlock(meta.Address, secret); err != nil {
+		return wallet.Metadata{}, err
+	}
+	return meta, nil
 }
 
 func (a *App) StartNode() error {

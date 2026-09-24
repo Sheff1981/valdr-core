@@ -101,7 +101,7 @@ type AppAPI = {
     amountVDR: string,
   ): Promise<SendResult>;
   BackupWallet(selector: string): Promise<string>;
-  RestoreWallet(): Promise<WalletMetadata>;
+  RestoreWallet(passphrase: string): Promise<WalletMetadata>;
   GetTransactionHistory(address: string): Promise<TransactionHistoryItem[]>;
   StartNode(): Promise<void>;
   StopNode(): Promise<void>;
@@ -199,6 +199,10 @@ root.innerHTML = `
         <button class="primary" type="submit">Create encrypted wallet</button>
       </form>
       <div class="first-run-divider"><span>or</span></div>
+      <label>
+        Backup passphrase
+        <input id="first-run-restore-passphrase" type="password" autocomplete="current-password">
+      </label>
       <button class="secondary full-button" id="first-run-restore">Restore encrypted backup</button>
       <p id="first-run-error" class="warning"></p>
     </div>
@@ -438,10 +442,16 @@ root.innerHTML = `
               </div>
               <div class="actions">
                 <button class="secondary" id="backup-wallet">Back up selected</button>
-                <button class="secondary" id="restore-wallet">Restore backup</button>
               </div>
             </div>
             <div id="wallet-list" class="wallet-list"></div>
+            <form id="restore-wallet-form" class="restore-wallet-form">
+              <label>
+                Restore backup passphrase
+                <input id="restore-wallet-passphrase" type="password" autocomplete="current-password" required>
+              </label>
+              <button class="secondary" id="restore-wallet" type="submit">Restore encrypted backup</button>
+            </form>
             <p id="wallet-action-status" class="subtle"></p>
 
             <div class="wallet-security">
@@ -1174,9 +1184,17 @@ document.getElementById("first-run-form")?.addEventListener("submit", async (eve
 });
 
 document.getElementById("first-run-restore")?.addEventListener("click", async () => {
+  const input = document.getElementById("first-run-restore-passphrase") as HTMLInputElement | null;
+  const passphrase = input?.value ?? "";
+  if (!passphrase) {
+    text("first-run-error", "Backup passphrase is required.");
+    return;
+  }
+  if (input) input.value = "";
+
   try {
     text("first-run-error", "");
-    const restored = await api().RestoreWallet();
+    const restored = await api().RestoreWallet(passphrase);
     if (!restored.address) return;
     activeWalletAddress = restored.address;
     activeWalletName = restored.name || "VALDR Wallet";
@@ -1237,16 +1255,25 @@ document.getElementById("backup-wallet")?.addEventListener("click", async () => 
   }
 });
 
-document.getElementById("restore-wallet")?.addEventListener("click", async () => {
+document.getElementById("restore-wallet-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = document.getElementById("restore-wallet-passphrase") as HTMLInputElement | null;
+  const passphrase = input?.value ?? "";
+  if (!passphrase) {
+    text("wallet-action-status", "Backup passphrase is required.");
+    return;
+  }
+  if (input) input.value = "";
+
   try {
-    const restored = await api().RestoreWallet();
+    const restored = await api().RestoreWallet(passphrase);
     if (!restored.address) {
       text("wallet-action-status", "Restore cancelled.");
       return;
     }
     activeWalletAddress = restored.address;
     activeWalletName = restored.name || "VALDR Wallet";
-    text("wallet-action-status", "Encrypted wallet restored.");
+    text("wallet-action-status", "Encrypted wallet restored and unlocked locally.");
     await refresh();
   } catch (error) {
     text(

@@ -149,17 +149,52 @@ func (s *Store) BackupEncrypted(
 func (s *Store) ImportEncrypted(
 	sourcePath string,
 ) (Metadata, error) {
-	sourcePath = strings.TrimSpace(sourcePath)
-	if sourcePath == "" {
-		return Metadata{}, ErrWalletNotFound
-	}
-	record, err := readWalletRecord(sourcePath)
+	record, err := readEncryptedImportRecord(sourcePath)
 	if err != nil {
 		return Metadata{}, err
 	}
-	if record.v2 == nil {
-		return Metadata{}, ErrWalletMigrationRequired
+	return s.importEncryptedRecord(record)
+}
+
+func (s *Store) ImportEncryptedVerified(
+	sourcePath string,
+	passphrase []byte,
+) (Metadata, error) {
+	if len(passphrase) == 0 {
+		return Metadata{}, ErrPassphraseRequired
 	}
+	record, err := readEncryptedImportRecord(sourcePath)
+	if err != nil {
+		return Metadata{}, err
+	}
+	unlocked, err := decryptWalletV2(record.v2, passphrase)
+	if err != nil {
+		return Metadata{}, err
+	}
+	unlocked.PrivateKey = ""
+	return s.importEncryptedRecord(record)
+}
+
+func readEncryptedImportRecord(
+	sourcePath string,
+) (*walletRecord, error) {
+	sourcePath = strings.TrimSpace(sourcePath)
+	if sourcePath == "" {
+		return nil, ErrWalletNotFound
+	}
+	record, err := readWalletRecord(sourcePath)
+	if err != nil {
+		return nil, err
+	}
+	if record.v2 == nil {
+		return nil, ErrWalletMigrationRequired
+	}
+	return record, nil
+}
+
+func (s *Store) importEncryptedRecord(
+	record *walletRecord,
+) (Metadata, error) {
 	if err := s.ensureDir(); err != nil {
 		return Metadata{}, err
 	}
