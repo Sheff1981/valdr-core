@@ -31,7 +31,8 @@ type App struct {
 	ctx           context.Context
 	paths         desktopcore.Paths
 	node          *desktopcore.NodeManager
-	walletService *desktopcore.WalletService
+	walletService  *desktopcore.WalletService
+	historyService *desktopcore.HistoryService
 
 	mu        sync.Mutex
 	nodeError string
@@ -56,18 +57,31 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	rpcClient := rpc.NewClient(node.Endpoint())
 	walletService, err := desktopcore.NewWalletService(
 		wallet.NewStore(paths.Wallets),
-		rpc.NewClient(node.Endpoint()),
+		rpcClient,
+	)
+	if err != nil {
+		return nil, err
+	}
+	historyService, err := desktopcore.NewHistoryService(
+		rpcClient,
+		filepath.Join(
+			paths.Root,
+			"index",
+			paths.Network+".json",
+		),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &App{
-		paths:         paths,
-		node:          node,
-		walletService: walletService,
+		paths:          paths,
+		node:           node,
+		walletService:  walletService,
+		historyService: historyService,
 	}, nil
 }
 
@@ -138,6 +152,21 @@ func (a *App) GetWalletBalance(
 	)
 	defer cancel()
 	return a.walletService.Balance(ctx, strings.TrimSpace(address))
+}
+
+func (a *App) GetTransactionHistory(
+	address string,
+) ([]desktopcore.TransactionHistoryItem, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+	return a.historyService.History(
+		ctx,
+		strings.TrimSpace(address),
+		desktopcore.DefaultHistoryLimit,
+	)
 }
 
 func (a *App) PreviewSend(
