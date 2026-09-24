@@ -14,6 +14,8 @@ services:
       - testnet-node-1
       - --p2p-host
       - 0.0.0.0
+      - --advertise-address
+      - node1:17333
       - --rpc-host
       - 0.0.0.0
     volumes:
@@ -44,6 +46,8 @@ services:
       - testnet-node-2
       - --p2p-host
       - 0.0.0.0
+      - --advertise-address
+      - node2:17333
       - --rpc-host
       - 0.0.0.0
       - --seed
@@ -74,6 +78,8 @@ services:
       - testnet-node-3
       - --p2p-host
       - 0.0.0.0
+      - --advertise-address
+      - node3:17333
       - --rpc-host
       - 0.0.0.0
       - --seed
