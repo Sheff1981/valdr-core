@@ -775,13 +775,24 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 
 		nodeID := strings.TrimSpace(peer.NodeID)
 		if nodeID == "" || nodeID != peer.NodeID || len(nodeID) > maxNodeIDLength {
-			return ErrInvalidPeerAddress
+			return fmt.Errorf(
+				"%w: node_id=%q address=%q",
+				ErrInvalidPeerAddress,
+				peer.NodeID,
+				peer.Address,
+			)
 		}
 		if err := validateDiscoveredAddress(
 			peer.Address,
 			n.isPublicDiscovery(),
 		); err != nil {
-			return err
+			return fmt.Errorf(
+				"%w: node_id=%q address=%q: %v",
+				ErrInvalidPeerAddress,
+				peer.NodeID,
+				peer.Address,
+				err,
+			)
 		}
 
 		n.mu.Lock()
