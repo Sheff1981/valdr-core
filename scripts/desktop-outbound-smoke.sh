@@ -47,9 +47,11 @@ finally:
 assert result != 0, "outbound-only Desktop node unexpectedly opened inbound P2P port"
 PY
 
-kill -TERM "$node_pid"
+exec 3>&-
 wait "$node_pid"
 node_pid=""
+
+grep -q "stopping on managed stdin close" "$tmp/node.err"
 
 "$tmp/valdrd" verify-db   --data "$tmp/data"   --network testnet >"$tmp/verify.json"
 
