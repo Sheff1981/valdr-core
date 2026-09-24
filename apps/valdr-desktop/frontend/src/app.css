@@ -330,6 +330,50 @@ input[readonly] { color: #8193a3; background: #0a1118; }
   overflow-wrap: anywhere;
 }
 
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-item {
+  padding: 16px 18px;
+}
+
+.history-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.history-head small {
+  display: block;
+  margin-top: 5px;
+  color: #697987;
+}
+
+.history-direction.received { color: #9bc2aa; }
+.history-direction.sent { color: #d1a3a7; }
+.history-direction.self { color: #aeb8c0; }
+
+.history-amount {
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.history-details {
+  margin-top: 12px;
+}
+
+.history-details div {
+  grid-template-columns: 120px 1fr;
+  padding: 7px 0;
+}
+
+.history-details dd {
+  overflow-wrap: anywhere;
+}
+
 .details { display: grid; margin: 16px 0 0; }
 .details div { display: grid; grid-template-columns: 150px 1fr; gap: 14px; padding: 11px 0; border-top: 1px solid rgba(255,255,255,.06); }
 .details dt { color: #70808f; }
