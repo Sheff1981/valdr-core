@@ -162,6 +162,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	networkName := fs.String("network", config.NetworkLegacyV01, "VALDR network profile")
 	nodeID := fs.String("node-id", "valdr-node", "P2P node id")
 	p2pHost := fs.String("p2p-host", "127.0.0.1", "P2P listen host")
+	advertiseAddress := fs.String("advertise-address", "", "P2P address advertised to peers; empty uses listen address")
 	p2pPort := fs.Uint("p2p-port", 0, "P2P listen port; 0 uses network default")
 	rpcHost := fs.String("rpc-host", "127.0.0.1", "RPC listen host")
 	rpcPort := fs.Uint("rpc-port", 0, "RPC listen port; 0 uses network default")
@@ -216,9 +217,10 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	pool := mempool.New()
 	p2pAddress := *p2pHost + ":" + strconv.FormatUint(uint64(resolvedP2PPort), 10)
 	node, err := p2p.NewNode(p2p.NodeConfig{
-		NodeID:         *nodeID,
-		ListenAddress:  p2pAddress,
-		NetworkProfile: &profile,
+		NodeID:           *nodeID,
+		ListenAddress:    p2pAddress,
+		AdvertiseAddress: *advertiseAddress,
+		NetworkProfile:   &profile,
 		EnableV2:       profile.ProtocolMax >= 2,
 		Blockchain:     chain,
 		Mempool:        pool,
@@ -290,8 +292,9 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		"node_id":     node.NodeID(),
 		"network":     profile.Name,
 		"chain_id":    profile.ChainID,
-		"p2p_address": node.Address(),
-		"rpc_address": httpServer.Addr,
+		"p2p_address":       node.Address(),
+		"advertise_address": node.AdvertiseAddress(),
+		"rpc_address":       httpServer.Addr,
 		"data":        *dataDir,
 		"blockchain_db": blockStore.Path(),
 		"storage_schema": storage.StorageSchemaVersion,
