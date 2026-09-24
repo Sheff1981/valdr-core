@@ -1440,7 +1440,7 @@ func (n *Node) handleGetPeersV2(peerID string) error {
 	advertisements := make([]peerAdvertisement, 0, len(n.peers)+1)
 	advertisements = append(advertisements, peerAdvertisement{
 		NodeID:  n.nodeID,
-		Address: n.listenerAddressLocked(),
+		Address: n.advertiseAddressLocked(),
 	})
 	for _, peer := range n.peers {
 		advertisements = append(advertisements, peerAdvertisement{
