@@ -1,0 +1,126 @@
+services:
+  node1:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: valdr:testnet-v0.2
+    command:
+      - start
+      - --network
+      - testnet
+      - --data
+      - /var/lib/valdr
+      - --node-id
+      - testnet-node-1
+      - --p2p-host
+      - 0.0.0.0
+      - --rpc-host
+      - 0.0.0.0
+    volumes:
+      - node1-data:/var/lib/valdr
+    ports:
+      - "17333:17333"
+    healthcheck:
+      test: ["CMD", "valdrd", "status", "--node", "http://127.0.0.1:17332"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+    networks: [valdr-testnet]
+
+  node2:
+    image: valdr:testnet-v0.2
+    depends_on:
+      node1:
+        condition: service_healthy
+    command:
+      - start
+      - --network
+      - testnet
+      - --data
+      - /var/lib/valdr
+      - --node-id
+      - testnet-node-2
+      - --p2p-host
+      - 0.0.0.0
+      - --rpc-host
+      - 0.0.0.0
+      - --seed
+      - node1:17333
+    volumes:
+      - node2-data:/var/lib/valdr
+    healthcheck:
+      test: ["CMD", "valdrd", "status", "--node", "http://127.0.0.1:17332"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+    networks: [valdr-testnet]
+
+  node3:
+    image: valdr:testnet-v0.2
+    depends_on:
+      node1:
+        condition: service_healthy
+    command:
+      - start
+      - --network
+      - testnet
+      - --data
+      - /var/lib/valdr
+      - --node-id
+      - testnet-node-3
+      - --p2p-host
+      - 0.0.0.0
+      - --rpc-host
+      - 0.0.0.0
+      - --seed
+      - node1:17333
+    volumes:
+      - node3-data:/var/lib/valdr
+    healthcheck:
+      test: ["CMD", "valdrd", "status", "--node", "http://127.0.0.1:17332"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+    networks: [valdr-testnet]
+
+  explorer:
+    image: valdr:testnet-v0.2
+    entrypoint: ["valdr-explorer"]
+    depends_on:
+      node1:
+        condition: service_healthy
+    command:
+      - --listen
+      - 0.0.0.0:8080
+      - --node
+      - http://node1:17332
+      - --index-file
+      - /var/lib/valdr/explorer/index.json
+    volumes:
+      - explorer-data:/var/lib/valdr
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "valdrd", "status", "--node", "http://node1:17332"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+    networks: [valdr-testnet]
+
+networks:
+  valdr-testnet:
+    driver: bridge
+
+volumes:
+  node1-data:
+  node2-data:
+  node3-data:
+  explorer-data:
