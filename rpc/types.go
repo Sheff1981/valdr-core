@@ -109,11 +109,15 @@ type MiningInfoResult struct {
 }
 
 type MineBlockResult struct {
-	Height           uint64 `json:"height"`
-	BlockHash        string `json:"block_hash"`
-	RewardAddress    string `json:"reward_address"`
-	RewardVal        uint64 `json:"reward_val"`
-	TransactionCount int    `json:"transaction_count"`
+	Height           uint64  `json:"height"`
+	BlockHash        string  `json:"block_hash"`
+	RewardAddress    string  `json:"reward_address"`
+	RewardVal        uint64  `json:"reward_val"`
+	TransactionCount int     `json:"transaction_count"`
+	Nonce            uint64  `json:"nonce"`
+	HashesTried      uint64  `json:"hashes_tried"`
+	MiningDurationMS float64 `json:"mining_duration_ms"`
+	HashrateHPS      float64 `json:"hashrate_hps"`
 }
 
 type BlockResult = block.Block

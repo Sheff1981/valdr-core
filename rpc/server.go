@@ -274,12 +274,14 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 	}
 
 	transactions := s.node.MempoolTransactionsForMining()
+	miningStarted := time.Now()
 	candidate, err := mining.MineBlock(
 		s.chain,
 		params.RewardAddress,
 		timestamp,
 		transactions,
 	)
+	miningDuration := time.Since(miningStarted)
 	if err != nil {
 		logging.Printf(logging.CategoryError, "mining failed error=%v", err)
 		return MineBlockResult{}, err
@@ -302,13 +304,24 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 		len(candidate.Transactions[0].Outputs) > 0 {
 		reward = candidate.Transactions[0].Outputs[0].Amount
 	}
+	hashesTried := candidate.Nonce + 1
+	miningDurationMS := float64(miningDuration) / float64(time.Millisecond)
+	hashrateHPS := 0.0
+	if miningDuration > 0 {
+		hashrateHPS = float64(hashesTried) / miningDuration.Seconds()
+	}
+
 	logging.Printf(
 		logging.CategoryMiner,
-		"block found height=%d hash=%s reward_address=%s txs=%d",
+		"block found height=%d hash=%s reward_address=%s txs=%d nonce=%d hashes=%d mining_ms=%.3f hashrate_hps=%.2f",
 		candidate.Height,
 		candidate.BlockHash,
 		params.RewardAddress,
 		len(candidate.Transactions),
+		candidate.Nonce,
+		hashesTried,
+		miningDurationMS,
+		hashrateHPS,
 	)
 
 	return MineBlockResult{
@@ -317,6 +330,10 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 		RewardAddress:    params.RewardAddress,
 		RewardVal:        reward,
 		TransactionCount: len(candidate.Transactions),
+		Nonce:            candidate.Nonce,
+		HashesTried:      hashesTried,
+		MiningDurationMS: miningDurationMS,
+		HashrateHPS:      hashrateHPS,
 	}, nil
 }
 

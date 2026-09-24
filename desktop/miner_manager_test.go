@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os/exec"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,5 +88,47 @@ func TestDesktopMinerDefaultsIntervalAndSurfacesUnexpectedExit(t *testing.T) {
 	manager.recordProcessExit(stopped, errors.New("signal: terminated"))
 	if manager.LastExitError() != nil {
 		t.Fatalf("intentional stop surfaced as crash: %v", manager.LastExitError())
+	}
+}
+
+
+func TestDesktopMinerConsumesHashrateTelemetry(t *testing.T) {
+	manager, err := NewMinerManager(MinerProcessConfig{
+		BinaryPath:   "/tmp/valdr-miner",
+		NodeEndpoint: "http://127.0.0.1:17332",
+		PIDFile:      "/tmp/valdr-desktop-miner.pid",
+		Interval:     time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.consumeOutput(strings.NewReader(
+		"{\"height\":1,\"block_hash\":\"000abc\",\"nonce\":99,\"hashes_tried\":100,\"mining_duration_ms\":20,\"hashrate_hps\":5000}\n" +
+			"{\"height\":2,\"block_hash\":\"000def\",\"nonce\":199,\"hashes_tried\":200,\"mining_duration_ms\":40,\"hashrate_hps\":5000}\n",
+	))
+
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if manager.acceptedBlocks != 2 {
+		t.Fatalf("accepted blocks=%d want=2", manager.acceptedBlocks)
+	}
+	if manager.lastBlockHashes != 200 {
+		t.Fatalf("last block hashes=%d want=200", manager.lastBlockHashes)
+	}
+	if manager.lastBlockDurationMS != 40 {
+		t.Fatalf("last block duration=%v want=40ms", manager.lastBlockDurationMS)
+	}
+	if manager.lastBlockHashrateHPS != 5000 {
+		t.Fatalf("last block hashrate=%v want=5000", manager.lastBlockHashrateHPS)
+	}
+	if manager.totalHashes != 300 {
+		t.Fatalf("total hashes=%d want=300", manager.totalHashes)
+	}
+	if manager.totalMiningDurationMS != 60 {
+		t.Fatalf("total duration=%v want=60ms", manager.totalMiningDurationMS)
+	}
+	if got := effectiveHashrate(manager.totalHashes, manager.totalMiningDurationMS); got != 5000 {
+		t.Fatalf("average hashrate=%v want=5000", got)
 	}
 }

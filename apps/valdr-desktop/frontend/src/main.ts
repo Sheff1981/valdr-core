@@ -67,6 +67,12 @@ type MinerStatus = {
   block_reward_val: number;
   block_reward_vdr: string;
   target_block_time_seconds: number;
+  hashrate_hps: number;
+  last_block_hashrate_hps: number;
+  last_block_hashes: number;
+  last_block_duration_ms: number;
+  total_hashes: number;
+  total_mining_duration_ms: number;
 };
 
 type WalletBalance = {
@@ -602,7 +608,12 @@ root.innerHTML = `
               <div><dt>Next height</dt><dd id="mining-next-height">—</dd></div>
               <div><dt>Block reward</dt><dd id="mining-reward">—</dd></div>
               <div><dt>Target block interval</dt><dd id="mining-target-time">—</dd></div>
-              <div><dt>Hashrate</dt><dd>Not reported by the current miner</dd></div>
+              <div><dt>Engine</dt><dd>CPU · SHA-256 · single thread</dd></div>
+              <div><dt>Average effective hashrate</dt><dd id="mining-hashrate">—</dd></div>
+              <div><dt>Last block hashrate</dt><dd id="mining-last-hashrate">—</dd></div>
+              <div><dt>Last block solve time</dt><dd id="mining-last-duration">—</dd></div>
+              <div><dt>Hashes tried · last block</dt><dd id="mining-last-hashes">—</dd></div>
+              <div><dt>Hashes tried · this run</dt><dd id="mining-total-hashes">—</dd></div>
             </dl>
           </article>
         </div>
@@ -684,6 +695,33 @@ const text = (id: string, value: string): void => {
 
 const value = (id: string): string =>
   (document.getElementById(id) as HTMLInputElement | null)?.value ?? "";
+
+const formatHashrate = (hashesPerSecond: number): string => {
+  if (!Number.isFinite(hashesPerSecond) || hashesPerSecond <= 0) return "—";
+  const units = ["H/s", "kH/s", "MH/s", "GH/s", "TH/s", "PH/s"];
+  let value = hashesPerSecond;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit++;
+  }
+  const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(digits)} ${units[unit]}`;
+};
+
+const formatMiningDuration = (durationMS: number): string => {
+  if (!Number.isFinite(durationMS) || durationMS <= 0) return "—";
+  if (durationMS < 1) return `${(durationMS * 1000).toFixed(0)} µs`;
+  if (durationMS < 1000) {
+    return `${durationMS.toFixed(durationMS >= 100 ? 0 : 1)} ms`;
+  }
+  return `${(durationMS / 1000).toFixed(2)} s`;
+};
+
+const formatHashCount = (count: number): string => {
+  if (!Number.isFinite(count) || count <= 0) return "—";
+  return Math.trunc(count).toLocaleString();
+};
 
 const globalError = document.getElementById("global-error");
 const showError = (message: string): void => {
@@ -1163,6 +1201,11 @@ const refreshMining = async (): Promise<void> => {
         ? status.target_block_time_seconds + " seconds"
         : "—",
     );
+    text("mining-hashrate", formatHashrate(status.hashrate_hps));
+    text("mining-last-hashrate", formatHashrate(status.last_block_hashrate_hps));
+    text("mining-last-duration", formatMiningDuration(status.last_block_duration_ms));
+    text("mining-last-hashes", formatHashCount(status.last_block_hashes));
+    text("mining-total-hashes", formatHashCount(status.total_hashes));
     text("mining-message", status.last_error || "");
     if (startButton) startButton.disabled = status.running;
     if (stopButton) stopButton.disabled = !status.running;

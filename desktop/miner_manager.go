@@ -3,6 +3,7 @@ package desktop
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -33,27 +34,38 @@ type MinerProcessConfig struct {
 }
 
 type MinerStatus struct {
-	Running                bool   `json:"running"`
-	RewardAddress          string `json:"reward_address,omitempty"`
-	AcceptedBlocks         uint64 `json:"accepted_blocks"`
-	LastError              string `json:"last_error,omitempty"`
-	Height                 uint64 `json:"height"`
-	NextHeight             uint64 `json:"next_height"`
-	CurrentTarget          string `json:"current_target,omitempty"`
-	BlockRewardVal         uint64 `json:"block_reward_val"`
-	BlockRewardVDR         string `json:"block_reward_vdr"`
-	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
+	Running                bool    `json:"running"`
+	RewardAddress          string  `json:"reward_address,omitempty"`
+	AcceptedBlocks         uint64  `json:"accepted_blocks"`
+	LastError              string  `json:"last_error,omitempty"`
+	Height                 uint64  `json:"height"`
+	NextHeight             uint64  `json:"next_height"`
+	CurrentTarget          string  `json:"current_target,omitempty"`
+	BlockRewardVal         uint64  `json:"block_reward_val"`
+	BlockRewardVDR         string  `json:"block_reward_vdr"`
+	TargetBlockTimeSeconds int64   `json:"target_block_time_seconds"`
+	HashrateHPS            float64 `json:"hashrate_hps"`
+	LastBlockHashrateHPS   float64 `json:"last_block_hashrate_hps"`
+	LastBlockHashes        uint64  `json:"last_block_hashes"`
+	LastBlockDurationMS    float64 `json:"last_block_duration_ms"`
+	TotalHashes            uint64  `json:"total_hashes"`
+	TotalMiningDurationMS  float64 `json:"total_mining_duration_ms"`
 }
 
 type MinerManager struct {
-	mu              sync.Mutex
-	config          MinerProcessConfig
-	command         *exec.Cmd
-	waitCh          chan error
-	stopping        bool
-	lastExit        error
-	rewardAddress   string
-	acceptedBlocks  uint64
+	mu                    sync.Mutex
+	config                MinerProcessConfig
+	command               *exec.Cmd
+	waitCh                chan error
+	stopping              bool
+	lastExit              error
+	rewardAddress         string
+	acceptedBlocks        uint64
+	lastBlockHashrateHPS  float64
+	lastBlockHashes       uint64
+	lastBlockDurationMS   float64
+	totalHashes           uint64
+	totalMiningDurationMS float64
 }
 
 func NewMinerManager(cfg MinerProcessConfig) (*MinerManager, error) {
@@ -114,6 +126,11 @@ func (m *MinerManager) Start(rewardAddress string) error {
 	m.lastExit = nil
 	m.rewardAddress = rewardAddress
 	m.acceptedBlocks = 0
+	m.lastBlockHashrateHPS = 0
+	m.lastBlockHashes = 0
+	m.lastBlockDurationMS = 0
+	m.totalHashes = 0
+	m.totalMiningDurationMS = 0
 
 	go m.consumeOutput(stdout)
 	go func() {
@@ -172,10 +189,19 @@ func (m *MinerManager) LastExitError() error {
 func (m *MinerManager) Status(ctx context.Context) (MinerStatus, error) {
 	m.mu.Lock()
 	status := MinerStatus{
-		Running:        m.command != nil,
-		RewardAddress:  m.rewardAddress,
-		AcceptedBlocks: m.acceptedBlocks,
+		Running:                m.command != nil,
+		RewardAddress:          m.rewardAddress,
+		AcceptedBlocks:         m.acceptedBlocks,
+		LastBlockHashrateHPS:   m.lastBlockHashrateHPS,
+		LastBlockHashes:        m.lastBlockHashes,
+		LastBlockDurationMS:    m.lastBlockDurationMS,
+		TotalHashes:            m.totalHashes,
+		TotalMiningDurationMS:  m.totalMiningDurationMS,
 	}
+	status.HashrateHPS = effectiveHashrate(
+		status.TotalHashes,
+		status.TotalMiningDurationMS,
+	)
 	if m.lastExit != nil {
 		status.LastError = m.lastExit.Error()
 	}
@@ -225,15 +251,33 @@ func (m *MinerManager) consumeOutput(reader io.Reader) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.Contains(line, `"block_hash"`) {
+		var result rpc.MineBlockResult
+		if err := json.Unmarshal([]byte(line), &result); err == nil &&
+			result.BlockHash != "" {
 			m.mu.Lock()
 			m.acceptedBlocks++
+			m.lastBlockHashrateHPS = result.HashrateHPS
+			m.lastBlockHashes = result.HashesTried
+			m.lastBlockDurationMS = result.MiningDurationMS
+			if ^uint64(0)-m.totalHashes < result.HashesTried {
+				m.totalHashes = ^uint64(0)
+			} else {
+				m.totalHashes += result.HashesTried
+			}
+			m.totalMiningDurationMS += result.MiningDurationMS
 			m.mu.Unlock()
 		}
 		if m.config.Stdout != nil {
 			_, _ = fmt.Fprintln(m.config.Stdout, line)
 		}
 	}
+}
+
+func effectiveHashrate(totalHashes uint64, durationMS float64) float64 {
+	if totalHashes == 0 || durationMS <= 0 {
+		return 0
+	}
+	return float64(totalHashes) / (durationMS / 1000)
 }
 
 func (m *MinerManager) recordProcessExit(cmd *exec.Cmd, waitErr error) {
