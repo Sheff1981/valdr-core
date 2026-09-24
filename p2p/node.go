@@ -497,6 +497,12 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
 					return
 				}
+				logging.Printf(
+					logging.CategoryError,
+					"P2P v2 frame read rejected peer=%s error=%v",
+					peerID,
+					err,
+				)
 				n.recordPeerViolation(peerID, 1)
 				return
 			}
@@ -505,10 +511,24 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 				pc.traffic.markActivity(n.protection.Now())
 			}
 			if !n.allowPeerTraffic(peerID, len(frame.Payload)+v2FrameHeaderSize) {
+				logging.Printf(
+					logging.CategoryP2P,
+					"rate limited peer=%s type=%d bytes=%d",
+					peerID,
+					frame.MessageType,
+					len(frame.Payload)+v2FrameHeaderSize,
+				)
 				n.recordPeerViolation(peerID, 3)
 				return
 			}
 			if err := n.handleV2Frame(peerID, frame); err != nil {
+				logging.Printf(
+					logging.CategoryError,
+					"P2P v2 frame rejected peer=%s type=%d error=%v",
+					peerID,
+					frame.MessageType,
+					err,
+				)
 				n.recordPeerViolation(peerID, 1)
 				return
 			}
