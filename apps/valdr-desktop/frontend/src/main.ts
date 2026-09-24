@@ -712,6 +712,22 @@ root.innerHTML = `
         </div>
       </section>
     </main>
+
+    <aside class="quick-access-rail" aria-label="VALDR quick access">
+      <button
+        class="download-access"
+        type="button"
+        disabled
+        title="Signed VALDR Desktop downloads will be enabled after the Stage 13 release gate"
+        aria-label="VALDR downloads — pending signed release artifacts"
+      >
+        <span class="download-coin" aria-hidden="true">
+          <img src="/valdr-emblem.svg" alt="">
+          <span class="download-badge">↓</span>
+        </span>
+        <span class="download-caption">Downloads</span>
+      </button>
+    </aside>
   </div>
 `;
 

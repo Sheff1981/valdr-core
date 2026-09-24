@@ -1294,3 +1294,95 @@ code { color: #c3a96f; }
   .boot-coin img { width: 145px; height: 145px; }
   .boot-copy h1 { font-size: 27px; }
 }
+
+
+/* Project-directed quick access placement — lower-right VALDR coin/download affordance. */
+.quick-access-rail {
+  position: fixed;
+  top: 104px;
+  right: 14px;
+  bottom: 16px;
+  z-index: 60;
+  display: flex;
+  width: 68px;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.download-access {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  width: 66px;
+  padding: 0;
+  border: 0;
+  color: #a89573;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.download-access:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.download-coin {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 1px solid rgba(229,179,77,.42);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255,218,132,.12), transparent 32%),
+    linear-gradient(145deg, rgba(28,25,19,.98), rgba(7,9,10,.98));
+  box-shadow:
+    inset 0 0 0 1px rgba(255,220,145,.05),
+    0 0 28px rgba(229,179,77,.18),
+    0 10px 26px rgba(0,0,0,.42);
+}
+
+.download-coin img {
+  width: 43px;
+  height: 43px;
+  object-fit: contain;
+}
+
+.download-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(244,203,111,.7);
+  border-radius: 50%;
+  color: #171006;
+  background: linear-gradient(180deg, #f2cf7a, #d49a36);
+  box-shadow: 0 4px 13px rgba(0,0,0,.45);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.download-caption {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 1101px) {
+  .content {
+    padding-right: 96px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .quick-access-rail {
+    display: none;
+  }
+}

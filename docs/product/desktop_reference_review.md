@@ -208,3 +208,21 @@ The first Stage 12 code slice must be:
 6. CI tests before adding send/receive screens.
 
 No GUI work may bypass existing wallet encryption or localhost RPC boundaries.
+
+
+## 8. Project-specific Premium Desktop placement
+
+**Date:** 2026-09-25  
+**Source:** project-owner supplied VALDR layout screenshot/mockup. This is an original VALDR product direction, not an external product/brand reference.
+
+Adopt:
+
+- keep the primary navigation on the left;
+- reserve the far-right edge of the Premium Desktop layout for a compact quick-access affordance;
+- place the VALDR coin/download affordance at the lower-right edge, visually separated from wallet/node controls;
+- preserve the existing dark/gold VALDR visual identity and locally bundled assets.
+
+Release constraint:
+
+- the download affordance may be visible during Stage 12, but it must not expose nonexistent, unsigned or unverified installers;
+- it remains non-operational until Stage 13 produces signed/verifiable release artifacts and the official download target is frozen.
