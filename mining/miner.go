@@ -7,6 +7,7 @@ import (
 	"math/bits"
 	"sort"
 
+	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/blockchain"
 	"github.com/Sheff1981/valdr-core/core/consensus"
@@ -42,6 +43,7 @@ func MineBlock(
 		return nil, ErrInvalidMiner
 	}
 
+	profile := chain.Profile()
 	tip := chain.Tip()
 	if tip == nil {
 		return nil, ErrNilBlockchain
@@ -78,6 +80,7 @@ func MineBlock(
 		minerAddress,
 		timestamp,
 		reward,
+		profile,
 		candidates,
 		block.MaxSerializedSize,
 	)
@@ -92,7 +95,8 @@ func MineBlock(
 			selectedFees,
 		)
 	}
-	coinbase, err := transaction.NewCoinbase(
+	coinbase, err := transaction.NewCoinbaseForChain(
+		profile.ChainID,
 		height,
 		minerAddress,
 		reward+selectedFees,
@@ -116,6 +120,7 @@ func selectTransactions(
 	minerAddress string,
 	timestamp int64,
 	reward uint64,
+	profile config.NetworkProfile,
 	candidates []transactionCandidate,
 	maxBlockBytes int,
 ) ([]*transaction.Transaction, uint64, error) {
@@ -147,7 +152,8 @@ func selectTransactions(
 			)
 		}
 
-		coinbase, err := transaction.NewCoinbase(
+		coinbase, err := transaction.NewCoinbaseForChain(
+			profile.ChainID,
 			height,
 			minerAddress,
 			reward+fees,
@@ -163,15 +169,32 @@ func selectTransactions(
 		)
 		blockTransactions = append(blockTransactions, coinbase)
 		blockTransactions = append(blockTransactions, prospective...)
-		sizeProbe := block.New(
-			height,
-			tip.BlockHash,
-			timestamp,
-			tip.Difficulty,
-			0,
-			blockTransactions,
-			"",
-		)
+		var sizeProbe *block.Block
+		if profile.BlockVersion == block.VersionV2 {
+			sizeProbe, err = block.NewV2(
+				height,
+				tip.BlockHash,
+				timestamp,
+				tip.Target,
+				0,
+				blockTransactions,
+				profile.ChainID,
+				"",
+			)
+			if err != nil {
+				return nil, 0, err
+			}
+		} else {
+			sizeProbe = block.New(
+				height,
+				tip.BlockHash,
+				timestamp,
+				tip.Difficulty,
+				0,
+				blockTransactions,
+				"",
+			)
+		}
 		if sizeProbe.SerializedSize() > maxBlockBytes {
 			continue
 		}
