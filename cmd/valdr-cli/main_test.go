@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http/httptest"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -20,8 +22,14 @@ func TestWalletCLIFlow(t *testing.T) {
 	dir := t.TempDir()
 
 	var out, errOut bytes.Buffer
+	password := "cli-test-passphrase"
 	if code := run(
-		[]string{"wallet", "create", "--dir", dir, "--name", "alice"},
+		[]string{
+			"wallet", "create",
+			"--dir", dir,
+			"--name", "alice",
+			"--password-fd", testPasswordFD(t, password),
+		},
 		&out,
 		&errOut,
 	); code != 0 {
@@ -50,7 +58,12 @@ func TestWalletCLIFlow(t *testing.T) {
 	out.Reset()
 	errOut.Reset()
 	if code := run(
-		[]string{"wallet", "export", "--dir", dir, "alice"},
+		[]string{
+			"wallet", "export",
+			"--dir", dir,
+			"--password-fd", testPasswordFD(t, password),
+			"alice",
+		},
 		&out,
 		&errOut,
 	); code != 0 {
@@ -67,7 +80,8 @@ func TestWalletCLIFlow(t *testing.T) {
 func TestRPCBackedCLIStatusBalanceSendAndQueries(t *testing.T) {
 	dir := t.TempDir()
 	store := wallet.NewStore(dir)
-	alice, err := store.Create("alice")
+	password := "rpc-cli-passphrase"
+	alice, err := store.CreateEncrypted("alice", []byte(password))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,6 +166,7 @@ func TestRPCBackedCLIStatusBalanceSendAndQueries(t *testing.T) {
 			"--from", "alice",
 			"--to", bob.Address,
 			"--amount", "10",
+			"--password-fd", testPasswordFD(t, password),
 		},
 		&out,
 		&errOut,
@@ -221,6 +236,46 @@ func TestRPCBackedCLIStatusBalanceSendAndQueries(t *testing.T) {
 	if strings.TrimSpace(out.String()) != "[]" {
 		t.Fatalf("peers output = %s, want []", out.String())
 	}
+}
+
+func TestWalletCLIRejectsPasswordArgument(t *testing.T) {
+	dir := t.TempDir()
+	var out, errOut bytes.Buffer
+	code := run(
+		[]string{
+			"wallet", "create",
+			"--dir", dir,
+			"--name", "alice",
+			"--password", "must-not-be-accepted",
+		},
+		&out,
+		&errOut,
+	)
+	if code != 2 {
+		t.Fatalf("exit=%d want=2 stderr=%s", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "flag provided but not defined") {
+		t.Fatalf("unexpected stderr: %s", errOut.String())
+	}
+}
+
+func testPasswordFD(t *testing.T, password string) string {
+	t.Helper()
+	file, err := os.CreateTemp(t.TempDir(), "valdr-password-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = file.Close() })
+	if err := file.Chmod(0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(password + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+	return strconv.Itoa(int(file.Fd()))
 }
 
 func TestParseAndFormatVDR(t *testing.T) {
