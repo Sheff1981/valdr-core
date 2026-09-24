@@ -11,6 +11,8 @@ type NodeStatus = {
   network: string;
   chain_id: string;
   height: number;
+  best_known_height: number;
+  sync_progress: number;
   tip_hash: string;
   chainwork: string;
   peer_count: number;
@@ -106,6 +108,46 @@ if (!root) {
 }
 
 root.innerHTML = `
+  <div id="first-run" class="first-run hidden" aria-modal="true" role="dialog">
+    <div class="first-run-card">
+      <div class="brand first-run-brand">
+        <div class="mark" aria-hidden="true">V</div>
+        <div>
+          <strong>VALDR</strong>
+          <span>Desktop · Testnet</span>
+        </div>
+      </div>
+      <p class="eyebrow">FIRST RUN</p>
+      <h1>Set up your VALDR wallet</h1>
+      <p class="subtle">
+        VALDR Desktop runs a local validating node. The blockchain is stored on this device and disk usage grows as the network grows.
+        This build connects to Testnet only; Testnet VDR has no promised monetary value.
+      </p>
+      <div class="first-run-network">
+        <span id="first-run-node-state">Starting local node…</span>
+        <strong id="first-run-sync">Waiting for status</strong>
+      </div>
+      <form id="first-run-form">
+        <label>
+          Wallet name
+          <input id="first-wallet-name" maxlength="64" autocomplete="off" placeholder="My VALDR wallet">
+        </label>
+        <label>
+          Wallet passphrase
+          <input id="first-wallet-passphrase" type="password" autocomplete="new-password" required>
+        </label>
+        <label>
+          Confirm passphrase
+          <input id="first-wallet-confirm" type="password" autocomplete="new-password" required>
+        </label>
+        <button class="primary" type="submit">Create encrypted wallet</button>
+      </form>
+      <div class="first-run-divider"><span>or</span></div>
+      <button class="secondary full-button" id="first-run-restore">Restore encrypted backup</button>
+      <p id="first-run-error" class="warning"></p>
+    </div>
+  </div>
+
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
@@ -165,8 +207,12 @@ root.innerHTML = `
 
         <div class="grid stats">
           <article class="card">
-            <span>Block height</span>
+            <span>Local / best height</span>
             <strong id="height">—</strong>
+          </article>
+          <article class="card">
+            <span>Sync</span>
+            <strong id="sync-progress">—</strong>
           </article>
           <article class="card">
             <span>Peers</span>
@@ -597,7 +643,16 @@ const renderState = (state: DesktopState): void => {
   text("detail-data", state.paths.node_data);
   text("detail-wallets", state.paths.wallets);
 
-  text("height", status ? String(status.height) : "—");
+  text(
+    "height",
+    status ? `${status.height} / ${status.best_known_height}` : "—",
+  );
+  const syncLabel = !status
+    ? "—"
+    : status.peer_count === 0
+      ? "Waiting"
+      : `${Math.round(status.sync_progress * 100)}%`;
+  text("sync-progress", syncLabel);
   text("peers", status ? String(status.peer_count) : "—");
   text("mempool", status ? String(status.mempool_count) : "—");
   text("detail-tip", status?.tip_hash || "—");
@@ -609,6 +664,27 @@ const renderState = (state: DesktopState): void => {
 
   const badge = document.getElementById("node-badge");
   badge?.classList.toggle("healthy", healthy);
+
+  const firstRun = document.getElementById("first-run");
+  firstRun?.classList.toggle("hidden", state.wallets.length > 0);
+  text(
+    "first-run-node-state",
+    state.node_error
+      ? "Local node needs attention"
+      : healthy
+        ? "Local validating node online"
+        : state.node_running
+          ? "Starting local validating node…"
+          : "Local node stopped",
+  );
+  text(
+    "first-run-sync",
+    !status
+      ? "Waiting for node status"
+      : status.peer_count === 0
+        ? `Height ${status.height} · waiting for peers`
+        : `Sync ${Math.round(status.sync_progress * 100)}% · ${status.height}/${status.best_known_height}`,
+  );
 
   if (state.node_error) {
     text("node-detail", state.node_error);
@@ -680,6 +756,47 @@ document.getElementById("stop-node")?.addEventListener("click", async () => {
     await refresh();
   } catch (error) {
     showError(error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.getElementById("first-run-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const name = value("first-wallet-name");
+  const pass = value("first-wallet-passphrase");
+  const confirm = value("first-wallet-confirm");
+  if (!pass) {
+    text("first-run-error", "Wallet passphrase is required.");
+    return;
+  }
+  if (pass !== confirm) {
+    text("first-run-error", "Passphrases do not match.");
+    return;
+  }
+  try {
+    text("first-run-error", "");
+    const created = await api().CreateWallet(name, pass);
+    activeWalletAddress = created.address;
+    activeWalletName = created.name || "VALDR Wallet";
+    const passInput = document.getElementById("first-wallet-passphrase") as HTMLInputElement | null;
+    const confirmInput = document.getElementById("first-wallet-confirm") as HTMLInputElement | null;
+    if (passInput) passInput.value = "";
+    if (confirmInput) confirmInput.value = "";
+    await refresh();
+  } catch (error) {
+    text("first-run-error", error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.getElementById("first-run-restore")?.addEventListener("click", async () => {
+  try {
+    text("first-run-error", "");
+    const restored = await api().RestoreWallet();
+    if (!restored.address) return;
+    activeWalletAddress = restored.address;
+    activeWalletName = restored.name || "VALDR Wallet";
+    await refresh();
+  } catch (error) {
+    text("first-run-error", error instanceof Error ? error.message : String(error));
   }
 });
 
