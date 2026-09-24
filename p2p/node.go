@@ -322,6 +322,7 @@ func (n *Node) BroadcastTransaction(tx *transaction.Transaction) error {
 	if err := n.mempool.AddWithFee(tx, fees); err != nil {
 		return err
 	}
+	n.seenTx.Add(tx.TransactionID)
 	logging.Printf(logging.CategoryTX, "accepted local txid=%s", tx.TransactionID)
 	logging.Printf(logging.CategoryMempool, "size=%d", n.mempool.Len())
 	if n.enableV2 {
@@ -461,14 +462,55 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 
 	for {
 		if n.enableV2 {
+			awaitingPong := false
+			if pc.traffic != nil {
+				awaitingPong, _ = pc.traffic.pingState()
+			}
+			timeout := n.protection.IdleTimeout
+			if awaitingPong {
+				timeout = n.protection.PingTimeout
+			}
+			_ = pc.conn.SetReadDeadline(n.protection.Now().Add(timeout))
+
 			frame, err := ReadV2Frame(pc.conn, n.networkProfile)
 			if err != nil {
 				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
 					return
 				}
+				var netErr net.Error
+				if errors.As(err, &netErr) && netErr.Timeout() {
+					if awaitingPong {
+						return
+					}
+					nonce := uint64(n.protection.Now().UnixNano())
+					if pc.traffic != nil {
+						pc.traffic.setAwaitingPong(nonce, true)
+					}
+					_ = pc.conn.SetReadDeadline(time.Time{})
+					if err := n.sendV2To(
+						peerID,
+						V2MessagePing,
+						struct {
+							Nonce uint64 `json:"nonce"`
+						}{Nonce: nonce},
+					); err != nil {
+						return
+					}
+					continue
+				}
+				n.recordPeerViolation(peerID, 1)
+				return
+			}
+
+			if pc.traffic != nil {
+				pc.traffic.setAwaitingPong(0, false)
+			}
+			if !n.allowPeerTraffic(peerID, len(frame.Payload)+v2FrameHeaderSize) {
+				n.recordPeerViolation(peerID, 3)
 				return
 			}
 			if err := n.handleV2Frame(peerID, frame); err != nil {
+				n.recordPeerViolation(peerID, 1)
 				return
 			}
 			continue
@@ -548,6 +590,7 @@ func (n *Node) handleTransaction(peerID string, tx *transaction.Transaction) err
 		}
 		return err
 	}
+	n.seenTx.Add(tx.TransactionID)
 	logging.Printf(logging.CategoryTX, "accepted txid=%s peer=%s", tx.TransactionID, peerID)
 	logging.Printf(logging.CategoryMempool, "size=%d", n.mempool.Len())
 
@@ -660,11 +703,11 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 		if nodeID == "" || nodeID != peer.NodeID || len(nodeID) > maxNodeIDLength {
 			return ErrInvalidPeerAddress
 		}
-		if strings.TrimSpace(peer.Address) == "" {
-			return ErrInvalidPeerAddress
-		}
-		if _, _, err := net.SplitHostPort(peer.Address); err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidPeerAddress, err)
+		if err := validateDiscoveredAddress(
+			peer.Address,
+			n.isPublicDiscovery(),
+		); err != nil {
+			return err
 		}
 
 		n.mu.Lock()
@@ -1296,6 +1339,9 @@ func (n *Node) handleInvV2(peerID string, payload V2InvPayload) error {
 	}
 	for _, item := range payload.Items {
 		if !n.blockchain.HasBlock(item.Hash) {
+			if !n.seenInv.Add(item.Kind + ":" + item.Hash) {
+				continue
+			}
 			// Stage 7 is strictly headers-first: inventory only signals that
 			// new data exists. Fetch and validate headers before any body.
 			return n.requestHeadersV2(peerID)
