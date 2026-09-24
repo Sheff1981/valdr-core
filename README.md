@@ -2,6 +2,9 @@
 
 VALDR is a standalone cryptocurrency and blockchain project.
 
+**Creator:** Alexander Shevchuk  
+**License:** MIT — see [LICENSE](LICENSE)
+
 The frozen working baseline is **VALDR Devnet v0.1** at `release/valdr-devnet-v0.1`.
 Active development on branch `valdr-v0.2` follows the current baseline `docs/VALDR_Master_TZ_v0.2.5.md`. Earlier v0.2/v0.2.1/v0.2.2/v0.2.3/v0.2.4 specifications remain preserved. v0.2.5 preserves the v0.2.4 transaction network binding and records the actual in-progress VALDR Desktop implementation status.
 
