@@ -132,6 +132,16 @@ jobs:
         working-directory: apps/valdr-desktop
         run: go run github.com/wailsapp/wails/v2/cmd/wails@v2.12.0 build -clean -s -nosyncgomod -tags "webkit2_41" -platform linux/amd64 -o VALDR
 
+      - name: Bundle managed node and miner
+        run: |
+          go build -o apps/valdr-desktop/build/bin/valdrd ./cmd/valdrd
+          go build -o apps/valdr-desktop/build/bin/valdr-miner ./cmd/valdr-miner
+          test -x apps/valdr-desktop/build/bin/VALDR
+          test -x apps/valdr-desktop/build/bin/valdrd
+          test -x apps/valdr-desktop/build/bin/valdr-miner
+          apps/valdr-desktop/build/bin/valdrd version
+          apps/valdr-desktop/build/bin/valdr-miner version
+
       - name: Upload Linux Desktop build
         uses: actions/upload-artifact@v4
         with:
@@ -198,6 +208,36 @@ jobs:
       - name: Build native Wails Desktop
         working-directory: apps/valdr-desktop
         run: go run github.com/wailsapp/wails/v2/cmd/wails@v2.12.0 build -clean -s -nosyncgomod -platform "${{ matrix.platform }}" -o "${{ matrix.output }}"
+
+      - name: Bundle managed node and miner on Windows
+        if: matrix.name == 'windows-amd64'
+        shell: pwsh
+        run: |
+          go build -o "apps/valdr-desktop/build/bin/valdrd.exe" ./cmd/valdrd
+          go build -o "apps/valdr-desktop/build/bin/valdr-miner.exe" ./cmd/valdr-miner
+          if (-not (Test-Path "apps/valdr-desktop/build/bin/VALDR.exe")) { throw "VALDR.exe missing" }
+          if (-not (Test-Path "apps/valdr-desktop/build/bin/valdrd.exe")) { throw "valdrd.exe missing" }
+          if (-not (Test-Path "apps/valdr-desktop/build/bin/valdr-miner.exe")) { throw "valdr-miner.exe missing" }
+          & "apps/valdr-desktop/build/bin/valdrd.exe" version
+          & "apps/valdr-desktop/build/bin/valdr-miner.exe" version
+
+      - name: Bundle managed node and miner on macOS
+        if: startsWith(matrix.name, 'macos-')
+        shell: bash
+        run: |
+          APP="apps/valdr-desktop/build/bin/VALDR Desktop.app"
+          test -d "$APP/Contents/MacOS"
+          go build -o "$APP/Contents/MacOS/valdrd" ./cmd/valdrd
+          go build -o "$APP/Contents/MacOS/valdr-miner" ./cmd/valdr-miner
+          test -x "$APP/Contents/MacOS/VALDR"
+          test -x "$APP/Contents/MacOS/valdrd"
+          test -x "$APP/Contents/MacOS/valdr-miner"
+          "$APP/Contents/MacOS/valdrd" version
+          "$APP/Contents/MacOS/valdr-miner" version
+          codesign --force --sign - "$APP/Contents/MacOS/valdrd"
+          codesign --force --sign - "$APP/Contents/MacOS/valdr-miner"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
 
       - name: Upload native Desktop build
         uses: actions/upload-artifact@v4
