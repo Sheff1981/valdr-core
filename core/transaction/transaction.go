@@ -16,13 +16,16 @@ import (
 )
 
 const (
-	Version                       = uint32(1)
+	VersionLegacy                 = uint32(1)
+	VersionV2                     = uint32(2)
+	Version                       = VersionLegacy
 	MaxSerializedSize             = 100_000
 	CoinbasePreviousTransactionID = "0000000000000000000000000000000000000000000000000000000000000000"
 )
 
 var (
 	ErrInvalidVersion          = errors.New("invalid transaction version")
+	ErrInvalidChainID          = errors.New("invalid transaction chain id")
 	ErrNoInputs                = errors.New("transaction has no inputs")
 	ErrNoOutputs               = errors.New("transaction has no outputs")
 	ErrInvalidInput            = errors.New("invalid transaction input")
@@ -33,7 +36,7 @@ var (
 	ErrInvalidPublicKey        = errors.New("invalid transaction public key")
 	ErrInvalidSignature        = errors.New("invalid transaction signature")
 	ErrInvalidTransactionID    = errors.New("invalid transaction id")
-	ErrTransactionTooLarge      = errors.New("transaction exceeds consensus serialized-size limit")
+	ErrTransactionTooLarge     = errors.New("transaction exceeds consensus serialized-size limit")
 	ErrCoinbaseRequiresBlock   = errors.New("coinbase transaction requires block context")
 	ErrInvalidCoinbase         = errors.New("invalid coinbase transaction")
 	ErrInvalidCoinbaseHeight   = errors.New("invalid coinbase block height")
@@ -53,6 +56,7 @@ type Output struct {
 
 type Transaction struct {
 	Version       uint32   `json:"version"`
+	ChainID       string   `json:"chain_id,omitempty"`
 	Inputs        []Input  `json:"inputs"`
 	Outputs       []Output `json:"outputs"`
 	Timestamp     int64    `json:"timestamp"`
@@ -63,17 +67,65 @@ type Transaction struct {
 
 func New(inputs []Input, outputs []Output, timestamp int64) *Transaction {
 	return &Transaction{
-		Version:   Version,
+		Version:   VersionLegacy,
 		Inputs:    append([]Input(nil), inputs...),
 		Outputs:   append([]Output(nil), outputs...),
 		Timestamp: timestamp,
 	}
 }
 
-// NewCoinbase creates the unique block subsidy transaction for a height.
-// The existing input fields encode the special coinbase marker:
-// zero transaction ID + output_index equal to block height.
+func NewForChain(
+	chainID string,
+	inputs []Input,
+	outputs []Output,
+	timestamp int64,
+) *Transaction {
+	if chainID == config.ChainID {
+		return New(inputs, outputs, timestamp)
+	}
+	return &Transaction{
+		Version:   VersionV2,
+		ChainID:   chainID,
+		Inputs:    append([]Input(nil), inputs...),
+		Outputs:   append([]Output(nil), outputs...),
+		Timestamp: timestamp,
+	}
+}
+
+// NewCoinbase preserves the frozen legacy v0.1 coinbase format.
 func NewCoinbase(
+	blockHeight uint64,
+	recipient string,
+	reward uint64,
+	timestamp int64,
+) (*Transaction, error) {
+	return newCoinbaseForChain(
+		config.ChainID,
+		blockHeight,
+		recipient,
+		reward,
+		timestamp,
+	)
+}
+
+func NewCoinbaseForChain(
+	chainID string,
+	blockHeight uint64,
+	recipient string,
+	reward uint64,
+	timestamp int64,
+) (*Transaction, error) {
+	return newCoinbaseForChain(
+		chainID,
+		blockHeight,
+		recipient,
+		reward,
+		timestamp,
+	)
+}
+
+func newCoinbaseForChain(
+	chainID string,
 	blockHeight uint64,
 	recipient string,
 	reward uint64,
@@ -86,8 +138,15 @@ func NewCoinbase(
 		return nil, ErrCoinbaseHeightOverflow
 	}
 
+	version := VersionV2
+	explicitChainID := chainID
+	if chainID == config.ChainID {
+		version = VersionLegacy
+		explicitChainID = ""
+	}
 	tx := &Transaction{
-		Version: Version,
+		Version: version,
+		ChainID: explicitChainID,
 		Inputs: []Input{{
 			PreviousTransactionID: CoinbasePreviousTransactionID,
 			OutputIndex:           uint32(blockHeight),
@@ -100,7 +159,11 @@ func NewCoinbase(
 	}
 	tx.TransactionID = tx.CalculateID()
 
-	if err := tx.ValidateCoinbase(blockHeight, reward); err != nil {
+	if err := tx.ValidateCoinbaseForChain(
+		blockHeight,
+		reward,
+		chainID,
+	); err != nil {
 		return nil, err
 	}
 	return tx, nil
@@ -126,7 +189,7 @@ func (tx *Transaction) Sign(key *ecdsa.PrivateKey) error {
 	tx.Signature = ""
 	tx.TransactionID = ""
 
-	if err := tx.validateUnsigned(); err != nil {
+	if err := tx.validateUnsignedSelf(); err != nil {
 		return err
 	}
 
@@ -138,7 +201,12 @@ func (tx *Transaction) Sign(key *ecdsa.PrivateKey) error {
 	tx.Signature = hex.EncodeToString(signature)
 	if tx.SerializedSize() > MaxSerializedSize {
 		tx.Signature = ""
-		return fmt.Errorf("%w: got %d max %d", ErrTransactionTooLarge, tx.SerializedSize(), MaxSerializedSize)
+		return fmt.Errorf(
+			"%w: got %d max %d",
+			ErrTransactionTooLarge,
+			tx.SerializedSize(),
+			MaxSerializedSize,
+		)
 	}
 	tx.TransactionID = tx.CalculateID()
 	return nil
@@ -146,6 +214,9 @@ func (tx *Transaction) Sign(key *ecdsa.PrivateKey) error {
 
 func (tx *Transaction) VerifySignature() bool {
 	if tx == nil || tx.HasCoinbaseMarker() {
+		return false
+	}
+	if err := tx.validateNetworkSelf(); err != nil {
 		return false
 	}
 
@@ -159,21 +230,38 @@ func (tx *Transaction) VerifySignature() bool {
 		return false
 	}
 
-	return valdrcrypto.Verify(publicKey, tx.SigningBytes(), signature)
+	return valdrcrypto.Verify(
+		publicKey,
+		tx.SigningBytes(),
+		signature,
+	)
 }
 
+// Validate preserves frozen legacy v0.1 behavior.
 func (tx *Transaction) Validate() error {
+	return tx.ValidateForChain(config.ChainID)
+}
+
+func (tx *Transaction) ValidateForChain(expectedChainID string) error {
 	if tx == nil {
 		return ErrInvalidTransactionID
 	}
 	if tx.HasCoinbaseMarker() {
 		return ErrCoinbaseRequiresBlock
 	}
-	if err := tx.validateUnsigned(); err != nil {
+	if err := tx.validateUnsignedSelf(); err != nil {
+		return err
+	}
+	if err := tx.validateExpectedChain(expectedChainID); err != nil {
 		return err
 	}
 	if tx.SerializedSize() > MaxSerializedSize {
-		return fmt.Errorf("%w: got %d max %d", ErrTransactionTooLarge, tx.SerializedSize(), MaxSerializedSize)
+		return fmt.Errorf(
+			"%w: got %d max %d",
+			ErrTransactionTooLarge,
+			tx.SerializedSize(),
+			MaxSerializedSize,
+		)
 	}
 	if tx.Signature == "" || !tx.VerifySignature() {
 		return ErrInvalidSignature
@@ -191,28 +279,58 @@ func (tx *Transaction) Validate() error {
 	return nil
 }
 
-func (tx *Transaction) ValidateCoinbase(blockHeight, expectedReward uint64) error {
+func (tx *Transaction) ValidateCoinbase(
+	blockHeight,
+	expectedReward uint64,
+) error {
+	return tx.ValidateCoinbaseForChain(
+		blockHeight,
+		expectedReward,
+		config.ChainID,
+	)
+}
+
+func (tx *Transaction) ValidateCoinbaseForChain(
+	blockHeight,
+	expectedReward uint64,
+	expectedChainID string,
+) error {
 	if tx == nil {
 		return ErrInvalidCoinbase
 	}
 	if blockHeight == 0 || blockHeight > uint64(^uint32(0)) {
 		return ErrInvalidCoinbaseHeight
 	}
-	if tx.Version != Version {
-		return fmt.Errorf("%w: %v", ErrInvalidCoinbase, ErrInvalidVersion)
+	if err := tx.validateNetworkSelf(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidCoinbase, err)
+	}
+	if err := tx.validateExpectedChain(expectedChainID); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidCoinbase, err)
 	}
 	if tx.Timestamp <= 0 {
-		return fmt.Errorf("%w: %v", ErrInvalidCoinbase, ErrInvalidTimestamp)
+		return fmt.Errorf(
+			"%w: %v",
+			ErrInvalidCoinbase,
+			ErrInvalidTimestamp,
+		)
 	}
 	if len(tx.Inputs) != 1 ||
 		tx.Inputs[0].PreviousTransactionID != CoinbasePreviousTransactionID ||
 		tx.Inputs[0].OutputIndex != uint32(blockHeight) {
-		return fmt.Errorf("%w: coinbase input marker", ErrInvalidCoinbase)
+		return fmt.Errorf(
+			"%w: coinbase input marker",
+			ErrInvalidCoinbase,
+		)
 	}
 	if len(tx.Outputs) != 1 {
-		return fmt.Errorf("%w: coinbase must have exactly one output", ErrInvalidCoinbase)
+		return fmt.Errorf(
+			"%w: coinbase must have exactly one output",
+			ErrInvalidCoinbase,
+		)
 	}
-	if expectedReward == 0 || tx.Outputs[0].Amount == 0 || tx.Outputs[0].Amount > expectedReward {
+	if expectedReward == 0 ||
+		tx.Outputs[0].Amount == 0 ||
+		tx.Outputs[0].Amount > expectedReward {
 		return fmt.Errorf(
 			"%w: got %d max %d",
 			ErrInvalidCoinbaseReward,
@@ -221,13 +339,24 @@ func (tx *Transaction) ValidateCoinbase(blockHeight, expectedReward uint64) erro
 		)
 	}
 	if tx.SerializedSize() > MaxSerializedSize {
-		return fmt.Errorf("%w: got %d max %d", ErrTransactionTooLarge, tx.SerializedSize(), MaxSerializedSize)
+		return fmt.Errorf(
+			"%w: got %d max %d",
+			ErrTransactionTooLarge,
+			tx.SerializedSize(),
+			MaxSerializedSize,
+		)
 	}
 	if !valdrcrypto.ValidateAddress(tx.Outputs[0].Recipient) {
-		return fmt.Errorf("%w: recipient", ErrInvalidCoinbase)
+		return fmt.Errorf(
+			"%w: recipient",
+			ErrInvalidCoinbase,
+		)
 	}
 	if tx.PublicKey != "" || tx.Signature != "" {
-		return fmt.Errorf("%w: coinbase must not contain public key or signature", ErrInvalidCoinbase)
+		return fmt.Errorf(
+			"%w: coinbase must not contain public key or signature",
+			ErrInvalidCoinbase,
+		)
 	}
 
 	expectedID := tx.CalculateID()
@@ -245,7 +374,8 @@ func (tx *Transaction) ValidateCoinbase(blockHeight, expectedReward uint64) erro
 func (tx *Transaction) HasCoinbaseMarker() bool {
 	return tx != nil &&
 		len(tx.Inputs) == 1 &&
-		tx.Inputs[0].PreviousTransactionID == CoinbasePreviousTransactionID
+		tx.Inputs[0].PreviousTransactionID ==
+			CoinbasePreviousTransactionID
 }
 
 func (tx *Transaction) IsCoinbase() bool {
@@ -257,7 +387,7 @@ func (tx *Transaction) IsCoinbase() bool {
 
 func (tx *Transaction) SigningBytes() []byte {
 	var buf bytes.Buffer
-	writeString(&buf, config.ChainID)
+	writeString(&buf, tx.canonicalChainID())
 	writeUint32(&buf, tx.Version)
 	writeUint64(&buf, uint64(tx.Timestamp))
 	writeUint64(&buf, uint64(len(tx.Inputs)))
@@ -281,9 +411,6 @@ func (tx *Transaction) IDBytes() []byte {
 	return tx.CanonicalBytes()
 }
 
-// CanonicalBytes is the consensus serialization used for transaction IDs and
-// serialized-size limits. TransactionID itself is derived from these bytes and
-// is therefore not serialized into the canonical transaction.
 func (tx *Transaction) CanonicalBytes() []byte {
 	var buf bytes.Buffer
 	_, _ = buf.Write(tx.SigningBytes())
@@ -303,9 +430,72 @@ func (tx *Transaction) CalculateID() string {
 	return hex.EncodeToString(digest[:])
 }
 
-func (tx *Transaction) validateUnsigned() error {
-	if tx.Version != Version {
-		return fmt.Errorf("%w: got %d want %d", ErrInvalidVersion, tx.Version, Version)
+func (tx *Transaction) canonicalChainID() string {
+	if tx != nil && tx.Version == VersionV2 {
+		return tx.ChainID
+	}
+	return config.ChainID
+}
+
+func (tx *Transaction) validateNetworkSelf() error {
+	switch tx.Version {
+	case VersionLegacy:
+		if tx.ChainID != "" {
+			return fmt.Errorf(
+				"%w: legacy transaction must omit chain id",
+				ErrInvalidChainID,
+			)
+		}
+	case VersionV2:
+		if tx.ChainID == "" {
+			return fmt.Errorf(
+				"%w: v2 transaction requires chain id",
+				ErrInvalidChainID,
+			)
+		}
+	default:
+		return fmt.Errorf(
+			"%w: got %d",
+			ErrInvalidVersion,
+			tx.Version,
+		)
+	}
+	return nil
+}
+
+func (tx *Transaction) validateExpectedChain(
+	expectedChainID string,
+) error {
+	if expectedChainID == "" {
+		return ErrInvalidChainID
+	}
+	if expectedChainID == config.ChainID {
+		if tx.Version != VersionLegacy || tx.ChainID != "" {
+			return fmt.Errorf(
+				"%w: legacy chain requires version %d without explicit chain id",
+				ErrInvalidChainID,
+				VersionLegacy,
+			)
+		}
+		return nil
+	}
+	if tx.Version != VersionV2 ||
+		tx.ChainID != expectedChainID {
+		return fmt.Errorf(
+			"%w: got version=%d chain=%q want version=%d chain=%q",
+			ErrInvalidChainID,
+			tx.Version,
+			tx.ChainID,
+			VersionV2,
+			expectedChainID,
+		)
+	}
+	return nil
+}
+
+func (tx *Transaction) validateUnsignedSelf() error {
+	if err := tx.validateNetworkSelf(); err != nil {
+		return err
 	}
 	if tx.Timestamp <= 0 {
 		return ErrInvalidTimestamp
@@ -323,21 +513,41 @@ func (tx *Transaction) validateUnsigned() error {
 
 	seen := make(map[string]struct{}, len(tx.Inputs))
 	for i, input := range tx.Inputs {
-		raw, err := hex.DecodeString(input.PreviousTransactionID)
+		raw, err := hex.DecodeString(
+			input.PreviousTransactionID,
+		)
 		if err != nil || len(raw) != 32 {
-			return fmt.Errorf("%w at index %d", ErrInvalidInput, i)
+			return fmt.Errorf(
+				"%w at index %d",
+				ErrInvalidInput,
+				i,
+			)
 		}
-		ref := input.PreviousTransactionID + ":" + strconv.FormatUint(uint64(input.OutputIndex), 10)
+		ref := input.PreviousTransactionID +
+			":" +
+			strconv.FormatUint(
+				uint64(input.OutputIndex),
+				10,
+			)
 		if _, exists := seen[ref]; exists {
-			return fmt.Errorf("%w: %s", ErrDuplicateInput, ref)
+			return fmt.Errorf(
+				"%w: %s",
+				ErrDuplicateInput,
+				ref,
+			)
 		}
 		seen[ref] = struct{}{}
 	}
 
 	var total uint64
 	for i, output := range tx.Outputs {
-		if output.Amount == 0 || !valdrcrypto.ValidateAddress(output.Recipient) {
-			return fmt.Errorf("%w at index %d", ErrInvalidOutput, i)
+		if output.Amount == 0 ||
+			!valdrcrypto.ValidateAddress(output.Recipient) {
+			return fmt.Errorf(
+				"%w at index %d",
+				ErrInvalidOutput,
+				i,
+			)
 		}
 		if math.MaxUint64-total < output.Amount {
 			return ErrAmountOverflow
