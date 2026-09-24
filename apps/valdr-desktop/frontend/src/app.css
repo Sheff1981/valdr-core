@@ -16,6 +16,73 @@ body {
     linear-gradient(145deg, #0a0f16 0%, #101821 100%);
 }
 
+.first-run {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(92, 123, 149, .18), transparent 34%),
+    rgba(6, 10, 15, .96);
+  overflow: auto;
+}
+
+.first-run.hidden {
+  display: none;
+}
+
+.first-run-card {
+  width: min(540px, 100%);
+  padding: 28px;
+  border: 1px solid rgba(145,176,204,.2);
+  border-radius: 18px;
+  background: #0f1821;
+  box-shadow: 0 24px 80px rgba(0,0,0,.35);
+}
+
+.first-run-brand {
+  padding-left: 0;
+}
+
+.first-run-network {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 18px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 9px;
+  color: #8294a4;
+  background: #0b131a;
+  font-size: 12px;
+}
+
+.first-run-network strong {
+  color: #b6c8d6;
+  text-align: right;
+}
+
+.first-run-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 17px 0;
+  color: #5d6d7a;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+}
+
+.first-run-divider::before,
+.first-run-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: rgba(255,255,255,.07);
+}
+
 button, input, select { font: inherit; }
 
 .shell {
@@ -193,7 +260,7 @@ code { color: #91a7ba; font-family: "SFMono-Regular", Consolas, monospace; font-
 
 .grid.stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 12px;
   margin-top: 12px;
 }
