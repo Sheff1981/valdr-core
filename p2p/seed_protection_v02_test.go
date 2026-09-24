@@ -208,3 +208,130 @@ func reserveClosedAddress(t *testing.T) string {
 	}
 	return address
 }
+
+
+func TestIdleWatchdogPingsBeforeDisconnect(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	protection := ProtectionConfig{
+		IdleTimeout: 20 * time.Millisecond,
+		PingTimeout: 40 * time.Millisecond,
+	}
+
+	nodeA := mustStartNode(t, NodeConfig{
+		NodeID:         "idle-a",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Protection:     protection,
+	})
+	defer nodeA.Close()
+
+	nodeB := mustStartNode(t, NodeConfig{
+		NodeID:         "idle-b",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Protection:     protection,
+	})
+	defer nodeB.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := nodeA.Connect(ctx, nodeB.Address()); err != nil {
+		t.Fatal(err)
+	}
+	waitForPeerCount(t, nodeA, 1)
+	waitForPeerCount(t, nodeB, 1)
+
+	time.Sleep(180 * time.Millisecond)
+	if nodeA.PeerCount() != 1 || nodeB.PeerCount() != 1 {
+		t.Fatalf(
+			"idle keepalive failed: A=%d B=%d",
+			nodeA.PeerCount(),
+			nodeB.PeerCount(),
+		)
+	}
+}
+
+func TestDiscoveryContinuesBeyondSeedNodes(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	peer := mustStartNode(t, NodeConfig{
+		NodeID:         "bootstrap-peer",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer peer.Close()
+
+	seed := mustStartNode(t, NodeConfig{
+		NodeID:         "bootstrap-seed",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer seed.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	if err := seed.Connect(ctx, peer.Address()); err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	cancel()
+	waitForPeerCount(t, seed, 1)
+
+	targetProfile := profile
+	targetProfile.DefaultSeeds = []string{seed.Address()}
+	target := mustStartNode(t, NodeConfig{
+		NodeID:         "bootstrap-discovery-target",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &targetProfile,
+		EnableV2:       true,
+		Protection: ProtectionConfig{
+			OutboundTarget: 2,
+		},
+	})
+	defer target.Close()
+
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	first := target.Bootstrap(ctx, nil)
+	if first.Connected != 1 {
+		t.Fatalf("seed connected=%d want=1 result=%+v", first.Connected, first)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		for _, discovered := range target.DiscoveredPeers() {
+			if discovered.NodeID == peer.NodeID() {
+				second := target.MaintainOutbound(ctx)
+				if second.Connected != 1 {
+					t.Fatalf("discovered connected=%d want=1 result=%+v", second.Connected, second)
+				}
+				if target.PeerCount() != 2 {
+					t.Fatalf("target peer count=%d want=2", target.PeerCount())
+				}
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("target did not discover non-seed peer")
+}
+
+func TestProtectionDefaultValues(t *testing.T) {
+	cfg := normalizeProtectionConfig(ProtectionConfig{})
+	if cfg.IdleTimeout != 5*time.Minute ||
+		cfg.MaxInbound != 64 ||
+		cfg.OutboundTarget != 8 ||
+		cfg.MaxInboundPerIP != 4 ||
+		cfg.BanDuration != time.Hour {
+		t.Fatalf("unexpected protection defaults: %+v", cfg)
+	}
+}
