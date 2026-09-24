@@ -34,6 +34,8 @@ type DesktopState = {
   node_status?: NodeStatus;
   node_error?: string;
   wallets: WalletMetadata[];
+  unlocked_wallets: string[];
+  wallet_auto_lock_minutes: number;
 };
 
 type WalletBalance = {
@@ -72,16 +74,17 @@ type TransactionHistoryItem = {
 type AppAPI = {
   GetState(): Promise<DesktopState>;
   CreateWallet(name: string, passphrase: string): Promise<WalletMetadata>;
+  UnlockWallet(selector: string, passphrase: string): Promise<WalletMetadata>;
+  LockWallet(selector: string): Promise<void>;
+  SetWalletAutoLockMinutes(minutes: number): Promise<void>;
   GetWalletBalance(address: string): Promise<WalletBalance>;
   PreviewSend(
     selector: string,
-    passphrase: string,
     recipient: string,
     amountVDR: string,
   ): Promise<SendPreview>;
   SendTransaction(
     selector: string,
-    passphrase: string,
     recipient: string,
     amountVDR: string,
   ): Promise<SendResult>;
@@ -267,10 +270,10 @@ root.innerHTML = `
                 Amount (VDR)
                 <input id="send-amount" inputmode="decimal" autocomplete="off" placeholder="0.00000000" required>
               </label>
-              <label>
-                Wallet passphrase
-                <input id="send-passphrase" type="password" autocomplete="current-password" required>
-              </label>
+              <div class="security-row compact-security">
+                <span>Signing state</span>
+                <strong id="send-wallet-lock-state">Locked</strong>
+              </div>
               <button class="primary" type="submit">Preview transaction</button>
             </form>
             <p class="warning">VALDR transactions are irreversible after broadcast. Verify the address and amount before confirming.</p>
@@ -368,6 +371,37 @@ root.innerHTML = `
             </div>
             <div id="wallet-list" class="wallet-list"></div>
             <p id="wallet-action-status" class="subtle"></p>
+
+            <div class="wallet-security">
+              <div class="section-head">
+                <div>
+                  <h3>Wallet security</h3>
+                  <p class="subtle">Unlocking is local to this Desktop process. The cached passphrase is erased on lock, timeout or application shutdown.</p>
+                </div>
+                <strong id="wallet-lock-state">Locked</strong>
+              </div>
+              <form id="unlock-wallet-form">
+                <label>
+                  Passphrase
+                  <input id="unlock-wallet-passphrase" type="password" autocomplete="current-password" required>
+                </label>
+                <button class="primary" type="submit">Unlock selected wallet</button>
+              </form>
+              <div class="security-controls">
+                <button class="danger" id="lock-wallet" type="button">Lock now</button>
+                <label class="auto-lock-label">
+                  Auto-lock after inactivity
+                  <select id="wallet-auto-lock">
+                    <option value="1">1 minute</option>
+                    <option value="5">5 minutes</option>
+                    <option value="15" selected>15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">60 minutes</option>
+                  </select>
+                </label>
+              </div>
+              <p id="wallet-security-status" class="subtle"></p>
+            </div>
           </article>
         </div>
       </section>
@@ -445,6 +479,30 @@ let lastPreviewInput: {
 
 const activeWallet = (): WalletMetadata | undefined =>
   currentState?.wallets.find((wallet) => wallet.address === activeWalletAddress);
+
+const walletIsUnlocked = (): boolean =>
+  Boolean(
+    activeWalletAddress &&
+      currentState?.unlocked_wallets.includes(activeWalletAddress),
+  );
+
+const renderWalletSecurity = (): void => {
+  const wallet = activeWallet();
+  const unlocked = Boolean(wallet) && walletIsUnlocked();
+  text("wallet-lock-state", unlocked ? "Unlocked" : "Locked");
+  text("send-wallet-lock-state", unlocked ? "Unlocked" : "Locked");
+
+  const unlockForm = document.getElementById("unlock-wallet-form");
+  unlockForm?.classList.toggle("hidden", !wallet || unlocked);
+
+  const lockButton = document.getElementById("lock-wallet") as HTMLButtonElement | null;
+  if (lockButton) lockButton.disabled = !wallet || !unlocked;
+
+  const autoLock = document.getElementById("wallet-auto-lock") as HTMLSelectElement | null;
+  if (autoLock && currentState?.wallet_auto_lock_minutes) {
+    autoLock.value = String(currentState.wallet_auto_lock_minutes);
+  }
+};
 
 const renderWalletSelector = (wallets: WalletMetadata[]): void => {
   const selector = document.getElementById("wallet-selector") as HTMLSelectElement | null;
@@ -531,7 +589,12 @@ const refreshWalletPresentation = async (): Promise<void> => {
   const sendFrom = document.getElementById("send-from") as HTMLInputElement | null;
   if (sendFrom) sendFrom.value = wallet?.address ?? "";
   text("receive-address", wallet?.address ?? "Select a wallet");
-  text("overview-wallet-label", wallet ? activeWalletName : "Create or select an encrypted wallet.");
+  text(
+    "overview-wallet-label",
+    wallet
+      ? `${activeWalletName} · ${walletIsUnlocked() ? "Unlocked" : "Locked"}`
+      : "Create or select an encrypted wallet.",
+  );
 
   if (!wallet || !currentState?.node_status) {
     text("overview-balance", "—");
@@ -696,6 +759,7 @@ const renderState = (state: DesktopState): void => {
 
   renderWalletSelector(state.wallets);
   renderWallets(state.wallets);
+  renderWalletSecurity();
   void refreshWalletPresentation();
 };
 
@@ -733,6 +797,7 @@ document.getElementById("wallet-selector")?.addEventListener("change", (event) =
   document.getElementById("send-preview")?.classList.add("hidden");
   document.getElementById("send-preview-empty")?.classList.remove("hidden");
   if (currentState) renderWallets(currentState.wallets);
+  renderWalletSecurity();
   void refreshWalletPresentation();
   if (currentView === "transactions") {
     void refreshTransactionHistory();
@@ -870,6 +935,69 @@ document.getElementById("restore-wallet")?.addEventListener("click", async () =>
   }
 });
 
+document.getElementById("unlock-wallet-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const wallet = activeWallet();
+  if (!wallet) {
+    text("wallet-security-status", "Select a wallet first.");
+    return;
+  }
+  const passphrase = value("unlock-wallet-passphrase");
+  if (!passphrase) {
+    text("wallet-security-status", "Wallet passphrase is required.");
+    return;
+  }
+  try {
+    await api().UnlockWallet(wallet.address, passphrase);
+    const input = document.getElementById("unlock-wallet-passphrase") as HTMLInputElement | null;
+    if (input) input.value = "";
+    text("wallet-security-status", "Wallet unlocked locally.");
+    await refresh();
+  } catch (error) {
+    text(
+      "wallet-security-status",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+});
+
+document.getElementById("lock-wallet")?.addEventListener("click", async () => {
+  const wallet = activeWallet();
+  if (!wallet) {
+    text("wallet-security-status", "Select a wallet first.");
+    return;
+  }
+  try {
+    await api().LockWallet(wallet.address);
+    lastPreviewInput = null;
+    clearSendStatus();
+    document.getElementById("send-preview")?.classList.add("hidden");
+    document.getElementById("send-preview-empty")?.classList.remove("hidden");
+    text("wallet-security-status", "Wallet locked.");
+    await refresh();
+  } catch (error) {
+    text(
+      "wallet-security-status",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+});
+
+document.getElementById("wallet-auto-lock")?.addEventListener("change", async (event) => {
+  const select = event.currentTarget as HTMLSelectElement;
+  const minutes = Number(select.value);
+  try {
+    await api().SetWalletAutoLockMinutes(minutes);
+    text("wallet-security-status", `Auto-lock set to ${minutes} minute(s).`);
+    await refresh();
+  } catch (error) {
+    text(
+      "wallet-security-status",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+});
+
 document.getElementById("send-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearSendStatus();
@@ -879,19 +1007,21 @@ document.getElementById("send-form")?.addEventListener("submit", async (event) =
     showSendError("Select or create a wallet first.");
     return;
   }
+  if (!walletIsUnlocked()) {
+    showSendError("Unlock the selected wallet in the Wallet screen before signing.");
+    return;
+  }
 
   const recipient = value("send-recipient").trim();
   const amount = value("send-amount").trim();
-  const passphrase = value("send-passphrase");
-  if (!recipient || !amount || !passphrase) {
-    showSendError("Recipient, amount and wallet passphrase are required.");
+  if (!recipient || !amount) {
+    showSendError("Recipient and amount are required.");
     return;
   }
 
   try {
     const preview = await api().PreviewSend(
       wallet.address,
-      passphrase,
       recipient,
       amount,
     );
@@ -914,9 +1044,15 @@ document.getElementById("send-form")?.addEventListener("submit", async (event) =
 document.getElementById("confirm-send")?.addEventListener("click", async () => {
   clearSendStatus();
   const input = lastPreviewInput;
-  const passphrase = value("send-passphrase");
-  if (!input || !passphrase) {
+  if (!input) {
     showSendError("Preview the transaction again before broadcasting.");
+    return;
+  }
+  if (!walletIsUnlocked()) {
+    showSendError("The wallet is locked. Unlock it and preview the transaction again.");
+    lastPreviewInput = null;
+    document.getElementById("send-preview")?.classList.add("hidden");
+    document.getElementById("send-preview-empty")?.classList.remove("hidden");
     return;
   }
 
@@ -933,12 +1069,9 @@ document.getElementById("confirm-send")?.addEventListener("click", async () => {
   try {
     const result = await api().SendTransaction(
       input.selector,
-      passphrase,
       input.recipient,
       input.amount,
     );
-    const passInput = document.getElementById("send-passphrase") as HTMLInputElement | null;
-    if (passInput) passInput.value = "";
     lastPreviewInput = null;
 
     const box = document.getElementById("send-result");

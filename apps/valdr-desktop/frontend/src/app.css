@@ -466,3 +466,52 @@ input[readonly] { color: #8193a3; background: #0a1118; }
   .topbar { align-items: flex-start; }
   .top-actions { align-items: stretch; flex-direction: column; }
 }
+
+
+.wallet-security {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+
+.wallet-security form {
+  margin-top: 12px;
+}
+
+.security-controls {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.security-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #7f909f;
+  font-size: 12px;
+}
+
+.compact-security {
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px;
+  background: #0b131a;
+}
+
+.security-row strong,
+#wallet-lock-state {
+  color: #b9cad7;
+}
+
+.auto-lock-label {
+  min-width: 210px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}

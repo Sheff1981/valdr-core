@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
 	desktopcore "github.com/Sheff1981/valdr-core/desktop"
+	"github.com/Sheff1981/valdr-core/wallet"
 )
 
 func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
@@ -32,7 +34,20 @@ func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := &App{paths: paths, node: node}
+	store := wallet.NewStore(paths.Wallets)
+	sessions, err := desktopcore.NewWalletSessionManager(
+		store,
+		desktopcore.DefaultWalletAutoLock,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := &App{
+		paths:          paths,
+		node:           node,
+		walletStore:    store,
+		walletSessions: sessions,
+	}
 
 	meta, err := app.CreateWallet(
 		"desktop-wallet",
@@ -72,5 +87,44 @@ func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
 	if len(state.Wallets) != 1 ||
 		state.Wallets[0].Address != meta.Address {
 		t.Fatalf("unexpected Desktop wallets: %+v", state.Wallets)
+	}
+	if len(state.UnlockedWallets) != 1 ||
+		state.UnlockedWallets[0] != meta.Address {
+		t.Fatalf("new Desktop wallet was not unlocked: %+v", state)
+	}
+	if state.WalletAutoLockMinutes != 15 {
+		t.Fatalf("auto-lock minutes=%d want=15", state.WalletAutoLockMinutes)
+	}
+
+	app.LockWallet(meta.Address)
+	state, err = app.GetState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.UnlockedWallets) != 0 {
+		t.Fatalf("locked wallet still reported unlocked: %+v", state)
+	}
+	if _, err := app.UnlockWallet(meta.Address, "wrong-passphrase"); !errors.Is(
+		err,
+		wallet.ErrWalletAuthentication,
+	) {
+		t.Fatalf("wrong passphrase error=%v", err)
+	}
+	if _, err := app.UnlockWallet(
+		meta.Address,
+		"desktop-test-passphrase",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.SetWalletAutoLockMinutes(5); err != nil {
+		t.Fatal(err)
+	}
+	state, err = app.GetState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.WalletAutoLockMinutes != 5 ||
+		len(state.UnlockedWallets) != 1 {
+		t.Fatalf("unexpected unlocked security state: %+v", state)
 	}
 }

@@ -3,8 +3,10 @@ package desktop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/transaction"
@@ -178,5 +180,108 @@ func TestParseAndFormatVDRDesktop(t *testing.T) {
 		if _, err := ParseVDR(bad); err == nil {
 			t.Fatalf("invalid amount %q accepted", bad)
 		}
+	}
+}
+
+
+func TestWalletSessionAutoLocksAndClearsCachedPassphrase(t *testing.T) {
+	store := wallet.NewStore(filepath.Join(t.TempDir(), "wallets"))
+	passphrase := []byte("desktop-session-passphrase")
+	source, err := store.CreateEncrypted("session-wallet", passphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Unix(1_790_208_000, 0)
+	manager, err := newWalletSessionManager(
+		store,
+		5*time.Minute,
+		func() time.Time { return now },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.Unlock(source.Address, []byte("wrong")); !errors.Is(
+		err,
+		wallet.ErrWalletAuthentication,
+	) {
+		t.Fatalf("wrong passphrase error=%v", err)
+	}
+	if manager.IsUnlocked(source.Address) {
+		t.Fatal("wallet unlocked after wrong passphrase")
+	}
+
+	if _, err := manager.Unlock(source.Address, passphrase); err != nil {
+		t.Fatal(err)
+	}
+	if !manager.IsUnlocked(source.Address) {
+		t.Fatal("wallet is not unlocked")
+	}
+	backing := manager.sessions[source.Address].passphrase
+	cached, err := manager.Passphrase(source.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(cached) != string(passphrase) {
+		t.Fatal("cached passphrase does not match")
+	}
+	clearBytes(cached)
+
+	now = now.Add(5*time.Minute + time.Second)
+	if manager.IsUnlocked(source.Address) {
+		t.Fatal("wallet did not auto-lock after inactivity")
+	}
+	if _, err := manager.Passphrase(source.Address); !errors.Is(
+		err,
+		ErrWalletLocked,
+	) {
+		t.Fatalf("expired session error=%v", err)
+	}
+	for i, b := range backing {
+		if b != 0 {
+			t.Fatalf("cached passphrase byte %d was not cleared", i)
+		}
+	}
+}
+
+func TestWalletSessionTimeoutIsConfigurable(t *testing.T) {
+	store := wallet.NewStore(filepath.Join(t.TempDir(), "wallets"))
+	source, err := store.CreateEncrypted(
+		"timeout-wallet",
+		[]byte("timeout-passphrase"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Unix(1_790_208_000, 0)
+	manager, err := newWalletSessionManager(
+		store,
+		DefaultWalletAutoLock,
+		func() time.Time { return now },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Unlock(
+		source.Address,
+		[]byte("timeout-passphrase"),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	now = now.Add(6 * time.Minute)
+	if err := manager.SetTimeout(5 * time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if manager.IsUnlocked(source.Address) {
+		t.Fatal("shorter timeout did not expire inactive wallet")
+	}
+	if err := manager.SetTimeout(0); !errors.Is(err, ErrWalletAutoLock) {
+		t.Fatalf("invalid timeout error=%v", err)
+	}
+	if err := manager.SetTimeout(25 * time.Hour); !errors.Is(err, ErrWalletAutoLock) {
+		t.Fatalf("oversized timeout error=%v", err)
 	}
 }

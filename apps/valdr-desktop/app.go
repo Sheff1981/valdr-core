@@ -17,22 +17,26 @@ import (
 )
 
 type DesktopState struct {
-	Network        string             `json:"network"`
-	ChainID        string             `json:"chain_id"`
-	MainnetEnabled bool               `json:"mainnet_enabled"`
-	Paths          desktopcore.Paths  `json:"paths"`
-	NodeRunning    bool               `json:"node_running"`
-	NodeStatus     *rpc.StatusResult  `json:"node_status,omitempty"`
-	NodeError      string             `json:"node_error,omitempty"`
-	Wallets        []wallet.Metadata  `json:"wallets"`
+	Network               string             `json:"network"`
+	ChainID               string             `json:"chain_id"`
+	MainnetEnabled        bool               `json:"mainnet_enabled"`
+	Paths                 desktopcore.Paths  `json:"paths"`
+	NodeRunning           bool               `json:"node_running"`
+	NodeStatus            *rpc.StatusResult  `json:"node_status,omitempty"`
+	NodeError             string             `json:"node_error,omitempty"`
+	Wallets               []wallet.Metadata  `json:"wallets"`
+	UnlockedWallets       []string           `json:"unlocked_wallets"`
+	WalletAutoLockMinutes int                `json:"wallet_auto_lock_minutes"`
 }
 
 type App struct {
-	ctx           context.Context
-	paths         desktopcore.Paths
-	node          *desktopcore.NodeManager
-	walletService  *desktopcore.WalletService
-	historyService *desktopcore.HistoryService
+	ctx            context.Context
+	paths          desktopcore.Paths
+	node           *desktopcore.NodeManager
+	walletStore     *wallet.Store
+	walletService   *desktopcore.WalletService
+	walletSessions  *desktopcore.WalletSessionManager
+	historyService  *desktopcore.HistoryService
 
 	mu        sync.Mutex
 	nodeError string
@@ -58,9 +62,17 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 	rpcClient := rpc.NewClient(node.Endpoint())
+	walletStore := wallet.NewStore(paths.Wallets)
 	walletService, err := desktopcore.NewWalletService(
-		wallet.NewStore(paths.Wallets),
+		walletStore,
 		rpcClient,
+	)
+	if err != nil {
+		return nil, err
+	}
+	walletSessions, err := desktopcore.NewWalletSessionManager(
+		walletStore,
+		desktopcore.DefaultWalletAutoLock,
 	)
 	if err != nil {
 		return nil, err
@@ -80,7 +92,9 @@ func NewApp() (*App, error) {
 	return &App{
 		paths:          paths,
 		node:           node,
+		walletStore:    walletStore,
 		walletService:  walletService,
+		walletSessions: walletSessions,
 		historyService: historyService,
 	}, nil
 }
@@ -93,25 +107,46 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) shutdown(context.Context) {
+	if a.walletSessions != nil {
+		a.walletSessions.LockAll()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = a.node.Stop(ctx)
 }
 
 func (a *App) GetState() (DesktopState, error) {
-	items, err := wallet.NewStore(a.paths.Wallets).List()
+	store := a.walletStore
+	if store == nil {
+		store = wallet.NewStore(a.paths.Wallets)
+	}
+	items, err := store.List()
 	if err != nil {
 		return DesktopState{}, err
 	}
 
 	state := DesktopState{
-		Network:        config.NetworkTestnetV02,
-		ChainID:        "valdr-testnet-1",
-		MainnetEnabled: false,
-		Paths:          a.paths,
-		NodeRunning:    a.node.Running(),
-		NodeError:      a.getNodeError(),
-		Wallets:        items,
+		Network:         config.NetworkTestnetV02,
+		ChainID:         "valdr-testnet-1",
+		MainnetEnabled:  false,
+		Paths:           a.paths,
+		NodeRunning:     a.node.Running(),
+		NodeError:       a.getNodeError(),
+		Wallets:         items,
+		UnlockedWallets: []string{},
+	}
+	if a.walletSessions != nil {
+		state.WalletAutoLockMinutes = int(
+			a.walletSessions.Timeout() / time.Minute,
+		)
+		for _, item := range items {
+			if a.walletSessions.IsUnlocked(item.Address) {
+				state.UnlockedWallets = append(
+					state.UnlockedWallets,
+					item.Address,
+				)
+			}
+		}
 	}
 	if !state.NodeRunning {
 		if exitErr := a.node.LastExitError(); exitErr != nil {
@@ -140,12 +175,55 @@ func (a *App) CreateWallet(
 	secret := []byte(passphrase)
 	defer clearSecret(secret)
 
-	created, err := wallet.NewStore(a.paths.Wallets).
-		CreateEncrypted(strings.TrimSpace(name), secret)
+	store := a.walletStore
+	if store == nil {
+		store = wallet.NewStore(a.paths.Wallets)
+	}
+	created, err := store.CreateEncrypted(
+		strings.TrimSpace(name),
+		secret,
+	)
 	if err != nil {
 		return wallet.Metadata{}, err
 	}
-	return created.Metadata(), nil
+	meta := created.Metadata()
+	if a.walletSessions != nil {
+		if _, err := a.walletSessions.Unlock(meta.Address, secret); err != nil {
+			return wallet.Metadata{}, err
+		}
+	}
+	return meta, nil
+}
+
+func (a *App) UnlockWallet(
+	selector string,
+	passphrase string,
+) (wallet.Metadata, error) {
+	if a.walletSessions == nil {
+		return wallet.Metadata{}, desktopcore.ErrWalletLocked
+	}
+	secret := []byte(passphrase)
+	defer clearSecret(secret)
+	return a.walletSessions.Unlock(
+		strings.TrimSpace(selector),
+		secret,
+	)
+}
+
+func (a *App) LockWallet(selector string) {
+	if a.walletSessions == nil {
+		return
+	}
+	a.walletSessions.Lock(strings.TrimSpace(selector))
+}
+
+func (a *App) SetWalletAutoLockMinutes(minutes int) error {
+	if a.walletSessions == nil {
+		return desktopcore.ErrWalletLocked
+	}
+	return a.walletSessions.SetTimeout(
+		time.Duration(minutes) * time.Minute,
+	)
 }
 
 func (a *App) GetWalletBalance(
@@ -176,7 +254,6 @@ func (a *App) GetTransactionHistory(
 
 func (a *App) PreviewSend(
 	selector string,
-	passphrase string,
 	recipient string,
 	amountVDR string,
 ) (desktopcore.SendPreview, error) {
@@ -184,7 +261,10 @@ func (a *App) PreviewSend(
 	if err != nil || amount == 0 {
 		return desktopcore.SendPreview{}, desktopcore.ErrInvalidVDRAmt
 	}
-	secret := []byte(passphrase)
+	secret, err := a.walletPassphrase(selector)
+	if err != nil {
+		return desktopcore.SendPreview{}, err
+	}
 	defer clearSecret(secret)
 
 	ctx, cancel := context.WithTimeout(
@@ -203,7 +283,6 @@ func (a *App) PreviewSend(
 
 func (a *App) SendTransaction(
 	selector string,
-	passphrase string,
 	recipient string,
 	amountVDR string,
 ) (desktopcore.SendResult, error) {
@@ -211,7 +290,10 @@ func (a *App) SendTransaction(
 	if err != nil || amount == 0 {
 		return desktopcore.SendResult{}, desktopcore.ErrInvalidVDRAmt
 	}
-	secret := []byte(passphrase)
+	secret, err := a.walletPassphrase(selector)
+	if err != nil {
+		return desktopcore.SendResult{}, err
+	}
 	defer clearSecret(secret)
 
 	ctx, cancel := context.WithTimeout(
@@ -298,6 +380,13 @@ func (a *App) StopNode() error {
 	}
 	a.setNodeError("")
 	return nil
+}
+
+func (a *App) walletPassphrase(selector string) ([]byte, error) {
+	if a.walletSessions == nil {
+		return nil, desktopcore.ErrWalletLocked
+	}
+	return a.walletSessions.Passphrase(strings.TrimSpace(selector))
 }
 
 func (a *App) setNodeError(value string) {
