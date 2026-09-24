@@ -128,6 +128,74 @@ func (s *Store) Export(
 	return s.Unlock(selector, passphrase)
 }
 
+func (s *Store) BackupEncrypted(
+	selector string,
+	destination string,
+) error {
+	destination = strings.TrimSpace(destination)
+	if destination == "" {
+		return ErrWalletNotFound
+	}
+	record, err := s.find(selector)
+	if err != nil {
+		return err
+	}
+	if record.v2 == nil {
+		return ErrWalletMigrationRequired
+	}
+	return writeWalletFile(destination, record.v2)
+}
+
+func (s *Store) ImportEncrypted(
+	sourcePath string,
+) (Metadata, error) {
+	sourcePath = strings.TrimSpace(sourcePath)
+	if sourcePath == "" {
+		return Metadata{}, ErrWalletNotFound
+	}
+	record, err := readWalletRecord(sourcePath)
+	if err != nil {
+		return Metadata{}, err
+	}
+	if record.v2 == nil {
+		return Metadata{}, ErrWalletMigrationRequired
+	}
+	if err := s.ensureDir(); err != nil {
+		return Metadata{}, err
+	}
+
+	items, err := s.List()
+	if err != nil {
+		return Metadata{}, err
+	}
+	for _, item := range items {
+		if item.Address == record.metadata.Address {
+			return Metadata{}, fmt.Errorf(
+				"%w: address %s",
+				ErrWalletExists,
+				item.Address,
+			)
+		}
+		if record.metadata.Name != "" &&
+			item.Name == record.metadata.Name {
+			return Metadata{}, fmt.Errorf(
+				"%w: name %q",
+				ErrWalletExists,
+				item.Name,
+			)
+		}
+	}
+
+	destination := filepath.Join(
+		s.Dir,
+		record.metadata.Address+".json",
+	)
+	if err := writeWalletFile(destination, record.v2); err != nil {
+		return Metadata{}, err
+	}
+	return record.metadata, nil
+}
+
 func (s *Store) Migrate(
 	selector string,
 	passphrase []byte,
