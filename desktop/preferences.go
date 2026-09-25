@@ -23,6 +23,7 @@ type DesktopPreferences struct {
 	WalletAutoLockMinutes      int    `json:"wallet_auto_lock_minutes"`
 	PublicNode                 bool   `json:"public_node"`
 	PublicNodeAdvertiseAddress string `json:"public_node_advertise_address"`
+	NodeDataDirectory          string `json:"node_data_directory,omitempty"`
 }
 
 func DefaultDesktopPreferences() DesktopPreferences {
@@ -151,6 +152,13 @@ func validateDesktopPreferences(prefs DesktopPreferences) error {
 	}
 	if prefs.PublicNode && prefs.PublicNodeAdvertiseAddress == "" {
 		return ErrDesktopPreferences
+	}
+	if prefs.NodeDataDirectory != "" {
+		if _, err := NormalizeNodeDataDirectory(
+			prefs.NodeDataDirectory,
+		); err != nil {
+			return ErrDesktopPreferences
+		}
 	}
 	return nil
 }

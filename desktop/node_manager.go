@@ -175,6 +175,20 @@ func (m *NodeManager) Running() bool {
 	return m.command != nil
 }
 
+func (m *NodeManager) ConfigureDataDir(path string) error {
+	clean, err := NormalizeNodeDataDirectory(path)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.command != nil {
+		return ErrNodeAlreadyRunning
+	}
+	m.config.DataDir = clean
+	return nil
+}
+
 func (m *NodeManager) ConfigurePublicNode(
 	enabled bool,
 	advertiseAddress string,

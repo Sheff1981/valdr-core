@@ -521,3 +521,97 @@ func TestDesktopInitializationReadyRequiresWalletAndHealthyNode(t *testing.T) {
 		t.Fatal("initialization not ready with wallet and healthy node")
 	}
 }
+
+
+func TestDesktopFirstRunNodeDataDirectoryPersistsBeforeWalletOnly(t *testing.T) {
+	root := t.TempDir()
+	paths := desktopcore.Paths{
+		Root:     root,
+		NodeData: filepath.Join(root, "node", "testnet"),
+		Wallets:  filepath.Join(root, "wallets"),
+		Logs:     filepath.Join(root, "logs"),
+		Network:  config.NetworkTestnetV02,
+	}
+	if err := paths.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
+		BinaryPath: filepath.Join(root, "valdrd-not-started"),
+		Network:    config.NetworkTestnetV02,
+		DataDir:    paths.NodeData,
+		NodeID:     "desktop-data-dir-test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := wallet.NewStore(paths.Wallets)
+	sessions, err := desktopcore.NewWalletSessionManager(
+		store,
+		desktopcore.DefaultWalletAutoLock,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefStore := desktopcore.NewPreferenceStore(
+		filepath.Join(root, "desktop-settings.json"),
+	)
+	prefs := desktopcore.DefaultDesktopPreferences()
+	prefs.StartNode = false
+	app := &App{
+		paths:           paths,
+		node:            node,
+		walletStore:     store,
+		walletSessions:  sessions,
+		preferenceStore: prefStore,
+		preferences:     prefs,
+	}
+
+	custom := filepath.Join(root, "custom-chain-data")
+	got, err := app.setFirstRunNodeDataDirectory(custom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := desktopcore.NormalizeNodeDataDirectory(custom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want || app.pathsSnapshot().NodeData != want {
+		t.Fatalf("node data got=%q state=%q want=%q", got, app.pathsSnapshot().NodeData, want)
+	}
+	info, err := os.Stat(want)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("custom node data directory not created: info=%v err=%v", info, err)
+	}
+	reloaded, err := prefStore.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.NodeDataDirectory != want {
+		t.Fatalf("persisted node data=%q want=%q", reloaded.NodeDataDirectory, want)
+	}
+
+	if _, err := app.CreateWallet("first-run-wallet", "first-run-passphrase"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.setFirstRunNodeDataDirectory(
+		filepath.Join(root, "second-chain-data"),
+	); !errors.Is(err, ErrDesktopNodeDataFirstRunOnly) {
+		t.Fatalf("post-wallet data-dir error=%v want first-run-only", err)
+	}
+}
+
+func TestNormalizeNodeDataDirectoryRejectsRootAndRelativePath(t *testing.T) {
+	if _, err := desktopcore.NormalizeNodeDataDirectory("relative/path"); !errors.Is(
+		err,
+		desktopcore.ErrDesktopPath,
+	) {
+		t.Fatalf("relative path error=%v want ErrDesktopPath", err)
+	}
+	root := filepath.VolumeName(t.TempDir()) + string(os.PathSeparator)
+	if _, err := desktopcore.NormalizeNodeDataDirectory(root); !errors.Is(
+		err,
+		desktopcore.ErrDesktopPath,
+	) {
+		t.Fatalf("root path error=%v want ErrDesktopPath", err)
+	}
+}

@@ -418,3 +418,23 @@ Behavior:
 
 This does not change consensus, wallet format, Testnet parameters, Mainnet state, P2P defaults or RPC trust boundaries. Custom data-directory selection remains a separate Stage 12 task because safe post-creation migration is intentionally not implemented.
 
+## 20. Bitcoin Core first-run data-directory reference
+
+**Date:** 2026-09-25  
+**Reference:** Bitcoin Core `src/qt/intro.cpp`, `src/qt/forms/intro.ui`, and `doc/files.md`.
+
+Bitcoin Core's first-run flow was reviewed before implementing the VALDR data-directory step. The useful product pattern is:
+
+- present the OS default data directory;
+- allow an explicit custom directory before normal startup continues;
+- create/check the selected directory before committing it;
+- persist the custom choice;
+- explain that blockchain storage grows and initial synchronization is resource-intensive;
+- keep chain-specific data separated under the selected storage location.
+
+VALDR adopts the same first-run principle without copying Bitcoin Core's Qt code or storage architecture. In VALDR Desktop, the selectable path is specifically the managed Testnet node-data directory. Encrypted wallet files remain in VALDR's platform application-data wallet directory, so changing the blockchain location does not move private wallet material.
+
+The selected node directory is accepted only before the first wallet is created. Desktop validates an absolute non-root directory, verifies it is creatable/writable, persists it, safely stops the managed node if needed, reconfigures the node, and restarts it when startup policy requires. Post-wallet data migration remains deliberately unavailable until a separate migration workflow is designed.
+
+This implements Master-TZ §16.3 step 2 and §16.5 "data directory where safe"; consensus, PoW, wallet format, Testnet identity and Mainnet state are unchanged.
+

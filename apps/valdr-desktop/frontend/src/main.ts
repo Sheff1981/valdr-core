@@ -27,6 +27,7 @@ type DesktopPreferences = {
   advanced: boolean;
   public_node: boolean;
   public_node_advertise_address: string;
+  node_data_directory?: string;
 };
 
 type DesktopState = {
@@ -137,6 +138,7 @@ type AppAPI = {
   UnlockWallet(selector: string, passphrase: string): Promise<WalletMetadata>;
   LockWallet(selector: string): Promise<void>;
   SetWalletAutoLockMinutes(minutes: number): Promise<void>;
+  ChooseFirstRunNodeDataDirectory(): Promise<string>;
   GetReceiveQRCode(address: string): Promise<string>;
   CopyReceiveAddress(address: string): Promise<void>;
   ExportPrivateKey(selector: string, confirmation: string): Promise<string>;
@@ -264,6 +266,10 @@ root.innerHTML = `
         This build connects to Testnet only; Testnet VDR has no promised monetary value.
       </p>
       <p class="subtle">Requires local disk space and outbound network access. Inbound ports are not required in the default Desktop mode.</p>
+      <div class="first-run-network">
+        <span>Node data<br><code id="first-run-data-path">—</code></span>
+        <button class="secondary" id="first-run-choose-data" type="button">Choose folder</button>
+      </div>
       <div class="first-run-network">
         <span id="first-run-node-state">Starting local node…</span>
         <strong id="first-run-sync">Waiting for status</strong>
@@ -1598,6 +1604,7 @@ const renderState = (state: DesktopState): void => {
   text("settings-node-data", state.paths.node_data);
   text("settings-wallets", state.paths.wallets);
   text("settings-logs", state.paths.logs);
+  text("first-run-data-path", state.paths.node_data);
   renderDesktopPreferences();
 
   text(
@@ -1662,6 +1669,8 @@ const renderState = (state: DesktopState): void => {
     "hidden",
     state.wallets.length === 0 || state.initialization_ready,
   );
+  const chooseData = document.getElementById("first-run-choose-data") as HTMLButtonElement | null;
+  if (chooseData) chooseData.disabled = state.wallets.length > 0;
   text(
     "first-run-node-state",
     state.node_error
@@ -1888,6 +1897,24 @@ document.getElementById("stop-mining")?.addEventListener("click", async () => {
     await refreshMining();
   } catch (error) {
     text("mining-message", error instanceof Error ? error.message : String(error));
+  }
+});
+
+document.getElementById("first-run-choose-data")?.addEventListener("click", async () => {
+  const button = document.getElementById("first-run-choose-data") as HTMLButtonElement | null;
+  if (button) button.disabled = true;
+  text("first-run-error", "");
+  try {
+    const path = await api().ChooseFirstRunNodeDataDirectory();
+    text("first-run-data-path", path);
+    await refresh();
+  } catch (error) {
+    text("first-run-error", error instanceof Error ? error.message : String(error));
+    await refresh();
+  } finally {
+    if (button && (currentState?.wallets.length ?? 0) === 0) {
+      button.disabled = false;
+    }
   }
 });
 

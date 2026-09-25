@@ -80,6 +80,48 @@ func resolvePaths(
 	}, nil
 }
 
+func NormalizeNodeDataDirectory(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" || !filepath.IsAbs(path) {
+		return "", ErrDesktopPath
+	}
+	clean := filepath.Clean(path)
+	if filepath.Dir(clean) == clean {
+		return "", ErrDesktopPath
+	}
+	if info, err := os.Stat(clean); err == nil {
+		if !info.IsDir() {
+			return "", ErrDesktopPath
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	return clean, nil
+}
+
+func PrepareNodeDataDirectory(path string) (string, error) {
+	clean, err := NormalizeNodeDataDirectory(path)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(clean, 0o700); err != nil {
+		return "", err
+	}
+	probe, err := os.CreateTemp(clean, ".valdr-write-test-*")
+	if err != nil {
+		return "", err
+	}
+	probeName := probe.Name()
+	if err := probe.Close(); err != nil {
+		_ = os.Remove(probeName)
+		return "", err
+	}
+	if err := os.Remove(probeName); err != nil {
+		return "", err
+	}
+	return clean, nil
+}
+
 func (p Paths) Ensure() error {
 	for _, dir := range []string{p.Root, p.NodeData, p.Wallets, p.Logs} {
 		if strings.TrimSpace(dir) == "" {

@@ -42,6 +42,9 @@ var (
 	ErrDesktopExplorerUnavailable = errors.New(
 		"VALDR Explorer is not available on the local Testnet endpoint",
 	)
+	ErrDesktopNodeDataFirstRunOnly = errors.New(
+		"node data directory can only be changed before the first wallet is created",
+	)
 )
 
 const (
@@ -88,6 +91,7 @@ type DesktopDiagnosticsPreferences struct {
 	WalletAutoLockMinutes      int    `json:"wallet_auto_lock_minutes"`
 	PublicNode                 bool   `json:"public_node"`
 	PublicNodeAdvertiseAddress string `json:"public_node_advertise_address,omitempty"`
+	NodeDataDirectory          string `json:"node_data_directory,omitempty"`
 }
 
 type DesktopDiagnosticsMining struct {
@@ -148,15 +152,24 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := paths.Ensure(); err != nil {
-		return nil, err
-	}
 
 	preferenceStore := desktopcore.NewPreferenceStore(
 		filepath.Join(paths.Root, "desktop-settings.json"),
 	)
 	preferences, err := preferenceStore.Load()
 	if err != nil {
+		return nil, err
+	}
+	if preferences.NodeDataDirectory != "" {
+		nodeData, err := desktopcore.NormalizeNodeDataDirectory(
+			preferences.NodeDataDirectory,
+		)
+		if err != nil {
+			return nil, err
+		}
+		paths.NodeData = nodeData
+	}
+	if err := paths.Ensure(); err != nil {
 		return nil, err
 	}
 
@@ -251,6 +264,7 @@ func (a *App) shutdown(context.Context) {
 }
 
 func (a *App) GetState() (DesktopState, error) {
+	paths := a.pathsSnapshot()
 	store := a.walletStore
 	if store == nil {
 		store = wallet.NewStore(a.paths.Wallets)
@@ -264,7 +278,7 @@ func (a *App) GetState() (DesktopState, error) {
 		Network:         config.NetworkTestnetV02,
 		ChainID:         "valdr-testnet-1",
 		MainnetEnabled:  false,
-		Paths:           a.paths,
+		Paths:           paths,
 		NodeRunning:     a.node.Running(),
 		NodeError:       a.getNodeError(),
 		Wallets:         items,
@@ -397,6 +411,94 @@ func (a *App) SetWalletAutoLockMinutes(minutes int) error {
 	return nil
 }
 
+func (a *App) ChooseFirstRunNodeDataDirectory() (string, error) {
+	if a.ctx == nil {
+		return "", errors.New("VALDR Desktop is not started")
+	}
+	current := a.pathsSnapshot().NodeData
+	selected, err := wailsruntime.OpenDirectoryDialog(
+		a.ctx,
+		wailsruntime.OpenDialogOptions{
+			Title:            "Choose VALDR node data directory",
+			DefaultDirectory: current,
+		},
+	)
+	if err != nil || strings.TrimSpace(selected) == "" {
+		return current, err
+	}
+	return a.setFirstRunNodeDataDirectory(selected)
+}
+
+func (a *App) setFirstRunNodeDataDirectory(path string) (string, error) {
+	currentPaths := a.pathsSnapshot()
+	store := a.walletStore
+	if store == nil {
+		store = wallet.NewStore(currentPaths.Wallets)
+	}
+	wallets, err := store.List()
+	if err != nil {
+		return "", err
+	}
+	if len(wallets) != 0 {
+		return "", ErrDesktopNodeDataFirstRunOnly
+	}
+
+	clean, err := desktopcore.PrepareNodeDataDirectory(path)
+	if err != nil {
+		return "", err
+	}
+	if clean == currentPaths.NodeData {
+		return clean, nil
+	}
+	if a.node == nil {
+		return "", errors.New("VALDR Desktop node manager is unavailable")
+	}
+
+	wasRunning := a.node.Running()
+	if wasRunning {
+		if err := a.StopNode(); err != nil {
+			return "", err
+		}
+	}
+	rollback := func() {
+		_ = a.node.ConfigureDataDir(currentPaths.NodeData)
+		if wasRunning {
+			_ = a.StartNode()
+		}
+	}
+
+	if err := a.node.ConfigureDataDir(clean); err != nil {
+		rollback()
+		return "", err
+	}
+
+	prefs := a.preferencesSnapshot()
+	prefs.NodeDataDirectory = clean
+	preferenceStore := a.preferenceStore
+	if preferenceStore == nil {
+		preferenceStore = desktopcore.NewPreferenceStore(
+			filepath.Join(currentPaths.Root, "desktop-settings.json"),
+		)
+	}
+	if err := preferenceStore.Save(prefs); err != nil {
+		rollback()
+		return "", err
+	}
+
+	a.mu.Lock()
+	a.paths.NodeData = clean
+	a.preferenceStore = preferenceStore
+	a.preferences = prefs
+	a.mu.Unlock()
+
+	if wasRunning || prefs.StartNode {
+		if err := a.StartNode(); err != nil {
+			return clean, err
+		}
+	}
+	return clean, nil
+}
+
 func (a *App) GetReceiveQRCode(address string) (string, error) {
 	return desktopcore.AddressQRCodeDataURI(
 		strings.TrimSpace(address),
@@ -469,7 +571,7 @@ func (a *App) GetStorageDiagnostics() (desktopcore.StorageDiagnostics, error) {
 		return desktopcore.StorageDiagnostics{}, ErrDesktopAdvancedModeRequired
 	}
 	return desktopcore.InspectStorage(
-		a.paths.NodeData,
+		a.pathsSnapshot().NodeData,
 		desktopcore.DefaultStorageDiagnosticsMaxEntries,
 	), nil
 }
@@ -634,7 +736,7 @@ func (a *App) desktopDiagnosticsJSON() ([]byte, error) {
 		NodeError:      state.NodeError,
 		NodeStatus:     state.NodeStatus,
 		Storage: desktopcore.InspectStorage(
-			a.paths.NodeData,
+			state.Paths.NodeData,
 			desktopcore.DefaultStorageDiagnosticsMaxEntries,
 		),
 		Preferences: DesktopDiagnosticsPreferences{
@@ -645,6 +747,7 @@ func (a *App) desktopDiagnosticsJSON() ([]byte, error) {
 			WalletAutoLockMinutes:      prefs.WalletAutoLockMinutes,
 			PublicNode:                 prefs.PublicNode,
 			PublicNodeAdvertiseAddress: prefs.PublicNodeAdvertiseAddress,
+			NodeDataDirectory:          prefs.NodeDataDirectory,
 		},
 		WalletCount:         len(state.Wallets),
 		UnlockedWalletCount: len(state.UnlockedWallets),
@@ -1088,6 +1191,12 @@ func (a *App) walletPassphrase(selector string) ([]byte, error) {
 		return nil, desktopcore.ErrWalletLocked
 	}
 	return a.walletSessions.Passphrase(strings.TrimSpace(selector))
+}
+
+func (a *App) pathsSnapshot() desktopcore.Paths {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.paths
 }
 
 func (a *App) preferencesSnapshot() desktopcore.DesktopPreferences {
