@@ -1057,9 +1057,96 @@ jobs:
 
           rm "$DIST/artifact-metadata.json"
 
+          python3 - "$DIST/release-manifest.json" "$DIST/SHA256SUMS" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          manifest = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          lines = [
+              f'{artifact["sha256"]}  {artifact["filename"]}'
+              for artifact in manifest["artifacts"]
+          ]
+          pathlib.Path(sys.argv[2]).write_text("\n".join(lines) + "\n")
+          PY
+          (cd "$DIST" && sha256sum -c SHA256SUMS)
+
       - name: Upload canonical Stage 13 development release assembly
         uses: actions/upload-artifact@v4
         with:
           name: valdr-stage13-release-assembly-development
           path: ${{ runner.temp }}/valdr-stage13-release-assembly/**
           if-no-files-found: error
+
+  stage13-release-verification-clean:
+    name: stage13-release-verification-clean-development
+    needs: stage13-release-assembly
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download canonical Stage 13 development release
+        uses: actions/download-artifact@v4
+        with:
+          name: valdr-stage13-release-assembly-development
+          path: ${{ runner.temp }}/valdr-stage13-clean-verify
+
+      - name: Verify development release from clean environment
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-stage13-clean-verify"
+          cd "$DIST"
+
+          test -f release-manifest.json
+          test -f SHA256SUMS
+          sha256sum -c SHA256SUMS
+
+          python3 - "$DIST/release-manifest.json" "$DIST/SHA256SUMS" "$EXPECTED_COMMIT" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import re
+          import sys
+
+          manifest_path = pathlib.Path(sys.argv[1])
+          sums_path = pathlib.Path(sys.argv[2])
+          expected_commit = sys.argv[3].lower()
+          manifest = json.loads(manifest_path.read_text())
+
+          assert manifest["schema_version"] == 1
+          assert manifest["product"] == "VALDR Desktop"
+          assert manifest["development"] is True
+          assert manifest["release_kind"] == "development"
+          assert manifest["git_commit"] == expected_commit
+          assert re.fullmatch(r"[0-9a-f]{40}", manifest["git_commit"])
+          assert manifest["network"] == "testnet"
+          assert manifest["chain_id"] == "valdr-testnet-1"
+          assert manifest["protocol_min"] == 2
+          assert manifest["protocol_max"] == 2
+          assert len(manifest["artifacts"]) == 6
+
+          expected = {}
+          for artifact in manifest["artifacts"]:
+              name = artifact["filename"]
+              path = manifest_path.parent / name
+              assert path.is_file(), name
+              assert name not in expected
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              assert digest == artifact["sha256"], name
+              assert path.stat().st_size == artifact["size_bytes"], name
+              expected[name] = digest
+
+          sums = {}
+          for line in sums_path.read_text().splitlines():
+              digest, name = line.split("  ", 1)
+              assert re.fullmatch(r"[0-9a-f]{64}", digest), line
+              assert name not in sums, name
+              sums[name] = digest
+
+          assert sums == expected
+          assert all("development" in artifact["signing_status"] or artifact["os"] == "linux"
+                     for artifact in manifest["artifacts"])
+          assert all(artifact["notarization_status"] != "notarized"
+                     for artifact in manifest["artifacts"])
+          PY
