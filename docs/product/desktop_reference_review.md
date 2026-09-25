@@ -623,3 +623,21 @@ Reject:
 - describing GitHub/Sigstore provenance as a security audit or platform endorsement.
 
 This changes release-distribution security policy only. It does not modify VALDR consensus, P2P, transaction, wallet-encryption, storage or Mainnet behavior.
+
+
+## 26. Stage 13 download-page platform suggestion pass
+
+**Date:** 2026-09-25  
+**Scope:** implement the remaining Master-TZ §19.1 platform-selection and full-node warning behavior in the authoritative website repository.
+
+The existing official-reference review already established two relevant patterns: OS-specific downloads should suggest the user's platform without hiding alternatives, and a full-node download should explain storage/bandwidth cost before installation.
+
+Implementation in `Sheff1981/valdr-site` commit `571a3fcaa23e3bd1b7a84cc927c0054a1a44a745` therefore:
+
+- detects Windows/macOS/Linux client platform locally in the browser;
+- highlights only the matching platform card as "recommended" while keeping all three platform cards visible;
+- does not redirect or auto-download based on OS detection;
+- adds an explicit local-node synchronization/disk-growth warning and reminds the user that the node-data directory can be chosen during first run;
+- keeps executable download buttons fail-closed until verified public release metadata exists.
+
+This adopts the already-reviewed Bitcoin Core/Monero/Litecoin download-selection and full-node education patterns without copying branding, layout or third-party code. No consensus, wallet, node, P2P, storage or Mainnet behavior changes.

@@ -155,11 +155,12 @@ Initial Stage 13 integration is implemented there:
 - Releases reports provenance and truthful Windows/macOS vendor-signing state instead of claiming unavailable certificates;
 - the public roadmap reflects Stage 13 as in development and Stage 14 as distributed user-run Testnet;
 - the Download page now renders future release artifacts directly from verified `data/releases.json` metadata and activates executable links only when `current_release` exists and `public_release_ready=true`; otherwise all executable buttons remain disabled;
-- the site validator rejects incomplete release metadata, invalid SHA-256, non-HTTPS artifact URLs, unsupported OS/architecture, missing provenance flags and artifacts exposed without `current_release`.
+- the site validator rejects incomplete release metadata, invalid SHA-256, non-HTTPS artifact URLs, unsupported OS/architecture, missing provenance flags and artifacts exposed without `current_release`;
+- Download now recommends the detected Windows/macOS/Linux card without hiding alternatives and displays the full-node disk/network synchronization warning required by Master-TZ §19.1.
 
 No final artifact filename/hash is duplicated into the website before a frozen release candidate exists. Final download entries must be generated/updated from accepted canonical release metadata and official release storage.
 
-Website integration commits: `65d8cf7dc6fc6add0332b44d88f76b0d730c75cc`, `0b6bb9d94ffb5f1471952303530e73d6e007510f`, `240e72d5625512f1c2c0dfb37dd4a0993d411f84`.
+Website integration commits: `65d8cf7dc6fc6add0332b44d88f76b0d730c75cc`, `0b6bb9d94ffb5f1471952303530e73d6e007510f`, `240e72d5625512f1c2c0dfb37dd4a0993d411f84`, `571a3fcaa23e3bd1b7a84cc927c0054a1a44a745`.
 
 Website CI currently has an infrastructure-only blocker: runs `36145756061`, `36146021905`, `36146351810` and `36146923469` all terminated with zero executed steps and `runner_id=0`. This is not code-test evidence and must not be reported as a validation failure or success. The previous website commit `28234459191f479be1c6d9d364e668e62839db0b` had a successful full CI run, but that older success does not validate the new integration.
 
@@ -204,10 +205,10 @@ Each step must leave the repository buildable/testable. No public Testnet releas
 
 ## 12. Development release handoff workflow
 
-`.github/workflows/valdr-v02-release.yml` is a non-public handoff verifier for Stage 13 development evidence. It runs automatically after a successful `VALDR v0.2 CI` completion on `valdr-v0.2` and retains a manual `workflow_dispatch` path for explicit re-verification.
+`.github/workflows/valdr-v02-release.yml` is a non-public reusable handoff verifier for Stage 13 development evidence. The main `VALDR v0.2 CI` calls it only after `stage13-release-verification-clean` succeeds, passing the current run ID and exact commit directly. A manual `workflow_dispatch` path remains available for explicit re-verification.
 
-It accepts only a completed successful `VALDR v0.2 CI` run on `valdr-v0.2`. For automatic executions the source run ID and exact source commit are taken directly from the trusted `workflow_run` event; manual dispatch requires both values explicitly.
+It accepts only a completed successful `VALDR v0.2 CI` run on `valdr-v0.2`. Automatic execution is a same-commit reusable-workflow call from the CI run itself; manual dispatch requires the source run ID and commit explicitly. The earlier `workflow_run` approach was rejected because this development workflow lives on `valdr-v0.2` while GitHub only recognizes `workflow_run` triggers from workflow files present on the default branch.
 
 It then downloads only the canonical Stage 13 assembly from that exact run, rechecks SHA-256 and manifest identity, verifies GitHub/Sigstore provenance against the expected repository/workflow/ref/commit, and emits a small `release-handoff.json` with `publication_allowed=false` and `stage14_allowed=false`.
 
-The workflow has no release/tag/write permission and cannot publish a GitHub Release. Failed/cancelled source CI runs do not execute the handoff job. This preserves the v0.2.8 rule that Stage 12 manual Windows acceptance remains a public-release blocker while proving the exact source-run → commit → artifacts handoff boundary.
+The workflow has no release/tag/write permission and cannot publish a GitHub Release. The caller depends on the clean verification job, so a failed/cancelled source CI cannot reach the handoff. This preserves the v0.2.8 rule that Stage 12 manual Windows acceptance remains a public-release blocker while proving the exact source-run → commit → artifacts handoff boundary.

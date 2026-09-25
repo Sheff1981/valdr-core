@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  attestations: read
 
 jobs:
   build-test-storage:
@@ -1197,3 +1199,12 @@ jobs:
           done < <(
             find "$DIST" -maxdepth 1 -type f \(               -name 'VALDR-Desktop-*.exe' -o               -name 'VALDR-Desktop-*.zip' -o               -name 'VALDR-Desktop-*.AppImage' -o               -name 'VALDR-Desktop-*.deb' -o               -name 'VALDR-Desktop-*.dmg' -o               -name 'release-manifest.json' -o               -name 'SHA256SUMS'             \) -print | sort
           )
+
+
+  stage13-release-handoff-development:
+    name: stage13-release-handoff-development
+    needs: stage13-release-verification-clean
+    uses: ./.github/workflows/valdr-v02-release.yml
+    with:
+      source_run_id: ${{ github.run_id }}
+      expected_commit: ${{ github.sha }}

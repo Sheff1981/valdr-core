@@ -11,10 +11,16 @@ on:
         description: Exact 40-character source commit expected in the release manifest and attestation
         required: true
         type: string
-  workflow_run:
-    workflows: ["VALDR v0.2 CI"]
-    types: [completed]
-    branches: [valdr-v0.2]
+  workflow_call:
+    inputs:
+      source_run_id:
+        description: Successful VALDR v0.2 CI run containing the canonical Stage 13 assembly
+        required: true
+        type: string
+      expected_commit:
+        description: Exact 40-character source commit expected in the release manifest and attestation
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -22,17 +28,16 @@ permissions:
   attestations: read
 
 concurrency:
-  group: valdr-v02-release-handoff-${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.source_run_id }}
+  group: valdr-v02-release-handoff-${{ inputs.source_run_id }}
   cancel-in-progress: false
 
 jobs:
   verify-development-handoff:
     name: verify-development-release-handoff
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     env:
-      SOURCE_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.source_run_id }}
-      EXPECTED_COMMIT: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.expected_commit }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      EXPECTED_COMMIT: ${{ inputs.expected_commit }}
       EXPECTED_BRANCH: valdr-v0.2
       EXPECTED_SOURCE_WORKFLOW: .github/workflows/valdr-v02-ci.yml
       ASSEMBLY_NAME: valdr-stage13-release-assembly-development
