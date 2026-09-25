@@ -145,9 +145,21 @@ For every platform, the release test must also verify that the bundled node/mine
 
 ## 9. Download-page contract
 
-The current `valdr-core` repository contains no implemented official download-page surface.
+The authoritative website source is now identified as `Sheff1981/valdr-site` on its `main` branch. The website remains a separate repository from `valdr-core`, which is consistent with the product boundary.
 
-Before implementing website integration, identify the authoritative website repository/deployment target. The download UI must consume release metadata rather than duplicating filenames/hashes by hand.
+Initial Stage 13 integration is implemented there:
+
+- `data/releases.json` records the latest verified core development commit/run and the `sha256+github-sigstore-keyless` verification policy;
+- Download keeps executable links disabled while `current_release=null`;
+- Verify documents SHA-256 plus GitHub/Sigstore provenance pinned to `Sheff1981/valdr-core`, the expected workflow and exact source commit;
+- Releases reports provenance and truthful Windows/macOS vendor-signing state instead of claiming unavailable certificates;
+- the public roadmap reflects Stage 13 as in development and Stage 14 as distributed user-run Testnet.
+
+No final artifact filename/hash is duplicated into the website before a frozen release candidate exists. Final download entries must be generated/updated from accepted canonical release metadata and official release storage.
+
+Website integration commits: `65d8cf7dc6fc6add0332b44d88f76b0d730c75cc`, `0b6bb9d94ffb5f1471952303530e73d6e007510f`.
+
+Website CI currently has an infrastructure-only blocker: runs `36145756061`, `36146021905` and `36146351810` all terminated with zero executed steps and `runner_id=0`. This is not code-test evidence and must not be reported as a validation failure or success. The previous website commit `28234459191f479be1c6d9d364e668e62839db0b` had a successful full CI run, but that older success does not validate the new integration.
 
 Required UX from the Master-TZ:
 
@@ -181,7 +193,7 @@ A concrete release candidate must not use the current development string `0.2.0-
 6. GitHub/Sigstore keyless provenance attestation for the canonical release assembly;
 7. clean provenance verification bound to repository/workflow/commit;
 8. release workflow mapping every asset to the exact git commit — development handoff workflow implemented; public publication path intentionally disabled while Stage 12 is open;
-9. official download-page integration after its authoritative repository/deployment target is identified;
+9. official download-page integration — authoritative repository identified and development-state provenance UX implemented; final frozen-RC artifact links and successful website CI execution remain pending;
 10. second-clean-environment verification of the frozen public release candidate;
 11. close §23 evidence matrix.
 

@@ -2,8 +2,8 @@
 
 **Status:** IN PROGRESS — development packaging + keyless provenance evidence green; public Testnet release acceptance not yet satisfied.  
 **Baseline:** `docs/VALDR_Master_TZ_v0.2.8.md` §23  
-**Implementation evidence commit:** `07695d62beb877290a8909826527434695858193`  
-**CI evidence:** VALDR v0.2 CI run `36142208184` — SUCCESS on 2026-09-25.
+**Implementation evidence commit:** `f4b24b89ea28782abb902fe2055897e5f85b8244`  
+**CI evidence:** VALDR v0.2 CI run `36145374543` — SUCCESS on 2026-09-25.
 
 This document records evidence only. It does not upgrade `0.2.0-dev` artifacts into a public Testnet release and does not authorize Stage 14.
 
@@ -28,14 +28,15 @@ This document records evidence only. It does not upgrade `0.2.0-dev` artifacts i
 | Production fail-closed gate | current `0.2.0-dev` cannot generate a production Testnet manifest; development signing/notarization claims remain invalid in production metadata; mandatory package set is enforced | automated safety gate green |
 | Windows Authenticode | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful `unsigned` metadata when absent | not a Testnet release blocker |
 | Apple Developer ID / notarization | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful ad-hoc / not-notarized metadata when absent | not a Testnet release blocker |
-| Official download page | authoritative site/deployment target has not yet been integrated with accepted release metadata | pending |
+| Official download page | authoritative source identified as `Sheff1981/valdr-site`; development-state Download/Verify/Releases UX now consumes current provenance policy and verified core development identity while executable links remain disabled | implementation present; final RC links pending |
+| Official website CI | website runs `36145756061`, `36146021905` and `36146351810` terminated before any step with `runner_id=0`; changing the runner label did not resolve allocation | infrastructure blocked / no test evidence |
 | Final Testnet release-candidate version | repository still uses `config.Version = "0.2.0-dev"` | pending deliberate freeze |
 | Final release clean verification | development path is proven; frozen non-development RC must repeat checksum + provenance verification | pending release candidate |
 | Stage 12 manual Windows acceptance | automated acceptance is green, but outstanding Windows manual GUI acceptance is not recorded as closed | blocking public release |
 
 ## 2. Development artifacts proven by CI
 
-Run `36142208184` proves the current Stage 13 development pipeline produces:
+Run `36145374543` proves the current Stage 13 development pipeline produces:
 
 - Windows x64 installer and portable ZIP;
 - Linux x64 AppImage and amd64 `.deb`;
@@ -61,7 +62,7 @@ The remaining mandatory blockers are:
 
 1. close Stage 12 manual Windows GUI acceptance;
 2. deliberately freeze a non-development Testnet release-candidate version instead of `0.2.0-dev`;
-3. integrate the official download page with the canonical release metadata and verification instructions;
+3. restore an executing website CI runner and validate the implemented download/verification integration; final RC artifact links remain intentionally disabled until freeze;
 4. run the final RC packaging, SHA-256, GitHub/Sigstore provenance and independent clean verification gates;
 5. publish only after the accepted artifacts map to the exact frozen commit.
 
@@ -71,4 +72,4 @@ No fake, borrowed or misleading Microsoft/Apple identity may be introduced to sa
 
 Continue Stage 13 only. Do not start Stage 14.
 
-The software-only authenticity path is implemented and CI-verified. The exact source-run-to-artifact release handoff workflow is now implemented in non-public mode. The next safe work is to execute that handoff against a green CI run, then continue download/verification integration and RC preparation while Stage 12 manual Windows acceptance remains the public-release blocker.
+The software-only authenticity path and authoritative website integration are implemented. Core CI is green; website CI is currently an infrastructure-only zero-step runner failure, so the website change is not yet CI-verified. The next safe work is the manual Windows Stage 12 acceptance package/checklist plus release-handoff execution when available; no public RC freeze or Stage 14 begins before Stage 12 closes.
