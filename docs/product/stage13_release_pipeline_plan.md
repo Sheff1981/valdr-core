@@ -153,13 +153,15 @@ Initial Stage 13 integration is implemented there:
 - Download keeps executable links disabled while `current_release=null`;
 - Verify documents SHA-256 plus GitHub/Sigstore provenance pinned to `Sheff1981/valdr-core`, the expected workflow and exact source commit;
 - Releases reports provenance and truthful Windows/macOS vendor-signing state instead of claiming unavailable certificates;
-- the public roadmap reflects Stage 13 as in development and Stage 14 as distributed user-run Testnet.
+- the public roadmap reflects Stage 13 as in development and Stage 14 as distributed user-run Testnet;
+- the Download page now renders future release artifacts directly from verified `data/releases.json` metadata and activates executable links only when `current_release` exists and `public_release_ready=true`; otherwise all executable buttons remain disabled;
+- the site validator rejects incomplete release metadata, invalid SHA-256, non-HTTPS artifact URLs, unsupported OS/architecture, missing provenance flags and artifacts exposed without `current_release`.
 
 No final artifact filename/hash is duplicated into the website before a frozen release candidate exists. Final download entries must be generated/updated from accepted canonical release metadata and official release storage.
 
-Website integration commits: `65d8cf7dc6fc6add0332b44d88f76b0d730c75cc`, `0b6bb9d94ffb5f1471952303530e73d6e007510f`.
+Website integration commits: `65d8cf7dc6fc6add0332b44d88f76b0d730c75cc`, `0b6bb9d94ffb5f1471952303530e73d6e007510f`, `240e72d5625512f1c2c0dfb37dd4a0993d411f84`.
 
-Website CI currently has an infrastructure-only blocker: runs `36145756061`, `36146021905` and `36146351810` all terminated with zero executed steps and `runner_id=0`. This is not code-test evidence and must not be reported as a validation failure or success. The previous website commit `28234459191f479be1c6d9d364e668e62839db0b` had a successful full CI run, but that older success does not validate the new integration.
+Website CI currently has an infrastructure-only blocker: runs `36145756061`, `36146021905`, `36146351810` and `36146923469` all terminated with zero executed steps and `runner_id=0`. This is not code-test evidence and must not be reported as a validation failure or success. The previous website commit `28234459191f479be1c6d9d364e668e62839db0b` had a successful full CI run, but that older success does not validate the new integration.
 
 Required UX from the Master-TZ:
 
@@ -193,7 +195,7 @@ A concrete release candidate must not use the current development string `0.2.0-
 6. GitHub/Sigstore keyless provenance attestation for the canonical release assembly;
 7. clean provenance verification bound to repository/workflow/commit;
 8. release workflow mapping every asset to the exact git commit — development handoff workflow implemented; public publication path intentionally disabled while Stage 12 is open;
-9. official download-page integration — authoritative repository identified and development-state provenance UX implemented; final frozen-RC artifact links and successful website CI execution remain pending;
+9. official download-page integration — authoritative repository identified; development-state provenance UX and fail-closed metadata-driven artifact rendering implemented; final frozen-RC artifact links and successful website CI execution remain pending;
 10. second-clean-environment verification of the frozen public release candidate;
 11. close §23 evidence matrix.
 

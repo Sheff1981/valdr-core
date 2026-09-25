@@ -28,8 +28,8 @@ This document records evidence only. It does not upgrade `0.2.0-dev` artifacts i
 | Production fail-closed gate | current `0.2.0-dev` cannot generate a production Testnet manifest; development signing/notarization claims remain invalid in production metadata; mandatory package set is enforced | automated safety gate green |
 | Windows Authenticode | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful `unsigned` metadata when absent | not a Testnet release blocker |
 | Apple Developer ID / notarization | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful ad-hoc / not-notarized metadata when absent | not a Testnet release blocker |
-| Official download page | authoritative source identified as `Sheff1981/valdr-site`; development-state Download/Verify/Releases UX now consumes current provenance policy and verified core development identity while executable links remain disabled | implementation present; final RC links pending |
-| Official website CI | website runs `36145756061`, `36146021905` and `36146351810` terminated before any step with `runner_id=0`; changing the runner label did not resolve allocation | infrastructure blocked / no test evidence |
+| Official download page | authoritative source identified as `Sheff1981/valdr-site`; Download/Verify/Releases consumes the current provenance policy; commit `240e72d5625512f1c2c0dfb37dd4a0993d411f84` adds fail-closed metadata-driven artifact rendering, so executable links activate only for a declared verified public release | implementation present; PHP syntax locally checked; final RC links pending |
+| Official website CI | website runs `36145756061`, `36146021905`, `36146351810` and `36146923469` terminated before any step with `runner_id=0`; changing the runner label did not resolve allocation | infrastructure blocked / no GitHub CI test evidence |
 | Final Testnet release-candidate version | repository still uses `config.Version = "0.2.0-dev"` | pending deliberate freeze |
 | Final release clean verification | development path is proven; frozen non-development RC must repeat checksum + provenance verification | pending release candidate |
 | Stage 12 manual Windows acceptance | automated acceptance is green, but outstanding Windows manual GUI acceptance is not recorded as closed | blocking public release |
@@ -62,7 +62,7 @@ The remaining mandatory blockers are:
 
 1. close Stage 12 manual Windows GUI acceptance;
 2. deliberately freeze a non-development Testnet release-candidate version instead of `0.2.0-dev`;
-3. restore an executing website CI runner and validate the implemented download/verification integration; final RC artifact links remain intentionally disabled until freeze;
+3. restore an executing website CI runner and validate the implemented fail-closed download/verification integration; PHP syntax has been checked independently, but full site CI remains required; final RC artifact links stay intentionally disabled until freeze;
 4. run the final RC packaging, SHA-256, GitHub/Sigstore provenance and independent clean verification gates;
 5. publish only after the accepted artifacts map to the exact frozen commit.
 
