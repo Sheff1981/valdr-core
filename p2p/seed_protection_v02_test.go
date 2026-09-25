@@ -346,30 +346,41 @@ func TestProtectionDefaultValues(t *testing.T) {
 }
 
 
-func TestBootstrapAndMaintainDoesNothingWithoutSeeds(t *testing.T) {
+func TestBootstrapAndMaintainUsesDiscoveredPeersWithoutSeeds(t *testing.T) {
 	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
 	if err != nil {
 		t.Fatal(err)
 	}
+	peer := mustStartNode(t, NodeConfig{
+		NodeID:         "cached-peer",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer peer.Close()
+
 	node := mustStartNode(t, NodeConfig{
 		NodeID:         "no-seed-target",
 		ListenAddress:  "127.0.0.1:0",
 		NetworkProfile: &profile,
 		EnableV2:       true,
+		Protection: ProtectionConfig{
+			OutboundTarget: 1,
+		},
 	})
 	defer node.Close()
 
 	node.mu.Lock()
-	node.discovered["would-connect"] = "127.0.0.1:65534"
+	node.discovered[peer.NodeID()] = peer.Address()
 	node.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	result := node.BootstrapAndMaintain(ctx, nil)
-	if result.Attempted != 0 || result.Connected != 0 || len(result.Failures) != 0 {
-		t.Fatalf("unexpected bootstrap activity without seeds: %+v", result)
+	if result.Connected != 1 {
+		t.Fatalf("discovered connected=%d want=1 result=%+v", result.Connected, result)
 	}
-	if node.PeerCount() != 0 {
-		t.Fatalf("peer count=%d want=0", node.PeerCount())
+	if node.PeerCount() != 1 {
+		t.Fatalf("peer count=%d want=1", node.PeerCount())
 	}
 }
