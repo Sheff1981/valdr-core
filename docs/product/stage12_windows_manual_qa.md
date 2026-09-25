@@ -8,13 +8,15 @@
 
 Use the CI-green Windows development package built from:
 
-- source commit: `f4b24b89ea28782abb902fe2055897e5f85b8244`;
-- VALDR v0.2 CI run: `36145374543` — SUCCESS;
+- source commit: `44069f4eb33af43c22f8981c772b2484b1b08ef1`;
+- VALDR v0.2 CI run: `36165082888` (#350) — SUCCESS;
+- GitHub Actions artifact: `valdr-stage13-windows-development` (artifact ID `10876873833`);
 - application version: `0.2.0-dev`;
 - installer: `VALDR-Desktop-0.2.0-dev-windows-x64-setup.exe`;
-- installer SHA-256: `e721a83b2832779d21cd3a867fceb91dbd4bd5e576647984316fe1df9742d490`;
+- installer SHA-256: `3c364b96373a014ea241c84982f7ff13ec9c5a7cd423ca31dd58a3648b7bba7f`;
 - portable ZIP: `VALDR-Desktop-0.2.0-dev-windows-x64-portable.zip`;
-- portable SHA-256: `977d9859fc72f7f9f13e0b89a60eafd5ab308c0492422f44d79d047c810485cb`.
+- portable SHA-256: `f4693ebc7976972a72734b5b5616f306a01a9da7790369439792b55053afc9ad`;
+- release manifest SHA-256: `5e112477f7e37401ab23db1bc29b208b07165540ed4ab45984f47e1d358573f5`.
 
 Before launch, verify the installer in PowerShell:
 
@@ -22,7 +24,7 @@ Before launch, verify the installer in PowerShell:
 Get-FileHash .\VALDR-Desktop-0.2.0-dev-windows-x64-setup.exe -Algorithm SHA256
 ```
 
-The value must equal the installer SHA-256 above. This package is a development acceptance candidate, not a public Testnet release. It is intentionally not Authenticode-signed; Master-TZ v0.2.8 uses SHA-256 + GitHub/Sigstore provenance as the mandatory Testnet authenticity model.
+The value must equal the installer SHA-256 above. The values were independently recomputed from the downloaded CI artifact and match its embedded `release-manifest.json`. This package is a development acceptance candidate, not a public Testnet release. It is intentionally not Authenticode-signed; Master-TZ v0.2.8 uses SHA-256 + GitHub/Sigstore provenance as the mandatory Testnet authenticity model.
 
 Use a fresh Windows profile/data directory for first-run checks. Mainnet must remain unavailable.
 
