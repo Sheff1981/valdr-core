@@ -2,8 +2,8 @@
 
 **Status:** IN PROGRESS — development packaging + keyless provenance evidence green; public Testnet release acceptance not yet satisfied.  
 **Baseline:** `docs/VALDR_Master_TZ_v0.2.8.md` §23  
-**Current evidence commit:** `44069f4eb33af43c22f8981c772b2484b1b08ef1`  
-**CI evidence:** VALDR v0.2 CI run `36165082888` (#350) — SUCCESS on 2026-09-25.
+**Current evidence commit:** `ea74320f9950dad733e4f95c0d24e9b008e2d221`  
+**CI evidence:** VALDR v0.2 CI run `36183171614` (#356) — SUCCESS on 2026-09-25.
 
 This document records evidence only. It does not upgrade `0.2.0-dev` artifacts into a public Testnet release and does not authorize Stage 14.
 
@@ -24,7 +24,7 @@ This document records evidence only. It does not upgrade `0.2.0-dev` artifacts i
 | GitHub/Sigstore keyless provenance | `actions/attest@v4` creates signed provenance using GitHub Actions OIDC/Sigstore for the assembled release subjects | automated development gate green |
 | Provenance bundle retention | assembly contains `VALDR-Desktop-<version>-provenance.sigstore.json` | automated development gate green |
 | Clean provenance verification | separate clean runner verifies artifacts with `gh attestation verify` constrained to `Sheff1981/valdr-core`, expected workflow, source ref and exact commit | automated development gate green |
-| Exact CI-run → release handoff | `valdr-v02-release.yml` is called as a same-commit reusable workflow after clean release verification; run `36165082888` (#350) completed `stage13-release-handoff-development / verify-development-release-handoff` successfully on exact commit `44069f4eb33af43c22f8981c772b2484b1b08ef1`; the handoff re-verifies manifest/checksums/provenance and emits a non-public record only | automated development gate green |
+| Exact CI-run → release handoff | `valdr-v02-release.yml` is called as a same-commit reusable workflow after clean release verification; run `36183171614` (#356) completed `stage13-release-handoff-development / verify-development-release-handoff` successfully on exact commit `ea74320f9950dad733e4f95c0d24e9b008e2d221`; the handoff re-verifies manifest/checksums/provenance and emits a non-public record only | automated development gate green |
 | Production fail-closed gate | current `0.2.0-dev` cannot generate a production Testnet manifest; development signing/notarization claims remain invalid in production metadata; mandatory package set is enforced | automated safety gate green |
 | Windows Authenticode | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful `unsigned` metadata when absent | not a Testnet release blocker |
 | Apple Developer ID / notarization | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful ad-hoc / not-notarized metadata when absent | not a Testnet release blocker |
@@ -72,4 +72,4 @@ No fake, borrowed or misleading Microsoft/Apple identity may be introduced to sa
 
 Continue Stage 13 only. Do not start Stage 14.
 
-The software-only authenticity path, clean verification and exact-run non-public handoff are implemented and CI-green on run `36165082888` (#350). Website CI remains an infrastructure-only zero-step runner failure, so the website is still not CI-verified. The next safe work is the manual Windows Stage 12 acceptance package/checklist; no public RC freeze or Stage 14 begins before Stage 12 closes.
+The software-only authenticity path, clean verification and exact-run non-public handoff are implemented and CI-green on run `36183171614` (#356). Website CI remains an infrastructure-only zero-step runner failure, so the website is still not CI-verified. The next safe work is the manual Windows Stage 12 acceptance package/checklist; no public RC freeze or Stage 14 begins before Stage 12 closes.
