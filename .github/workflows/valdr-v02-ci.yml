@@ -169,11 +169,22 @@ jobs:
           apps/valdr-desktop/build/bin/VALDR >"$LOG" 2>&1 &
           DESKTOP_PID=$!
 
+          stop_process() {
+            local pid="$1"
+            kill "$pid" 2>/dev/null || true
+            for _ in $(seq 1 20); do
+              if ! kill -0 "$pid" 2>/dev/null; then
+                wait "$pid" 2>/dev/null || true
+                return 0
+              fi
+              sleep 0.25
+            done
+            kill -KILL "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          }
           cleanup() {
-            kill "$DESKTOP_PID" 2>/dev/null || true
-            wait "$DESKTOP_PID" 2>/dev/null || true
-            kill "$XVFB_PID" 2>/dev/null || true
-            wait "$XVFB_PID" 2>/dev/null || true
+            stop_process "$DESKTOP_PID"
+            stop_process "$XVFB_PID"
           }
           trap cleanup EXIT
 
@@ -187,10 +198,8 @@ jobs:
             exit 1
           fi
 
-          kill "$DESKTOP_PID"
-          wait "$DESKTOP_PID" 2>/dev/null || true
-          kill "$XVFB_PID" 2>/dev/null || true
-          wait "$XVFB_PID" 2>/dev/null || true
+          stop_process "$DESKTOP_PID"
+          stop_process "$XVFB_PID"
           trap - EXIT
 
       - name: Upload Linux Desktop build
