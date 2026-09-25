@@ -888,3 +888,178 @@ jobs:
           path: apps/valdr-desktop/build/bin/**
           if-no-files-found: error
 
+
+
+  stage13-release-assembly:
+    name: stage13-release-assembly-development
+    needs: [desktop-linux, desktop-native]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout VALDR
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Download Linux Stage 13 packages
+        uses: actions/download-artifact@v4
+        with:
+          name: valdr-stage13-linux-development
+          path: ${{ runner.temp }}/stage13-input/linux
+
+      - name: Download Windows Stage 13 packages
+        uses: actions/download-artifact@v4
+        with:
+          name: valdr-stage13-windows-development
+          path: ${{ runner.temp }}/stage13-input/windows
+
+      - name: Download macOS ARM64 Stage 13 package
+        uses: actions/download-artifact@v4
+        with:
+          name: valdr-stage13-macos-arm64-development
+          path: ${{ runner.temp }}/stage13-input/macos-arm64
+
+      - name: Download macOS Intel Stage 13 package
+        uses: actions/download-artifact@v4
+        with:
+          name: valdr-stage13-macos-amd64-development
+          path: ${{ runner.temp }}/stage13-input/macos-amd64
+
+      - name: Assemble canonical Stage 13 development release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(go run ./cmd/valdrd version | awk '{print $NF}')"
+          INPUT="$RUNNER_TEMP/stage13-input"
+          DIST="$RUNNER_TEMP/valdr-stage13-release-assembly"
+          rm -rf "$DIST"
+          mkdir -p "$DIST"
+
+          WIN_SETUP="VALDR-Desktop-$VERSION-windows-x64-setup.exe"
+          WIN_PORTABLE="VALDR-Desktop-$VERSION-windows-x64-portable.zip"
+          LINUX_APPIMAGE="VALDR-Desktop-$VERSION-linux-x64.AppImage"
+          LINUX_DEB="VALDR-Desktop-$VERSION-linux-amd64.deb"
+          MAC_ARM64="VALDR-Desktop-$VERSION-macos-arm64.dmg"
+          MAC_AMD64="VALDR-Desktop-$VERSION-macos-x64.dmg"
+
+          install -m0644 "$INPUT/windows/$WIN_SETUP" "$DIST/$WIN_SETUP"
+          install -m0644 "$INPUT/windows/$WIN_PORTABLE" "$DIST/$WIN_PORTABLE"
+          install -m0755 "$INPUT/linux/$LINUX_APPIMAGE" "$DIST/$LINUX_APPIMAGE"
+          install -m0644 "$INPUT/linux/$LINUX_DEB" "$DIST/$LINUX_DEB"
+          install -m0644 "$INPUT/macos-arm64/$MAC_ARM64" "$DIST/$MAC_ARM64"
+          install -m0644 "$INPUT/macos-amd64/$MAC_AMD64" "$DIST/$MAC_AMD64"
+
+          cat >"$DIST/artifact-metadata.json" <<EOF
+          {
+            "artifacts": [
+              {
+                "filename": "$WIN_SETUP",
+                "os": "windows",
+                "arch": "amd64",
+                "minimum_os": "Windows 10/11 x64",
+                "signing_status": "unsigned-development",
+                "notarization_status": "not_applicable"
+              },
+              {
+                "filename": "$WIN_PORTABLE",
+                "os": "windows",
+                "arch": "amd64",
+                "minimum_os": "Windows 10/11 x64",
+                "signing_status": "unsigned-development",
+                "notarization_status": "not_applicable"
+              },
+              {
+                "filename": "$LINUX_APPIMAGE",
+                "os": "linux",
+                "arch": "amd64",
+                "minimum_os": "Linux x86_64; CI baseline Ubuntu 24.04",
+                "signing_status": "unsigned-development",
+                "notarization_status": "not_applicable"
+              },
+              {
+                "filename": "$LINUX_DEB",
+                "os": "linux",
+                "arch": "amd64",
+                "minimum_os": "Debian/Ubuntu x86_64; CI baseline Ubuntu 24.04",
+                "signing_status": "unsigned-development",
+                "notarization_status": "not_applicable"
+              },
+              {
+                "filename": "$MAC_ARM64",
+                "os": "macos",
+                "arch": "arm64",
+                "minimum_os": "macOS 11.0+ ARM64",
+                "signing_status": "adhoc-development",
+                "notarization_status": "not-notarized-development"
+              },
+              {
+                "filename": "$MAC_AMD64",
+                "os": "macos",
+                "arch": "amd64",
+                "minimum_os": "macOS 10.13+ Intel x64",
+                "signing_status": "adhoc-development",
+                "notarization_status": "not-notarized-development"
+              }
+            ]
+          }
+          EOF
+
+          RELEASED_AT="$(git show -s --format=%cI "$GITHUB_SHA")"
+          go run ./cmd/valdr-release-manifest             --artifacts-dir "$DIST"             --metadata "$DIST/artifact-metadata.json"             --commit "$GITHUB_SHA"             --released-at "$RELEASED_AT"             --output "$DIST/release-manifest.json"             --development
+
+          python3 - "$DIST" "$GITHUB_SHA" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          dist = pathlib.Path(sys.argv[1])
+          expected_commit = sys.argv[2].lower()
+          manifest = json.loads((dist / "release-manifest.json").read_text())
+
+          assert manifest["development"] is True
+          assert manifest["release_kind"] == "development"
+          assert manifest["git_commit"] == expected_commit
+          assert manifest["network"] == "testnet"
+          assert manifest["chain_id"] == "valdr-testnet-1"
+          assert manifest["protocol_min"] == 2
+          assert manifest["protocol_max"] == 2
+          assert len(manifest["artifacts"]) == 6
+
+          names = set()
+          for artifact in manifest["artifacts"]:
+              path = dist / artifact["filename"]
+              assert path.is_file(), artifact["filename"]
+              assert artifact["filename"] not in names
+              names.add(artifact["filename"])
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == artifact["sha256"]
+              assert path.stat().st_size == artifact["size_bytes"]
+
+          package_files = {
+              p.name
+              for p in dist.iterdir()
+              if p.is_file() and p.name != "release-manifest.json" and p.name != "artifact-metadata.json"
+          }
+          assert names == package_files, (names, package_files)
+          PY
+
+          # Production mode must fail closed while the repository is still on
+          # the development version and development signing/notarization state.
+          if go run ./cmd/valdr-release-manifest             --artifacts-dir "$DIST"             --metadata "$DIST/artifact-metadata.json"             --commit "$GITHUB_SHA"             --released-at "$RELEASED_AT"             --output "$DIST/production-manifest-should-not-exist.json"             >"$RUNNER_TEMP/stage13-production-negative.out"             2>"$RUNNER_TEMP/stage13-production-negative.err"; then
+            echo "production manifest unexpectedly succeeded for development artifacts" >&2
+            exit 1
+          fi
+          test ! -e "$DIST/production-manifest-should-not-exist.json"
+          grep -q "production Testnet manifest cannot use development version" "$RUNNER_TEMP/stage13-production-negative.err"
+
+          rm "$DIST/artifact-metadata.json"
+
+      - name: Upload canonical Stage 13 development release assembly
+        uses: actions/upload-artifact@v4
+        with:
+          name: valdr-stage13-release-assembly-development
+          path: ${{ runner.temp }}/valdr-stage13-release-assembly/**
+          if-no-files-found: error
