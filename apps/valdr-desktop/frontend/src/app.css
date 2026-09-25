@@ -1388,8 +1388,9 @@ code { color: #c3a96f; }
 }
 
 
-/* VALDR Premium Desktop — clean owner-reference implementation 2026-09-25.
-   Replaces the accumulated experimental visual overrides with one coherent layer. */
+/* VALDR Premium Desktop — single bundled-art implementation 2026-09-25.
+   One owner-supplied background asset is used only on Dashboard/Overview.
+   All wallet, node and navigation controls remain live HTML above the artwork. */
 :root {
   --valdr-gold: #e4b14b;
   --valdr-gold-soft: #f4cf78;
@@ -1414,20 +1415,14 @@ body {
   box-shadow: 14px 0 36px rgba(0,0,0,.36);
 }
 
-.reference-brand-block {
-  display: block;
-  padding: 0 0 16px;
+.brand-sidebar {
+  gap: 8px;
+  padding: 2px 4px 18px;
 }
 
-.reference-brand-image {
-  display: block;
-  width: 100%;
-  max-width: 205px;
-  height: auto;
-  margin: 0 auto;
-  object-fit: contain;
-  border: 0;
-  box-shadow: none;
+.brand-emblem-sidebar {
+  width: 104px;
+  height: 104px;
 }
 
 .nav-item {
@@ -1452,40 +1447,20 @@ body {
 
 .content {
   position: relative;
-  isolation: isolate;
   overflow-x: hidden;
   padding: 22px 28px 46px;
   background: #050607;
 }
 
-/* One and only one raven/background layer for the whole top area. */
-.premium-continuous-scene {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  right: 0;
-  width: 64%;
-  height: 455px;
-  pointer-events: none;
-  background: url("/valdr-reference-hero.jpg") right center / cover no-repeat;
-  opacity: .96;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.18) 12%, #000 38%, #000 100%);
-  mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.18) 12%, #000 38%, #000 100%);
-}
-
-.valdr-topbar,
-#view-overview {
-  position: relative;
-  z-index: 2;
-}
-
 .valdr-topbar {
-  min-height: 165px;
+  position: relative;
+  z-index: 3;
+  min-height: 150px;
   margin: -22px -28px 16px;
-  padding: 28px 32px 22px;
+  padding: 26px 32px 20px;
   overflow: visible;
   border-bottom: 1px solid rgba(228,177,75,.30);
-  background: linear-gradient(90deg, #050607 0%, #050607 52%, rgba(5,6,7,.88) 63%, rgba(5,6,7,.08) 100%);
+  background: linear-gradient(90deg, #050607 0%, #050607 62%, #090b0c 100%);
   box-shadow: none;
 }
 
@@ -1540,48 +1515,70 @@ body {
   padding: 10px 12px;
   border: 1px solid rgba(228,177,75,.18);
   border-radius: 12px;
-  background: rgba(4,7,8,.95);
+  background: rgba(4,7,8,.96);
   box-shadow: 0 12px 30px rgba(0,0,0,.30);
 }
 
 .status-stack,
 .wallet-select-label select {
   border-color: rgba(228,177,75,.22);
-  background: rgba(5,8,9,.95);
+  background: rgba(5,8,9,.96);
+}
+
+/* The only Premium raster layer. The first background layer is the readability overlay. */
+#view-overview {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - 205px);
+  padding: 18px;
+  overflow: hidden;
+  border-radius: 16px;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(4,7,8,.995) 0%,
+      rgba(4,7,8,.985) 34%,
+      rgba(4,7,8,.78) 53%,
+      rgba(4,7,8,.34) 70%,
+      rgba(4,7,8,.16) 100%
+    ),
+    url("/valdr-premium-background.jpg");
+  background-position: center, center center;
+  background-size: cover, cover;
+  background-repeat: no-repeat;
+}
+
+#view-overview > * {
+  position: relative;
+  z-index: 1;
 }
 
 .reference-hero {
-  position: relative;
-  min-height: 260px;
+  min-height: 272px;
   padding: 32px 34px 30px;
   overflow: hidden;
   border: 1px solid rgba(228,177,75,.52);
   border-radius: 15px;
-  background: linear-gradient(90deg,
-    rgba(4,7,8,.995) 0%,
-    rgba(4,7,8,.995) 42%,
-    rgba(4,7,8,.94) 55%,
-    rgba(4,7,8,.58) 65%,
-    rgba(4,7,8,.10) 78%,
-    rgba(4,7,8,0) 100%);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(4,7,8,.995) 0%,
+      rgba(4,7,8,.985) 40%,
+      rgba(4,7,8,.88) 56%,
+      rgba(4,7,8,.52) 73%,
+      rgba(4,7,8,.22) 100%
+    );
   box-shadow: 0 18px 44px rgba(0,0,0,.32);
-}
-
-.reference-hero::before,
-.reference-hero::after,
-.reference-hero-art,
-.hero-watermark {
-  display: none !important;
 }
 
 .reference-hero .hero-main,
 .reference-hero .hero-network-id {
   position: relative;
-  z-index: 5;
+  z-index: 2;
 }
 
 .reference-hero .hero-main {
-  max-width: 58%;
+  max-width: min(620px, 64%);
 }
 
 .balance {
@@ -1595,25 +1592,25 @@ body {
 }
 
 .reference-hero .hero-actions {
-  position: static !important;
+  position: static;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  width: max-content;
+  width: 100%;
   max-width: 100%;
-  margin: 30px 0 0 18px !important;
-  transform: none !important;
+  margin: 28px 0 0;
+  transform: none;
 }
 
 .reference-hero .hero-actions button {
   min-width: 128px;
   min-height: 48px;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
 }
 
 .reference-hero .hero-network-id {
   margin-left: auto;
-  margin-right: 10px;
+  margin-right: 0;
   align-self: start;
   padding: 12px 16px;
   border-color: rgba(228,177,75,.30);
@@ -1631,7 +1628,7 @@ body {
 .latest-transaction,
 .card {
   border-color: rgba(228,177,75,.22);
-  background: linear-gradient(180deg, rgba(12,17,18,.96), rgba(6,9,10,.96));
+  background: linear-gradient(180deg, rgba(12,17,18,.97), rgba(6,9,10,.97));
 }
 
 button.primary {
@@ -1653,15 +1650,17 @@ button.secondary {
 .download-coin {
   width: 68px;
   height: 68px;
-  background:
-    linear-gradient(rgba(0,0,0,.18), rgba(0,0,0,.18)),
-    url("/valdr-reference-brand.jpg") center 15% / 104px auto no-repeat,
-    #050607;
   border-color: rgba(244,198,92,.62);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255,218,132,.12), transparent 32%),
+    linear-gradient(145deg, rgba(28,25,19,.98), rgba(7,9,10,.98));
 }
 
 .download-coin img {
-  display: none;
+  display: block;
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
 }
 
 .download-caption {
@@ -1689,8 +1688,8 @@ html[data-theme="classic"] .content {
   background: linear-gradient(145deg, #070b10 0%, #0d141b 100%);
 }
 
-html[data-theme="classic"] .premium-continuous-scene {
-  display: none;
+html[data-theme="classic"] #view-overview {
+  background: linear-gradient(145deg, #070b10 0%, #0d141b 100%);
 }
 
 html[data-theme="classic"] .sidebar {
@@ -1722,15 +1721,46 @@ html[data-theme="classic"] button.primary {
 
 @media (max-width: 1180px) {
   .shell { grid-template-columns: 212px 1fr; }
+  .brand-emblem-sidebar { width: 86px; height: 86px; }
   .content { padding-left: 22px; padding-right: 82px; }
   .valdr-topbar { margin-left: -22px; margin-right: -82px; }
-  .premium-continuous-scene { width: 68%; height: 430px; }
-  .reference-hero .hero-main { max-width: 65%; }
-  .reference-hero .hero-actions { margin-left: 8px !important; }
+  .reference-hero .hero-main { max-width: 68%; }
 }
 
 @media (max-width: 900px) {
-  .reference-brand-image { max-width: 170px; }
-  .premium-continuous-scene { opacity: .68; width: 74%; }
-  .reference-hero .hero-main { max-width: 72%; }
+  .shell { grid-template-columns: 188px 1fr; }
+  .content { padding-left: 18px; padding-right: 18px; }
+  .valdr-topbar {
+    margin-left: -18px;
+    margin-right: -18px;
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+  #view-overview {
+    padding: 14px;
+    background-image:
+      linear-gradient(
+        90deg,
+        rgba(4,7,8,.995) 0%,
+        rgba(4,7,8,.98) 55%,
+        rgba(4,7,8,.84) 76%,
+        rgba(4,7,8,.56) 100%
+      ),
+      url("/valdr-premium-background.jpg");
+    background-position: center, 68% top;
+  }
+  .reference-hero {
+    flex-direction: column;
+    gap: 20px;
+    min-height: 0;
+    padding: 26px 24px;
+  }
+  .reference-hero .hero-main { max-width: 100%; }
+  .reference-hero .hero-network-id {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .reference-hero .hero-actions button {
+    flex: 1 1 128px;
+  }
 }

@@ -313,3 +313,21 @@ Key points:
 - dark Premium theme remains the default; Classic dark remains optional.
 
 No consensus, wallet format, RPC, P2P or storage behavior changed.
+
+## 14. Final single Premium background and canonical Windows icon
+
+**Date:** 2026-09-25
+
+Owner QA froze the Premium Desktop visual implementation to one bundled decorative image.
+
+Implemented rule:
+
+- Dashboard/Overview uses one locally bundled `valdr-premium-background.jpg` as its only raster background layer;
+- the live VALDR title, balance, node state, network state, cards and Send/Receive/Mining controls remain HTML/UI above the artwork;
+- duplicate raven/reference layers, raster sidebar branding and old reference-background usage are removed from the active Premium layer;
+- the canonical application icon is the gold VALDR **V**, rendered from `frontend/public/valdr-app-icon.svg` into `build/appicon.png`;
+- the inverted-A-like icon is explicitly rejected;
+- the Downloads affordance uses the same canonical V/emblem and remains disabled until the Stage 13 signed-release gate.
+
+This is a UI/branding fix only. Consensus, PoW, UTXO, P2P, wallet format, storage and RPC security boundaries are unchanged. Mainnet remains disabled.
+

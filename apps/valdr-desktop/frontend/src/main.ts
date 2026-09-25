@@ -268,8 +268,12 @@ root.innerHTML = `
 
   <div class="shell">
     <aside class="sidebar">
-      <div class="brand brand-sidebar reference-brand-block">
-        <img class="reference-brand-image" src="/valdr-reference-brand.jpg" alt="VALDR Desktop">
+      <div class="brand brand-sidebar">
+        <img class="brand-emblem brand-emblem-sidebar" src="/valdr-emblem.svg" alt="VALDR">
+        <div>
+          <strong>VALDR</strong>
+          <span>Desktop · Testnet</span>
+        </div>
       </div>
 
       <nav aria-label="Primary navigation">
@@ -290,7 +294,6 @@ root.innerHTML = `
     </aside>
 
     <main class="content">
-      <div class="premium-continuous-scene" aria-hidden="true"></div>
       <header class="topbar valdr-topbar">
         <div class="product-heading">
           <p class="eyebrow">NOT A TOKEN. A CHAIN.</p>
