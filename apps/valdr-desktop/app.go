@@ -61,6 +61,7 @@ type DesktopState struct {
 	Wallets               []wallet.Metadata  `json:"wallets"`
 	UnlockedWallets       []string           `json:"unlocked_wallets"`
 	WalletAutoLockMinutes int                `json:"wallet_auto_lock_minutes"`
+	InitializationReady   bool               `json:"initialization_ready"`
 }
 
 type DesktopExplorerStatus struct {
@@ -300,7 +301,20 @@ func (a *App) GetState() (DesktopState, error) {
 			state.NodeError = ""
 		}
 	}
+	state.InitializationReady = desktopInitializationReady(
+		len(state.Wallets),
+		state.NodeRunning,
+		state.NodeStatus,
+	)
 	return state, nil
+}
+
+func desktopInitializationReady(
+	walletCount int,
+	nodeRunning bool,
+	status *rpc.StatusResult,
+) bool {
+	return walletCount > 0 && nodeRunning && status != nil
 }
 
 func (a *App) CreateWallet(

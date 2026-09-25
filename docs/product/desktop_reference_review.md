@@ -401,3 +401,20 @@ Rules:
 
 This preserves the Stage 10 separation and the Desktop localhost RPC security boundary.
 
+## 19. First-run initialization readiness gate
+
+**Date:** 2026-09-25
+
+Stage 12 first-run now enforces the Master-TZ initialization gate instead of dismissing onboarding immediately after wallet creation or restore.
+
+Behavior:
+
+- first-run explicitly states that local disk space and outbound network access are required;
+- creating or restoring the encrypted wallet is only one part of initialization;
+- the wallet setup controls are hidden once a wallet exists, preventing accidental duplicate first-run creation;
+- the main application is entered only when an encrypted wallet exists and the managed local Testnet node is actually reachable through its localhost RPC status check;
+- if the node is stopped or failed, first-run remains visible and exposes the controlled start/restart action;
+- synchronization/connection status remains visible while initialization is pending.
+
+This does not change consensus, wallet format, Testnet parameters, Mainnet state, P2P defaults or RPC trust boundaries. Custom data-directory selection remains a separate Stage 12 task because safe post-creation migration is intentionally not implemented.
+

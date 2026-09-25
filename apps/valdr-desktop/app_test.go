@@ -16,6 +16,7 @@ import (
 	"github.com/Sheff1981/valdr-core/config"
 	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 	desktopcore "github.com/Sheff1981/valdr-core/desktop"
+	"github.com/Sheff1981/valdr-core/rpc"
 	"github.com/Sheff1981/valdr-core/wallet"
 )
 
@@ -501,5 +502,22 @@ func TestProbeDesktopExplorerRejectsWrongChainAndRemoteEndpoint(t *testing.T) {
 		"http://example.com:8080",
 	); !errors.Is(err, ErrDesktopExplorerUnavailable) {
 		t.Fatalf("remote Explorer endpoint error=%v want unavailable", err)
+	}
+}
+
+
+func TestDesktopInitializationReadyRequiresWalletAndHealthyNode(t *testing.T) {
+	status := &rpc.StatusResult{}
+	if desktopInitializationReady(0, true, status) {
+		t.Fatal("initialization ready without wallet")
+	}
+	if desktopInitializationReady(1, false, status) {
+		t.Fatal("initialization ready while node is stopped")
+	}
+	if desktopInitializationReady(1, true, nil) {
+		t.Fatal("initialization ready without healthy node status")
+	}
+	if !desktopInitializationReady(1, true, status) {
+		t.Fatal("initialization not ready with wallet and healthy node")
 	}
 }

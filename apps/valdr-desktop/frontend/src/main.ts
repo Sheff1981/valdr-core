@@ -46,6 +46,7 @@ type DesktopState = {
   wallets: WalletMetadata[];
   unlocked_wallets: string[];
   wallet_auto_lock_minutes: number;
+  initialization_ready: boolean;
   preferences: DesktopPreferences;
 };
 
@@ -262,32 +263,36 @@ root.innerHTML = `
         VALDR Desktop runs a local validating node. The blockchain is stored on this device and disk usage grows as the network grows.
         This build connects to Testnet only; Testnet VDR has no promised monetary value.
       </p>
+      <p class="subtle">Requires local disk space and outbound network access. Inbound ports are not required in the default Desktop mode.</p>
       <div class="first-run-network">
         <span id="first-run-node-state">Starting local node…</span>
         <strong id="first-run-sync">Waiting for status</strong>
       </div>
-      <button class="secondary full-button hidden restart-node-action" type="button">Restart local node</button>
-      <form id="first-run-form">
+      <button class="secondary full-button hidden restart-node-action" id="first-run-restart-node" type="button">Start / restart local node</button>
+      <div id="first-run-wallet-setup">
+        <form id="first-run-form">
+          <label>
+            Wallet name
+            <input id="first-wallet-name" maxlength="64" autocomplete="off" placeholder="My VALDR wallet">
+          </label>
+          <label>
+            Wallet passphrase
+            <input id="first-wallet-passphrase" type="password" autocomplete="new-password" required>
+          </label>
+          <label>
+            Confirm passphrase
+            <input id="first-wallet-confirm" type="password" autocomplete="new-password" required>
+          </label>
+          <button class="primary" type="submit">Create encrypted wallet</button>
+        </form>
+        <div class="first-run-divider"><span>or</span></div>
         <label>
-          Wallet name
-          <input id="first-wallet-name" maxlength="64" autocomplete="off" placeholder="My VALDR wallet">
+          Backup passphrase
+          <input id="first-run-restore-passphrase" type="password" autocomplete="current-password">
         </label>
-        <label>
-          Wallet passphrase
-          <input id="first-wallet-passphrase" type="password" autocomplete="new-password" required>
-        </label>
-        <label>
-          Confirm passphrase
-          <input id="first-wallet-confirm" type="password" autocomplete="new-password" required>
-        </label>
-        <button class="primary" type="submit">Create encrypted wallet</button>
-      </form>
-      <div class="first-run-divider"><span>or</span></div>
-      <label>
-        Backup passphrase
-        <input id="first-run-restore-passphrase" type="password" autocomplete="current-password">
-      </label>
-      <button class="secondary full-button" id="first-run-restore">Restore encrypted backup</button>
+        <button class="secondary full-button" id="first-run-restore">Restore encrypted backup</button>
+      </div>
+      <p id="first-run-initializing" class="subtle hidden">Encrypted wallet is ready. Waiting for the local Testnet node to finish initialization…</p>
       <p id="first-run-error" class="warning"></p>
     </div>
   </div>
@@ -1636,13 +1641,27 @@ const renderState = (state: DesktopState): void => {
   const stopNodeButton = document.getElementById("stop-node") as HTMLButtonElement | null;
   if (startNodeButton) startNodeButton.disabled = state.node_running;
   if (stopNodeButton) stopNodeButton.disabled = !state.node_running;
+  const firstRunRestartVisible =
+    !state.initialization_ready &&
+    (!state.node_running || Boolean(state.node_error));
   document.querySelectorAll<HTMLButtonElement>(".restart-node-action").forEach((button) => {
-    button.classList.toggle("hidden", !state.node_error);
+    const visible = button.id === "first-run-restart-node"
+      ? firstRunRestartVisible
+      : Boolean(state.node_error);
+    button.classList.toggle("hidden", !visible);
     button.disabled = false;
   });
 
   const firstRun = document.getElementById("first-run");
-  firstRun?.classList.toggle("hidden", state.wallets.length > 0);
+  firstRun?.classList.toggle("hidden", state.initialization_ready);
+  document.getElementById("first-run-wallet-setup")?.classList.toggle(
+    "hidden",
+    state.wallets.length > 0,
+  );
+  document.getElementById("first-run-initializing")?.classList.toggle(
+    "hidden",
+    state.wallets.length === 0 || state.initialization_ready,
+  );
   text(
     "first-run-node-state",
     state.node_error
