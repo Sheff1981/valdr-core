@@ -79,6 +79,22 @@ func initCommand(args []string, out, errOut io.Writer) int {
 		return 2
 	}
 
+	peerCachePath := ""
+	cachedBootstrapPeers := []string(nil)
+	if profile.ProtocolMax >= 2 {
+		peerCachePath = filepath.Join(*dataDir, "peers-v2.json")
+		cachedBootstrapPeers, err = p2p.LoadPeerCacheV2(peerCachePath, profile.Public)
+		if err != nil {
+			logging.Printf(
+				logging.CategoryP2P,
+				"peer cache load ignored path=%s error=%v",
+				peerCachePath,
+				err,
+			)
+			cachedBootstrapPeers = nil
+		}
+	}
+
 	if err := rejectUnmigratedLegacy(*dataDir); err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
@@ -241,7 +257,26 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		logging.Printf(logging.CategoryError, "P2P start failed node=%s error=%v", *nodeID, err)
 		return 1
 	}
-	defer node.Close()
+	defer func() {
+		if profile.ProtocolMax >= 2 {
+			addresses := append([]string(nil), cachedBootstrapPeers...)
+			for _, peer := range node.Peers() {
+				addresses = append(addresses, peer.Address)
+			}
+			for _, peer := range node.DiscoveredPeers() {
+				addresses = append(addresses, peer.Address)
+			}
+			if err := p2p.SavePeerCacheV2(peerCachePath, profile.Public, addresses); err != nil {
+				logging.Printf(
+					logging.CategoryP2P,
+					"peer cache save failed path=%s error=%v",
+					peerCachePath,
+					err,
+				)
+			}
+		}
+		_ = node.Close()
+	}()
 	logging.Printf(
 		logging.CategoryNode,
 		"started node=%s chain=%s height=%d p2p=%s data=%s",
@@ -262,16 +297,45 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		}
 	}
 
+	bootstrapPeers := append([]string(nil), cachedBootstrapPeers...)
+	bootstrapPeers = append(bootstrapPeers, seeds...)
 	bootstrapCtx, bootstrapCancel := context.WithTimeout(context.Background(), 15*time.Second)
-	bootstrapResult := node.BootstrapAndMaintain(bootstrapCtx, seeds)
+	bootstrapResult := node.BootstrapAndMaintain(bootstrapCtx, bootstrapPeers)
 	bootstrapCancel()
 	for _, failure := range bootstrapResult.Failures {
 		logging.Printf(
 			logging.CategoryP2P,
-			"seed bootstrap failed address=%s error=%s",
+			"peer bootstrap failed address=%s error=%s",
 			failure.Address,
 			failure.Error,
 		)
+	}
+
+	maintenanceCtx, maintenanceCancel := context.WithCancel(context.Background())
+	defer maintenanceCancel()
+	if profile.ProtocolMax >= 2 {
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-maintenanceCtx.Done():
+					return
+				case <-ticker.C:
+					ctx, cancel := context.WithTimeout(maintenanceCtx, 10*time.Second)
+					result := node.BootstrapAndMaintain(ctx, bootstrapPeers)
+					cancel()
+					if result.Connected > 0 {
+						logging.Printf(
+							logging.CategoryP2P,
+							"outbound maintenance connected=%d peers=%d",
+							result.Connected,
+							node.PeerCount(),
+						)
+					}
+				}
+			}
+		}()
 	}
 
 	rpcServer, err := rpc.NewServer(chain, node)
@@ -309,6 +373,8 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		"height":      chain.Height(),
 		"seed_attempted": bootstrapResult.Attempted,
 		"seed_connected": bootstrapResult.Connected,
+		"dns_seed_lookups": bootstrapResult.DNSLookups,
+		"peer_cache_loaded": len(cachedBootstrapPeers),
 	}, errOut); err != 0 {
 		return err
 	}

@@ -52,6 +52,7 @@ type NetworkProfile struct {
 	MinDifficultyAfterSeconds int64
 	MinRelayFeePerByte     uint64
 	DefaultSeeds           []string
+	DNSSeeds               []string
 	Public                 bool
 }
 
