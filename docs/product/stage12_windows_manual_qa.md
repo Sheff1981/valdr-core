@@ -1,5 +1,7 @@
 # VALDR Stage 12 Windows manual QA
 
+> **Testnet2 reset:** the CI #356 / `valdr-testnet-1` package below is retained as historical Windows evidence only. Master-TZ v0.2.9 changes consensus to `testnet2` / `valdr-testnet-2`; final Stage 12 acceptance must be repeated against a new CI-green Testnet2 Windows package. Do not mark Stage 12 complete from the old candidate.
+
 **Baseline:** Master-TZ `docs/VALDR_Master_TZ_v0.2.8.md`  
 **Branch:** `valdr-v0.2`  
 **Purpose:** final human-visible acceptance before Stage 12 is frozen.

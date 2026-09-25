@@ -41,8 +41,8 @@ python3 - "$status1" "$status2" "$status3" <<'PY'
 import json, sys
 for idx, raw in enumerate(sys.argv[1:], 1):
     status=json.loads(raw)
-    assert status["chain_id"] == "valdr-testnet-1", (idx, status)
-    assert status["network"] == "testnet", (idx, status)
+    assert status["chain_id"] == "valdr-testnet-2", (idx, status)
+    assert status["network"] == "testnet2", (idx, status)
 PY
 
 wait_peer_count() {
@@ -109,7 +109,7 @@ explorer_status=$(curl --fail --silent --show-error http://127.0.0.1:8080/api/v1
 python3 - "$explorer_status" <<'PY'
 import json, sys
 status=json.loads(sys.argv[1])
-assert status["status"]["chain_id"] == "valdr-testnet-1", status
+assert status["status"]["chain_id"] == "valdr-testnet-2", status
 assert status["status"]["height"] >= 1, status
 assert status["index_height"] >= 1, status
 PY

@@ -26,7 +26,7 @@ if command -v systemd-analyze >/dev/null 2>&1; then
 fi
 
 start_node() {
-  "$tmp/bin/valdrd" start     --network testnet     --data "$tmp/data"     --node-id linux-smoke     --p2p-host 127.0.0.1     --p2p-port 27333     --rpc-host 127.0.0.1     --rpc-port 27332     >"$tmp/node.out" 2>"$tmp/node.err" &
+  "$tmp/bin/valdrd" start     --network testnet2     --data "$tmp/data"     --node-id linux-smoke     --p2p-host 127.0.0.1     --p2p-port 27333     --rpc-host 127.0.0.1     --rpc-port 27332     >"$tmp/node.out" 2>"$tmp/node.err" &
   node_pid=$!
 }
 
@@ -47,8 +47,8 @@ python3 - "$tmp/status.json" <<'PY'
 import json, sys
 with open(sys.argv[1]) as f:
     status=json.load(f)
-assert status["chain_id"] == "valdr-testnet-1", status
-assert status["network"] == "testnet", status
+assert status["chain_id"] == "valdr-testnet-2", status
+assert status["network"] == "testnet2", status
 PY
 
 "$tmp/bin/valdr-explorer"   --listen 127.0.0.1:28080   --node http://127.0.0.1:27332   --index-file "$tmp/data/explorer/index.json"   >"$tmp/explorer.out" 2>"$tmp/explorer.err" &
@@ -69,7 +69,7 @@ kill "$node_pid"
 wait "$node_pid" || true
 unset node_pid
 
-"$tmp/bin/valdrd" verify-db --data "$tmp/data" --network testnet >"$tmp/verify.json"
+"$tmp/bin/valdrd" verify-db --data "$tmp/data" --network testnet2 >"$tmp/verify.json"
 grep -q '"valid": true' "$tmp/verify.json"
 
 start_node

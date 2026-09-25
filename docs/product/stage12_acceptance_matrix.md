@@ -1,7 +1,7 @@
 # VALDR Stage 12 Desktop acceptance matrix
 
 **Date:** 2026-09-25  
-**Master baseline:** `docs/VALDR_Master_TZ_v0.2.8.md`  
+**Master baseline:** `docs/VALDR_Master_TZ_v0.2.9.md`  
 **Branch:** `valdr-v0.2`
 
 This file records evidence for Master-TZ §22. It does not change consensus or release scope.

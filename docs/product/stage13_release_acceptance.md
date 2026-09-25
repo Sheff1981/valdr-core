@@ -1,11 +1,11 @@
 # VALDR Stage 13 release acceptance evidence
 
-**Status:** IN PROGRESS — development packaging + keyless provenance evidence green; public Testnet release acceptance not yet satisfied.  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.8.md` §23  
+**Status:** IN PROGRESS — Testnet1 development packaging/provenance evidence is historical; Testnet2 packaging/provenance must be regenerated and verified before public release acceptance.  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.9.md` §23  
 **Current evidence commit:** `ea74320f9950dad733e4f95c0d24e9b008e2d221`  
 **CI evidence:** VALDR v0.2 CI run `36183171614` (#356) — SUCCESS on 2026-09-25.
 
-This document records evidence only. It does not upgrade `0.2.0-dev` artifacts into a public Testnet release and does not authorize Stage 14.
+This document records evidence only. CI #356 proves the superseded Testnet1 development pipeline. Master-TZ v0.2.9 resets the active chain to Testnet2, so those artifacts cannot satisfy current public-release acceptance and do not authorize Stage 14.
 
 ## 1. Current evidence matrix
 

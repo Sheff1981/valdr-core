@@ -27,7 +27,7 @@ go build -o "$tmp/valdr-miner" ./cmd/valdr-miner
 # must discover it only through an outbound seed connection and synchronize
 # the block without opening its own inbound P2P listener.
 "$tmp/valdrd" start \
-  --network testnet \
+  --network testnet2 \
   --data "$tmp/seed-data" \
   --node-id desktop-outbound-seed \
   --p2p-host 127.0.0.1 \
@@ -67,8 +67,8 @@ python3 - "$tmp/seed-after-mine.json" <<'PY'
 import json, sys
 with open(sys.argv[1]) as f:
     status=json.load(f)
-assert status["network"] == "testnet", status
-assert status["chain_id"] == "valdr-testnet-1", status
+assert status["network"] == "testnet2", status
+assert status["chain_id"] == "valdr-testnet-2", status
 assert status["height"] >= 1, status
 assert status["tip_hash"], status
 PY
@@ -76,7 +76,7 @@ PY
 mkfifo "$tmp/managed.stdin"
 
 "$tmp/valdrd" start \
-  --network testnet \
+  --network testnet2 \
   --data "$tmp/desktop-data" \
   --node-id desktop-outbound-smoke \
   --outbound-only \
@@ -133,8 +133,8 @@ with open(sys.argv[1]) as f:
 with open(sys.argv[2]) as f:
     seed=json.load(f)
 ok = (
-    desktop["network"] == "testnet"
-    and desktop["chain_id"] == "valdr-testnet-1"
+    desktop["network"] == "testnet2"
+    and desktop["chain_id"] == "valdr-testnet-2"
     and desktop["height"] == seed["height"]
     and desktop["tip_hash"] == seed["tip_hash"]
     and desktop["height"] >= 1
@@ -163,7 +163,7 @@ grep -q "stopping on managed stdin close" "$tmp/desktop.err"
 
 "$tmp/valdrd" verify-db \
   --data "$tmp/desktop-data" \
-  --network testnet >"$tmp/verify.json"
+  --network testnet2 >"$tmp/verify.json"
 
 grep -q '"valid": true' "$tmp/verify.json"
 grep -q '"height": 1' "$tmp/verify.json"

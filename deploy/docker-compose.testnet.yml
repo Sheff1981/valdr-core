@@ -7,7 +7,7 @@ services:
     command:
       - start
       - --network
-      - testnet
+      - testnet2
       - --data
       - /var/lib/valdr
       - --node-id
@@ -39,7 +39,7 @@ services:
     command:
       - start
       - --network
-      - testnet
+      - testnet2
       - --data
       - /var/lib/valdr
       - --node-id
@@ -71,7 +71,7 @@ services:
     command:
       - start
       - --network
-      - testnet
+      - testnet2
       - --data
       - /var/lib/valdr
       - --node-id

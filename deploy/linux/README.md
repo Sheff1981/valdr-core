@@ -65,11 +65,11 @@ location / {
 
 ```bash
 valdrd status --node http://127.0.0.1:17332
-sudo -u valdr valdrd verify-db --data /var/lib/valdr --network testnet
+sudo -u valdr valdrd verify-db --data /var/lib/valdr --network testnet2
 curl --fail http://127.0.0.1:8080/healthz
 ```
 
-Expected chain ID: `valdr-testnet-1`.
+Expected chain ID: `valdr-testnet-2`.
 
 ## Backup and restore
 
@@ -81,7 +81,7 @@ sudo tar -C /var/lib -czf valdr-testnet-backup.tgz valdr
 sudo systemctl start valdrd valdr-explorer
 ```
 
-Restore into an empty `/var/lib/valdr`, restore ownership to `valdr:valdr`, then run `valdrd verify-db --network testnet` before enabling the services. The Explorer index is derived data and may be deleted and rebuilt if necessary.
+Restore into an empty `/var/lib/valdr`, restore ownership to `valdr:valdr`, then run `valdrd verify-db --network testnet2` before enabling the services. The Explorer index is derived data and may be deleted and rebuilt if necessary.
 
 ## Upgrade and rollback
 

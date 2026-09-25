@@ -125,8 +125,8 @@ jobs:
           assert manifest["release_kind"] == "development"
           assert manifest["git_commit"] == expected_commit
           assert re.fullmatch(r"[0-9a-f]{40}", manifest["git_commit"])
-          assert manifest["network"] == "testnet"
-          assert manifest["chain_id"] == "valdr-testnet-1"
+          assert manifest["network"] == "testnet2"
+          assert manifest["chain_id"] == "valdr-testnet-2"
           assert manifest["protocol_min"] == 2
           assert manifest["protocol_max"] == 2
           assert manifest["provenance_method"] == "github-sigstore-keyless"
