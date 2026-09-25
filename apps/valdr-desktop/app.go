@@ -58,6 +58,7 @@ type App struct {
 	walletSessions  *desktopcore.WalletSessionManager
 	historyService  *desktopcore.HistoryService
 	preferenceStore *desktopcore.PreferenceStore
+	nodeLogs        *desktopcore.LogBuffer
 
 	mu          sync.Mutex
 	nodeError   string
@@ -81,12 +82,15 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
+	nodeLogs := desktopcore.NewLogBuffer(desktopcore.DefaultDesktopLogBytes)
 	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
 		BinaryPath: strings.TrimSpace(os.Getenv("VALDRD_PATH")),
 		Network:    config.NetworkTestnetV02,
 		DataDir:    paths.NodeData,
 		NodeID:     "valdr-desktop",
 		Seeds:      desktopSeedsFromEnv(),
+		Stdout:     nodeLogs,
+		Stderr:     nodeLogs,
 	})
 	if err != nil {
 		return nil, err
@@ -137,6 +141,7 @@ func NewApp() (*App, error) {
 		walletSessions:  walletSessions,
 		historyService:  historyService,
 		preferenceStore: preferenceStore,
+		nodeLogs:        nodeLogs,
 		preferences:     preferences,
 	}, nil
 }
@@ -354,6 +359,16 @@ func (a *App) GetWalletBalance(
 	)
 	defer cancel()
 	return a.walletService.Balance(ctx, strings.TrimSpace(address))
+}
+
+func (a *App) GetNodeLogs() (string, error) {
+	if !a.preferencesSnapshot().Advanced {
+		return "", ErrDesktopAdvancedModeRequired
+	}
+	if a.nodeLogs == nil {
+		return "", nil
+	}
+	return a.nodeLogs.String(), nil
 }
 
 func (a *App) GetPeers() ([]rpc.PeerResult, error) {

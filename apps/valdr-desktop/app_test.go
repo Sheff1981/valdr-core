@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
@@ -180,5 +181,44 @@ func TestCopyReceiveAddressRejectsInvalidAddress(t *testing.T) {
 		ErrInvalidReceiveAddress,
 	) {
 		t.Fatalf("error=%v want ErrInvalidReceiveAddress", err)
+	}
+}
+
+
+func TestDesktopNodeLogsRequireAdvancedModeAndRedactSecrets(t *testing.T) {
+	prefs := desktopcore.DefaultDesktopPreferences()
+	logs := desktopcore.NewLogBuffer(1024)
+	app := &App{
+		preferences: prefs,
+		nodeLogs:    logs,
+	}
+
+	if _, err := app.GetNodeLogs(); !errors.Is(
+		err,
+		ErrDesktopAdvancedModeRequired,
+	) {
+		t.Fatalf("GetNodeLogs error=%v want ErrDesktopAdvancedModeRequired", err)
+	}
+
+	prefs.Advanced = true
+	app.preferences = prefs
+	if _, err := logs.Write([]byte(
+		"2026/09/25 [NODE] started\nprivate_key=do-not-display\n",
+	)); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := app.GetNodeLogs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "[NODE] started") {
+		t.Fatalf("node log output missing safe line: %q", got)
+	}
+	if strings.Contains(got, "do-not-display") {
+		t.Fatalf("node log output leaked secret: %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED sensitive log line]") {
+		t.Fatalf("node log output missing redaction marker: %q", got)
 	}
 }

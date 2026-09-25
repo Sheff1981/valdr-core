@@ -121,6 +121,7 @@ type AppAPI = {
   ExportPrivateKey(selector: string, confirmation: string): Promise<string>;
   GetWalletBalance(address: string): Promise<WalletBalance>;
   GetPeers(): Promise<PeerInfo[]>;
+  GetNodeLogs(): Promise<string>;
   PreviewSend(
     selector: string,
     recipient: string,
@@ -608,6 +609,16 @@ root.innerHTML = `
             </div>
             <div id="peer-list" class="peer-list"></div>
             <p id="peer-list-empty" class="subtle">No connected peers.</p>
+          </div>
+          <div class="node-log-panel">
+            <div class="section-head">
+              <div>
+                <h3>Node logs</h3>
+                <p class="subtle">Bounded local diagnostics. Sensitive-looking lines are redacted before display.</p>
+              </div>
+              <button class="secondary" id="refresh-node-logs" type="button">Refresh logs</button>
+            </div>
+            <pre id="node-log-output" class="node-log-output">No node log output yet.</pre>
           </div>
           <p class="subtle">Desktop remains outbound-only. Public-node mode will be exposed only in Advanced mode.</p>
         </article>
@@ -1321,6 +1332,22 @@ const refreshPeers = async (): Promise<void> => {
   }
 };
 
+const refreshNodeLogs = async (): Promise<void> => {
+  const output = document.getElementById("node-log-output") as HTMLPreElement | null;
+  if (!output) return;
+  if (!currentState?.preferences.advanced) {
+    output.textContent = "Advanced mode is required for node diagnostics.";
+    return;
+  }
+  try {
+    const logs = (await api().GetNodeLogs()).trim();
+    output.textContent = logs || "No node log output yet.";
+    output.scrollTop = output.scrollHeight;
+  } catch (error) {
+    output.textContent = error instanceof Error ? error.message : String(error);
+  }
+};
+
 const refreshMining = async (): Promise<void> => {
   const rewardInput = document.getElementById("mining-reward-address") as HTMLInputElement | null;
   if (rewardInput && !rewardInput.value && activeWalletAddress) {
@@ -1524,6 +1551,7 @@ const navigateToView = (view: string): void => {
     void refreshOverviewLatestTransaction();
   } else if (view === "network") {
     void refreshPeers();
+    void refreshNodeLogs();
   } else if (view === "mining") {
     void refreshMining();
   }
@@ -2053,6 +2081,10 @@ document.getElementById("refresh-history")?.addEventListener("click", async () =
 
 document.getElementById("refresh-peers")?.addEventListener("click", async () => {
   await refreshPeers();
+});
+
+document.getElementById("refresh-node-logs")?.addEventListener("click", async () => {
+  await refreshNodeLogs();
 });
 
 document.getElementById("copy-address")?.addEventListener("click", async () => {

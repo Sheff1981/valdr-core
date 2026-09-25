@@ -708,6 +708,28 @@ button:disabled {
   border-top: 1px solid rgba(255,255,255,.07);
 }
 
+.node-log-panel {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+
+.node-log-output {
+  max-height: 260px;
+  margin: 0;
+  overflow: auto;
+  padding: 13px 14px;
+  border: 1px solid rgba(229,179,77,.12);
+  border-radius: 8px;
+  color: #c7b88f;
+  background: rgba(3,6,8,.86);
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+
 .peer-list {
   display: grid;
   gap: 8px;
