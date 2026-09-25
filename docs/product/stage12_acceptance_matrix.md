@@ -17,6 +17,7 @@ This file records evidence for Master-TZ §22. It does not change consensus or r
 | Balance/send/receive/transaction history work | `TestDesktopRuntimeWalletSendReceiveHistory` on Windows/macOS/Linux runtime jobs | PASS |
 | Wallet backup and restore work | runtime E2E encrypted backup, wrong-passphrase rejection, restore preserving address/unlock | PASS |
 | Wrong password fails safely | wallet unlock and backup-restore negative tests | PASS |
+| Configurable inactivity auto-lock | deterministic wallet-session tests cover activity refresh, timeout expiry, timeout changes and in-memory secret zeroization on replacement/lock | PASS |
 | Node crash is surfaced and recoverable | runtime E2E kills managed `valdrd`, requires surfaced error, restarts it, and checks unchanged chain state | PASS |
 | UI never displays Mainnet as available | backend state test plus `TestDesktopFrontendDoesNotOfferMainnet`; Settings network is locked to Testnet | PASS |
 | No private key/passphrase appears in node RPC/P2P/logs | dedicated secret-boundary tests, redacted log tests, runtime plaintext scan | PASS |
