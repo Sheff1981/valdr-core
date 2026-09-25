@@ -663,3 +663,99 @@ func TestDesktopFrontendSecretPresentationIsEphemeral(t *testing.T) {
 		}
 	}
 }
+
+
+func TestDesktopFrontendStage12ScreenContract(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+
+	required := map[string][]string{
+		"overview": {
+			`id="overview-balance"`,
+			`id="overview-wallet-label"`,
+			`id="network-name"`,
+			`id="height"`,
+			`id="sync-progress"`,
+			`id="peers"`,
+			`id="overview-latest-direction"`,
+			`id="overview-latest-meta"`,
+		},
+		"send": {
+			`id="send-recipient"`,
+			`id="send-amount"`,
+			`id="preview-fee"`,
+			`id="preview-total"`,
+			`id="send-confirm-dialog"`,
+			"transactions are irreversible",
+		},
+		"receive": {
+			`id="receive-address"`,
+			`id="copy-address"`,
+			`id="receive-qr"`,
+			"Generated locally · no web service",
+		},
+		"transactions": {
+			`id="history-list"`,
+			`id="transaction-detail-dialog"`,
+			`id="transaction-detail-status"`,
+			`id="transaction-detail-txid"`,
+			`id="transaction-detail-confirmations"`,
+		},
+		"wallet": {
+			`id="unlock-wallet-form"`,
+			`id="lock-wallet"`,
+			`id="backup-wallet"`,
+			`id="restore-wallet-form"`,
+			`id="show-export-warning"`,
+			`id="confirm-private-key-export"`,
+			"High risk:",
+		},
+		"network": {
+			`id="detail-sync"`,
+			`id="detail-peer-count"`,
+			`id="detail-tip"`,
+			`id="detail-chainwork"`,
+			`id="detail-data"`,
+			`id="detail-storage-state"`,
+			`id="public-node-enabled"`,
+		},
+		"mining": {
+			`id="start-mining"`,
+			`id="stop-mining"`,
+			`id="mining-reward-address"`,
+			`id="mining-accepted"`,
+			`id="mining-hashrate"`,
+			`id="mining-last-hashrate"`,
+			"Mining never starts automatically.",
+		},
+		"settings": {
+			`id="settings-language"`,
+			`id="settings-theme"`,
+			`id="settings-start-node"`,
+			`id="settings-advanced"`,
+			`id="settings-node-data"`,
+			`id="export-diagnostics"`,
+			"Testnet · valdr-testnet-1",
+			"Mainnet is disabled in this build",
+		},
+	}
+	for screen, markers := range required {
+		for _, marker := range markers {
+			if !strings.Contains(source, marker) {
+				t.Fatalf("Stage 12 %s UI missing required marker %q", screen, marker)
+			}
+		}
+	}
+
+	for _, advancedNav := range []string{
+		`class="nav-item advanced-only hidden" data-view="mining"`,
+		`class="nav-item advanced-only hidden" data-view="network"`,
+	} {
+		if !strings.Contains(source, advancedNav) {
+			t.Fatalf("Advanced-only Desktop navigation contract missing %q", advancedNav)
+		}
+	}
+}

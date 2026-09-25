@@ -25,7 +25,7 @@ This file records evidence for Master-TZ §22. It does not change consensus or r
 
 Stage 12 must **not** yet be marked fully complete.
 
-1. **Manual GUI acceptance:** owner click-through of first-run, wallet, Send/Receive, Transactions, Settings and Advanced screens on the Windows build is still pending.
+1. **Manual GUI acceptance:** owner click-through of first-run, wallet, Send/Receive, Transactions, Settings and Advanced screens on the Windows build is still pending. The exact procedure is frozen in `docs/product/stage12_windows_manual_qa.md`.
 2. **Mining visual confirmation:** the previously reported blank hashrate was traced to the Desktop miner manager parsing pretty-printed JSON one line at a time. The parser now decodes the real JSON stream, and cross-platform runtime E2E requires positive accepted-block/hashrate/hash-count telemetry after a mined block. The GUI value still needs owner visual confirmation on Windows.
 3. **Secret presentation hardening:** private-key output is automatically hidden when leaving the Wallet view or when the app is backgrounded, and wallet passphrase inputs are cleared after create/unlock attempts. Frontend source-contract coverage prevents silent regression.
 4. If manual QA finds a defect, fix it and rerun the full CI matrix before Stage 12 is frozen.
