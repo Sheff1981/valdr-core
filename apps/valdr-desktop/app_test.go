@@ -615,3 +615,30 @@ func TestNormalizeNodeDataDirectoryRejectsRootAndRelativePath(t *testing.T) {
 		t.Fatalf("root path error=%v want ErrDesktopPath", err)
 	}
 }
+
+
+func TestDesktopFrontendDoesNotOfferMainnet(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+
+	for _, forbidden := range []string{
+		`<option value="mainnet"`,
+		`value="mainnet"`,
+		`data-network="mainnet"`,
+	} {
+		if strings.Contains(source, forbidden) {
+			t.Fatalf("Desktop frontend exposes Mainnet selector/control %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"Testnet · valdr-testnet-1",
+		"Mainnet is disabled in this build",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("Desktop frontend missing locked Testnet/Mainnet-disabled marker %q", required)
+		}
+	}
+}

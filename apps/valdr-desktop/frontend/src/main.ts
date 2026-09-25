@@ -806,7 +806,7 @@ root.innerHTML = `
               <div><dt>Wallets</dt><dd><code id="settings-wallets">—</code></dd></div>
               <div><dt>Logs</dt><dd><code id="settings-logs">—</code></dd></div>
             </dl>
-            <p class="subtle" id="settings-data-note">Data-directory editing is intentionally disabled while the managed-node migration flow is not yet implemented.</p>
+            <p class="subtle" id="settings-data-note">Node data can be chosen during first run. After wallet creation, changing it remains disabled until a safe managed-node migration flow is implemented.</p>
           </article>
 
           <article class="card advanced-only hidden">
@@ -1007,7 +1007,7 @@ const applyDesktopLanguage = (language: DesktopPreferences["language"]): void =>
         advanced: "Включить расширенный режим",
         save: "Сохранить настройки",
         localData: "Локальные данные",
-        dataNote: "Изменение каталога данных отключено, пока не реализован безопасный перенос управляемой ноды.",
+        dataNote: "Каталог данных ноды можно выбрать при первом запуске. После создания кошелька изменение отключено до реализации безопасного переноса управляемой ноды.",
         mainnet: "Mainnet отключён",
       }
     : {
@@ -1031,7 +1031,7 @@ const applyDesktopLanguage = (language: DesktopPreferences["language"]): void =>
         advanced: "Enable Advanced mode",
         save: "Save settings",
         localData: "Local data",
-        dataNote: "Data-directory editing is intentionally disabled while the managed-node migration flow is not yet implemented.",
+        dataNote: "Node data can be chosen during first run. After wallet creation, changing it remains disabled until a safe managed-node migration flow is implemented.",
         mainnet: "Mainnet disabled",
       };
 
