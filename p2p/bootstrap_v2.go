@@ -194,6 +194,13 @@ func (n *Node) MaintainOutbound(ctx context.Context) BootstrapResult {
 }
 
 func (n *Node) BootstrapAndMaintain(ctx context.Context, overrides []string) BootstrapResult {
+	// Frozen v0.1 keeps its historical manual topology: without explicit seed
+	// candidates it must not expand via discovered peers. V2 networks use the
+	// persistent/discovered peer model introduced by v0.2.6.
+	if !n.enableV2 && len(n.seedCandidates(overrides)) == 0 {
+		return BootstrapResult{}
+	}
+
 	result := n.Bootstrap(ctx, overrides)
 
 	// Discovery can expand after each new outbound peer. Keep the bootstrap
