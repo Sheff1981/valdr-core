@@ -346,6 +346,28 @@ func TestProtectionDefaultValues(t *testing.T) {
 }
 
 
+func TestLegacyBootstrapAndMaintainDoesNothingWithoutSeeds(t *testing.T) {
+	node := mustStartNode(t, NodeConfig{
+		NodeID:        "legacy-no-seed-target",
+		ListenAddress: "127.0.0.1:0",
+	})
+	defer node.Close()
+
+	node.mu.Lock()
+	node.discovered["legacy-would-connect"] = "127.0.0.1:65534"
+	node.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	result := node.BootstrapAndMaintain(ctx, nil)
+	if result.Attempted != 0 || result.Connected != 0 || len(result.Failures) != 0 {
+		t.Fatalf("legacy bootstrap changed frozen topology without seeds: %+v", result)
+	}
+	if node.PeerCount() != 0 {
+		t.Fatalf("peer count=%d want=0", node.PeerCount())
+	}
+}
+
 func TestBootstrapAndMaintainUsesDiscoveredPeersWithoutSeeds(t *testing.T) {
 	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
 	if err != nil {
