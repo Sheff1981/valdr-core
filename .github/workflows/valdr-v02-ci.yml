@@ -544,6 +544,154 @@ jobs:
           wait "$DESKTOP_PID" 2>/dev/null || true
           trap - EXIT
 
+      - name: Build Stage 13 macOS development package
+        if: startsWith(matrix.name, 'macos-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="apps/valdr-desktop/build/bin/VALDR Desktop.app"
+          DIST="$RUNNER_TEMP/valdr-stage13-${{ matrix.name }}"
+          rm -rf "$DIST"
+          mkdir -p "$DIST"
+
+          case "${{ matrix.name }}" in
+            macos-arm64)
+              ARCH="arm64"
+              FILE_ARCH="arm64"
+              MANIFEST_ARCH="arm64"
+              MIN_OS="macOS 11.0+ ARM64"
+              ;;
+            macos-amd64)
+              ARCH="amd64"
+              FILE_ARCH="x64"
+              MANIFEST_ARCH="amd64"
+              MIN_OS="macOS 10.13+ Intel x64"
+              ;;
+            *)
+              echo "unsupported macOS matrix target: ${{ matrix.name }}" >&2
+              exit 1
+              ;;
+          esac
+
+          bash scripts/package-macos-stage13.sh \
+            --app "$APP" \
+            --output-dir "$DIST" \
+            --arch "$ARCH"
+
+          VERSION="$("$APP/Contents/MacOS/valdrd" version | awk '{print $NF}')"
+          DMG="VALDR-Desktop-$VERSION-macos-$FILE_ARCH.dmg"
+          test -s "$DIST/$DMG"
+
+          cat >"$DIST/artifact-metadata.json" <<EOF
+          {
+            "artifacts": [
+              {
+                "filename": "$DMG",
+                "os": "macos",
+                "arch": "$MANIFEST_ARCH",
+                "minimum_os": "$MIN_OS",
+                "signing_status": "adhoc-development",
+                "notarization_status": "not-notarized-development"
+              }
+            ]
+          }
+          EOF
+
+          RELEASED_AT="$(git show -s --format=%cI "$GITHUB_SHA")"
+          go run ./cmd/valdr-release-manifest \
+            --artifacts-dir "$DIST" \
+            --metadata "$DIST/artifact-metadata.json" \
+            --commit "$GITHUB_SHA" \
+            --released-at "$RELEASED_AT" \
+            --output "$DIST/release-manifest.json" \
+            --development
+          rm "$DIST/artifact-metadata.json"
+
+          python3 - "$DIST/release-manifest.json" "$DIST/$DMG" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          manifest_path = pathlib.Path(sys.argv[1])
+          artifact_path = pathlib.Path(sys.argv[2])
+          manifest = json.loads(manifest_path.read_text())
+          assert manifest["development"] is True
+          assert len(manifest["artifacts"]) == 1
+          artifact = manifest["artifacts"][0]
+          assert artifact["filename"] == artifact_path.name
+          assert artifact["sha256"] == hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+          assert artifact["size_bytes"] == artifact_path.stat().st_size
+          assert artifact["signing_status"] == "adhoc-development"
+          assert artifact["notarization_status"] == "not-notarized-development"
+          PY
+
+      - name: Clean mount and launch Stage 13 macOS development package
+        if: startsWith(matrix.name, 'macos-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-stage13-${{ matrix.name }}"
+          DMG="$(find "$DIST" -maxdepth 1 -name '*.dmg' -print -quit)"
+          test -n "$DMG"
+          hdiutil verify "$DMG" >/dev/null
+
+          MOUNT="$RUNNER_TEMP/valdr-stage13-mount-${{ matrix.name }}"
+          rm -rf "$MOUNT"
+          mkdir -p "$MOUNT"
+          hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -readonly >/dev/null
+
+          APP="$MOUNT/VALDR Desktop.app"
+          DESKTOP="$APP/Contents/MacOS/VALDR"
+          NODE="$APP/Contents/MacOS/valdrd"
+          MINER="$APP/Contents/MacOS/valdr-miner"
+
+          cleanup_mount() {
+            hdiutil detach "$MOUNT" >/dev/null 2>&1 || hdiutil detach -force "$MOUNT" >/dev/null 2>&1 || true
+          }
+          trap cleanup_mount EXIT
+
+          test -x "$DESKTOP"
+          test -x "$NODE"
+          test -x "$MINER"
+          "$NODE" version
+          "$MINER" version
+          codesign --verify --deep --strict "$APP"
+
+          export HOME="$(mktemp -d)"
+          LOG="$RUNNER_TEMP/valdr-stage13-macos-${{ matrix.name }}.log"
+          "$DESKTOP" >"$LOG" 2>&1 &
+          DESKTOP_PID=$!
+
+          cleanup_app() {
+            kill "$DESKTOP_PID" 2>/dev/null || true
+            wait "$DESKTOP_PID" 2>/dev/null || true
+          }
+          trap 'cleanup_app; cleanup_mount' EXIT
+
+          sleep 5
+          if ! kill -0 "$DESKTOP_PID" 2>/dev/null; then
+            cat "$LOG"
+            exit 1
+          fi
+          if curl -fsS -X POST http://127.0.0.1:17332/rpc \
+            -H 'Content-Type: application/json' \
+            --data '{"method":"getStatus"}' >/dev/null 2>&1; then
+            echo "fresh packaged Desktop unexpectedly started valdrd before first wallet setup"
+            exit 1
+          fi
+
+          cleanup_app
+          cleanup_mount
+          trap - EXIT
+
+      - name: Upload Stage 13 macOS development package
+        if: startsWith(matrix.name, 'macos-')
+        uses: actions/upload-artifact@v4
+        with:
+          name: valdr-stage13-${{ matrix.name }}-development
+          path: ${{ runner.temp }}/valdr-stage13-${{ matrix.name }}/**
+          if-no-files-found: error
       - name: Install NSIS for Stage 13 Windows packaging
         if: matrix.name == 'windows-amd64'
         shell: pwsh
