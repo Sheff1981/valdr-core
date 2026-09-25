@@ -467,3 +467,17 @@ The manager now uses a streaming JSON decoder over the actual child-process stdo
 
 This is a Desktop telemetry/parser correction only. Consensus PoW, target calculation, block validation and miner RPC behavior are unchanged.
 
+## 23. Ephemeral wallet-secret presentation
+
+**Date:** 2026-09-25
+
+A final Stage 12 wallet-UI security pass reduced the time sensitive material can remain visible in the WebView:
+
+- revealed private-key text is cleared when the user leaves the Wallet screen;
+- revealed private-key text and an open send-confirmation dialog are cleared when the Desktop document becomes hidden;
+- first-run wallet passphrase/confirmation fields are cleared after a create attempt whether it succeeds or fails;
+- normal wallet create and unlock passphrase fields are likewise cleared after the backend attempt;
+- a frontend source-contract test guards these secret-lifecycle hooks.
+
+This does not change wallet encryption, key derivation, consensus, RPC or P2P behavior. It is Desktop presentation hardening within the existing Stage 12 security model and does not require a Master-TZ revision.
+

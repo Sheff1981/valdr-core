@@ -202,7 +202,7 @@ root.innerHTML = `
       <div class="boot-copy">
         <p class="eyebrow">NOT A TOKEN. A CHAIN.</p>
         <h1>VALDR DESKTOP</h1>
-        <p>Initializing secure wallet and local node</p>
+        <p>Preparing secure wallet and Testnet environment</p>
         <div class="boot-progress"><span></span></div>
         <small>TESTNET · MAINNET DISABLED</small>
       </div>
@@ -1727,6 +1727,7 @@ const refresh = async (): Promise<void> => {
 const navigateToView = (view: string): void => {
   const navButton = document.querySelector<HTMLButtonElement>(`.nav-item[data-view="${view}"]`);
   if (!navButton || navButton.classList.contains("hidden")) return;
+  if (view !== "wallet") clearPrivateKeyExport();
   currentView = view;
   closeTransactionDetail();
   document.querySelectorAll(".nav-item").forEach((item) => item.classList.remove("active"));
@@ -1941,13 +1942,14 @@ document.getElementById("first-run-form")?.addEventListener("submit", async (eve
     const created = await api().CreateWallet(name, pass);
     activeWalletAddress = created.address;
     activeWalletName = created.name || "VALDR Wallet";
+    await refresh();
+  } catch (error) {
+    text("first-run-error", error instanceof Error ? error.message : String(error));
+  } finally {
     const passInput = document.getElementById("first-wallet-passphrase") as HTMLInputElement | null;
     const confirmInput = document.getElementById("first-wallet-confirm") as HTMLInputElement | null;
     if (passInput) passInput.value = "";
     if (confirmInput) confirmInput.value = "";
-    await refresh();
-  } catch (error) {
-    text("first-run-error", error instanceof Error ? error.message : String(error));
   }
 });
 
@@ -1993,13 +1995,14 @@ document.getElementById("create-wallet-form")?.addEventListener("submit", async 
     const created = await api().CreateWallet(name, pass);
     activeWalletAddress = created.address;
     activeWalletName = created.name || "VALDR Wallet";
+    await refresh();
+  } catch (error) {
+    showError(error instanceof Error ? error.message : String(error));
+  } finally {
     const passInput = document.getElementById("wallet-passphrase") as HTMLInputElement | null;
     const confirmInput = document.getElementById("wallet-passphrase-confirm") as HTMLInputElement | null;
     if (passInput) passInput.value = "";
     if (confirmInput) confirmInput.value = "";
-    await refresh();
-  } catch (error) {
-    showError(error instanceof Error ? error.message : String(error));
   }
 });
 
@@ -2065,8 +2068,6 @@ document.getElementById("unlock-wallet-form")?.addEventListener("submit", async 
   }
   try {
     await api().UnlockWallet(wallet.address, passphrase);
-    const input = document.getElementById("unlock-wallet-passphrase") as HTMLInputElement | null;
-    if (input) input.value = "";
     text("wallet-security-status", "Wallet unlocked locally.");
     await refresh();
   } catch (error) {
@@ -2074,6 +2075,9 @@ document.getElementById("unlock-wallet-form")?.addEventListener("submit", async 
       "wallet-security-status",
       error instanceof Error ? error.message : String(error),
     );
+  } finally {
+    const input = document.getElementById("unlock-wallet-passphrase") as HTMLInputElement | null;
+    if (input) input.value = "";
   }
 });
 
@@ -2301,6 +2305,13 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeSendConfirmation();
     closeTransactionDetail();
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    clearPrivateKeyExport();
+    closeSendConfirmation();
   }
 });
 

@@ -27,6 +27,7 @@ Stage 12 must **not** yet be marked fully complete.
 
 1. **Manual GUI acceptance:** owner click-through of first-run, wallet, Send/Receive, Transactions, Settings and Advanced screens on the Windows build is still pending.
 2. **Mining visual confirmation:** the previously reported blank hashrate was traced to the Desktop miner manager parsing pretty-printed JSON one line at a time. The parser now decodes the real JSON stream, and cross-platform runtime E2E requires positive accepted-block/hashrate/hash-count telemetry after a mined block. The GUI value still needs owner visual confirmation on Windows.
-3. If manual QA finds a defect, fix it and rerun the full CI matrix before Stage 12 is frozen.
+3. **Secret presentation hardening:** private-key output is automatically hidden when leaving the Wallet view or when the app is backgrounded, and wallet passphrase inputs are cleared after create/unlock attempts. Frontend source-contract coverage prevents silent regression.
+4. If manual QA finds a defect, fix it and rerun the full CI matrix before Stage 12 is frozen.
 
 When those items are closed, Stage 12 can be frozen and work can move to Stage 13 installers/release pipeline. Stage 13 must not begin merely because the automated matrix is green.

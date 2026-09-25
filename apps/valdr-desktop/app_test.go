@@ -642,3 +642,24 @@ func TestDesktopFrontendDoesNotOfferMainnet(t *testing.T) {
 		}
 	}
 }
+
+
+func TestDesktopFrontendSecretPresentationIsEphemeral(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, required := range []string{
+		`if (view !== "wallet") clearPrivateKeyExport();`,
+		`document.addEventListener("visibilitychange"`,
+		`if (document.hidden) {`,
+		`clearPrivateKeyExport();`,
+		`finally {`,
+		`document.getElementById("unlock-wallet-passphrase")`,
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("Desktop frontend missing secret-lifecycle guard %q", required)
+		}
+	}
+}
