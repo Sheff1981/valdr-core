@@ -366,3 +366,20 @@ The diagnostics report:
 
 The scan runs only when the Advanced Network view requests it; it is not added to the normal five-second Desktop state loop. It does not modify BadgerDB, consensus state, wallet files or RPC.
 
+## 17. Advanced diagnostics export
+
+**Date:** 2026-09-25
+
+Stage 12 Settings now provides an explicit Advanced-mode diagnostics export.
+
+The user-selected local JSON report contains only operational data needed for support/debugging:
+
+- Testnet/network identity and current node status;
+- bounded storage diagnostics;
+- non-secret Desktop preferences;
+- wallet counts only, never wallet file contents;
+- miner counters/timing/hashrate fields without the reward address;
+- the bounded in-memory node log buffer after secret-line redaction.
+
+Private keys, wallet passphrases, encrypted wallet payloads and automatic telemetry/upload are excluded. The diagnostics file is written locally with private permissions where the platform supports POSIX modes.
+

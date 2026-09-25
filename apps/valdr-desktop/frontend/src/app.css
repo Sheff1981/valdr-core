@@ -1719,6 +1719,16 @@ button.secondary {
 }
 
 /* Settings remain functional: language/theme/startup/advanced are live controls. */
+
+#export-diagnostics {
+  margin-top: 8px;
+}
+
+#diagnostics-export-status {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
 .settings-locked-field {
   display: grid;
   gap: 3px;

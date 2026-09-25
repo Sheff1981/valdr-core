@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -330,5 +331,99 @@ func TestDesktopStorageDiagnosticsRequireAdvancedMode(t *testing.T) {
 	}
 	if !got.Ready || got.FileCount != 1 || got.SizeBytes != 5 {
 		t.Fatalf("unexpected storage diagnostics: %+v", got)
+	}
+}
+
+
+func TestDesktopDiagnosticsRequireAdvancedAndExcludeSecrets(t *testing.T) {
+	root := t.TempDir()
+	paths := desktopcore.Paths{
+		Root:     root,
+		NodeData: filepath.Join(root, "node", "testnet"),
+		Wallets:  filepath.Join(root, "wallets"),
+		Logs:     filepath.Join(root, "logs"),
+		Network:  config.NetworkTestnetV02,
+	}
+	if err := paths.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
+		BinaryPath: filepath.Join(root, "valdrd-not-started"),
+		Network:    config.NetworkTestnetV02,
+		DataDir:    paths.NodeData,
+		NodeID:     "desktop-diagnostics-test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logs := desktopcore.NewLogBuffer(4096)
+	_, _ = logs.Write([]byte(
+		"[NODE] diagnostic line\nprivate_key=diagnostic-secret\npassword=another-secret\n",
+	))
+
+	prefs := desktopcore.DefaultDesktopPreferences()
+	app := &App{
+		paths:       paths,
+		node:        node,
+		walletStore: wallet.NewStore(paths.Wallets),
+		nodeLogs:    logs,
+		preferences: prefs,
+	}
+
+	if _, err := app.desktopDiagnosticsJSON(); !errors.Is(
+		err,
+		ErrDesktopAdvancedModeRequired,
+	) {
+		t.Fatalf("desktopDiagnosticsJSON error=%v want Advanced required", err)
+	}
+
+	prefs.Advanced = true
+	app.preferences = prefs
+	raw, err := app.desktopDiagnosticsJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	for _, secret := range []string{
+		"diagnostic-secret",
+		"another-secret",
+		"private_key=",
+		"password=",
+	} {
+		if strings.Contains(text, secret) {
+			t.Fatalf("diagnostics leaked secret marker %q: %s", secret, text)
+		}
+	}
+	if !strings.Contains(text, "[REDACTED sensitive log line]") {
+		t.Fatalf("diagnostics missing redaction marker: %s", text)
+	}
+	if strings.Contains(text, "private_key") ||
+		strings.Contains(text, "passphrase") {
+		t.Fatalf("diagnostics schema unexpectedly includes wallet secret fields: %s", text)
+	}
+	if !strings.Contains(text, `"network": "testnet"`) ||
+		!strings.Contains(text, `"mainnet_enabled": false`) {
+		t.Fatalf("diagnostics missing Testnet identity: %s", text)
+	}
+}
+
+func TestWriteDesktopDiagnosticsUsesPrivateFileMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "diagnostics.json")
+	if err := writeDesktopDiagnostics(path, []byte(`{"ok":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("diagnostics mode=%#o want=0600", info.Mode().Perm())
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "{\"ok\":true}\n" {
+		t.Fatalf("unexpected diagnostics file: %q", raw)
 	}
 }

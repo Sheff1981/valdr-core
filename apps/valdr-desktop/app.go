@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -49,6 +50,52 @@ type DesktopState struct {
 	Wallets               []wallet.Metadata  `json:"wallets"`
 	UnlockedWallets       []string           `json:"unlocked_wallets"`
 	WalletAutoLockMinutes int                `json:"wallet_auto_lock_minutes"`
+}
+
+type DesktopDiagnosticsPreferences struct {
+	Language                   string `json:"language"`
+	Theme                      string `json:"theme"`
+	StartNode                  bool   `json:"start_node"`
+	Advanced                   bool   `json:"advanced"`
+	WalletAutoLockMinutes      int    `json:"wallet_auto_lock_minutes"`
+	PublicNode                 bool   `json:"public_node"`
+	PublicNodeAdvertiseAddress string `json:"public_node_advertise_address,omitempty"`
+}
+
+type DesktopDiagnosticsMining struct {
+	Running                bool    `json:"running"`
+	AcceptedBlocks         uint64  `json:"accepted_blocks"`
+	LastError              string  `json:"last_error,omitempty"`
+	Height                 uint64  `json:"height"`
+	NextHeight             uint64  `json:"next_height"`
+	CurrentTarget          string  `json:"current_target,omitempty"`
+	TargetBlockTimeSeconds int64   `json:"target_block_time_seconds"`
+	RetargetInterval       uint64  `json:"retarget_interval"`
+	BlocksUntilRetarget    uint64  `json:"blocks_until_retarget"`
+	HashrateHPS            float64 `json:"hashrate_hps"`
+	LastBlockHashrateHPS   float64 `json:"last_block_hashrate_hps"`
+	LastBlockHashes        uint64  `json:"last_block_hashes"`
+	LastBlockDurationMS    float64 `json:"last_block_duration_ms"`
+	TotalHashes            uint64  `json:"total_hashes"`
+	TotalMiningDurationMS  float64 `json:"total_mining_duration_ms"`
+}
+
+type DesktopDiagnosticsReport struct {
+	GeneratedAtUTC      string                        `json:"generated_at_utc"`
+	Version             string                        `json:"version"`
+	Network             string                        `json:"network"`
+	ChainID             string                        `json:"chain_id"`
+	MainnetEnabled      bool                          `json:"mainnet_enabled"`
+	NodeRunning         bool                          `json:"node_running"`
+	NodeError           string                        `json:"node_error,omitempty"`
+	NodeStatus          *rpc.StatusResult             `json:"node_status,omitempty"`
+	Storage             desktopcore.StorageDiagnostics `json:"storage"`
+	Preferences         DesktopDiagnosticsPreferences `json:"preferences"`
+	WalletCount         int                           `json:"wallet_count"`
+	UnlockedWalletCount int                           `json:"unlocked_wallet_count"`
+	Mining              *DesktopDiagnosticsMining     `json:"mining,omitempty"`
+	MiningStatusError   string                        `json:"mining_status_error,omitempty"`
+	NodeLogs            string                        `json:"node_logs,omitempty"`
 }
 
 type App struct {
@@ -384,6 +431,155 @@ func (a *App) GetStorageDiagnostics() (desktopcore.StorageDiagnostics, error) {
 		a.paths.NodeData,
 		desktopcore.DefaultStorageDiagnosticsMaxEntries,
 	), nil
+}
+
+func (a *App) ExportDiagnostics() (string, error) {
+	if !a.preferencesSnapshot().Advanced {
+		return "", ErrDesktopAdvancedModeRequired
+	}
+	if a.ctx == nil {
+		return "", errors.New("VALDR Desktop is not started")
+	}
+
+	report, err := a.desktopDiagnosticsJSON()
+	if err != nil {
+		return "", err
+	}
+
+	path, err := wailsruntime.SaveFileDialog(
+		a.ctx,
+		wailsruntime.SaveDialogOptions{
+			Title: "Export VALDR diagnostics",
+			DefaultFilename: "VALDR-diagnostics-" +
+				time.Now().UTC().Format("20060102-150405") + ".json",
+			Filters: []wailsruntime.FileFilter{{
+				DisplayName: "JSON diagnostics (*.json)",
+				Pattern:     "*.json",
+			}},
+		},
+	)
+	if err != nil || path == "" {
+		return path, err
+	}
+	if filepath.Ext(path) == "" {
+		path += ".json"
+	}
+	if err := writeDesktopDiagnostics(path, report); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func (a *App) desktopDiagnosticsJSON() ([]byte, error) {
+	if !a.preferencesSnapshot().Advanced {
+		return nil, ErrDesktopAdvancedModeRequired
+	}
+
+	state, err := a.GetState()
+	if err != nil {
+		return nil, err
+	}
+	prefs := state.Preferences
+	report := DesktopDiagnosticsReport{
+		GeneratedAtUTC: time.Now().UTC().Format(time.RFC3339),
+		Version:        config.Version,
+		Network:        state.Network,
+		ChainID:        state.ChainID,
+		MainnetEnabled: state.MainnetEnabled,
+		NodeRunning:    state.NodeRunning,
+		NodeError:      state.NodeError,
+		NodeStatus:     state.NodeStatus,
+		Storage: desktopcore.InspectStorage(
+			a.paths.NodeData,
+			desktopcore.DefaultStorageDiagnosticsMaxEntries,
+		),
+		Preferences: DesktopDiagnosticsPreferences{
+			Language:                   prefs.Language,
+			Theme:                      prefs.Theme,
+			StartNode:                  prefs.StartNode,
+			Advanced:                   prefs.Advanced,
+			WalletAutoLockMinutes:      prefs.WalletAutoLockMinutes,
+			PublicNode:                 prefs.PublicNode,
+			PublicNodeAdvertiseAddress: prefs.PublicNodeAdvertiseAddress,
+		},
+		WalletCount:         len(state.Wallets),
+		UnlockedWalletCount: len(state.UnlockedWallets),
+	}
+	if a.nodeLogs != nil {
+		report.NodeLogs = a.nodeLogs.String()
+	}
+	if a.miner != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		mining, miningErr := a.miner.Status(ctx)
+		cancel()
+		report.Mining = &DesktopDiagnosticsMining{
+			Running:                mining.Running,
+			AcceptedBlocks:         mining.AcceptedBlocks,
+			LastError:              mining.LastError,
+			Height:                 mining.Height,
+			NextHeight:             mining.NextHeight,
+			CurrentTarget:          mining.CurrentTarget,
+			TargetBlockTimeSeconds: mining.TargetBlockTimeSeconds,
+			RetargetInterval:       mining.RetargetInterval,
+			BlocksUntilRetarget:    mining.BlocksUntilRetarget,
+			HashrateHPS:            mining.HashrateHPS,
+			LastBlockHashrateHPS:   mining.LastBlockHashrateHPS,
+			LastBlockHashes:        mining.LastBlockHashes,
+			LastBlockDurationMS:    mining.LastBlockDurationMS,
+			TotalHashes:            mining.TotalHashes,
+			TotalMiningDurationMS:  mining.TotalMiningDurationMS,
+		}
+		if miningErr != nil {
+			report.MiningStatusError = miningErr.Error()
+		}
+	}
+
+	return json.MarshalIndent(report, "", "  ")
+}
+
+func writeDesktopDiagnostics(path string, report []byte) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return errors.New("diagnostics path is required")
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".valdr-diagnostics-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		cleanup()
+		return err
+	}
+	if _, err := tmp.Write(report); err != nil {
+		cleanup()
+		return err
+	}
+	if _, err := tmp.Write([]byte("\n")); err != nil {
+		cleanup()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		cleanup()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func (a *App) GetPeers() ([]rpc.PeerResult, error) {

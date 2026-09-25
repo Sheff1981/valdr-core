@@ -134,6 +134,7 @@ type AppAPI = {
   GetPeers(): Promise<PeerInfo[]>;
   GetNodeLogs(): Promise<string>;
   GetStorageDiagnostics(): Promise<StorageDiagnostics>;
+  ExportDiagnostics(): Promise<string>;
   SetPublicNodeMode(enabled: boolean, advertiseAddress: string): Promise<DesktopPreferences>;
   PreviewSend(
     selector: string,
@@ -771,6 +772,14 @@ root.innerHTML = `
               <div><dt>Logs</dt><dd><code id="settings-logs">—</code></dd></div>
             </dl>
             <p class="subtle" id="settings-data-note">Data-directory editing is intentionally disabled while the managed-node migration flow is not yet implemented.</p>
+          </article>
+
+          <article class="card advanced-only hidden">
+            <h3>Diagnostics export</h3>
+            <p class="subtle">Save a local JSON report with node, storage, mining and redacted log diagnostics.</p>
+            <p class="warning">Wallet private keys, passphrases and wallet file contents are not included.</p>
+            <button class="secondary" id="export-diagnostics" type="button">Export diagnostics</button>
+            <p id="diagnostics-export-status" class="subtle"></p>
           </article>
         </div>
       </section>
@@ -1724,6 +1733,26 @@ const saveDesktopSettings = async (): Promise<void> => {
     text("settings-status", error instanceof Error ? error.message : String(error));
   }
 };
+
+document.getElementById("export-diagnostics")?.addEventListener("click", async () => {
+  const button = document.getElementById("export-diagnostics") as HTMLButtonElement | null;
+  if (button) button.disabled = true;
+  text("diagnostics-export-status", "Preparing diagnostics…");
+  try {
+    const path = await api().ExportDiagnostics();
+    text(
+      "diagnostics-export-status",
+      path ? `Diagnostics saved: ${path}` : "Diagnostics export cancelled.",
+    );
+  } catch (error) {
+    text(
+      "diagnostics-export-status",
+      error instanceof Error ? error.message : String(error),
+    );
+  } finally {
+    if (button) button.disabled = false;
+  }
+});
 
 document.getElementById("desktop-settings-form")?.addEventListener("submit", (event) => {
   event.preventDefault();
