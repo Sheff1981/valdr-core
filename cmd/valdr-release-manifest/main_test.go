@@ -208,3 +208,79 @@ func TestNormalizeCommitRejectsInvalidValue(t *testing.T) {
 		}
 	}
 }
+
+
+func TestValidateProductionSigningMetadataRejectsDevelopmentClaims(t *testing.T) {
+	cases := []artifactMetadata{
+		{
+			Filename:           "VALDR-Desktop-" + config.Version + "-windows-x64-setup.exe",
+			OS:                 "windows",
+			Arch:               "amd64",
+			MinimumOS:          "Windows 10/11 x64",
+			SigningStatus:      "unsigned-development",
+			NotarizationStatus: "not_applicable",
+		},
+		{
+			Filename:           "VALDR-Desktop-" + config.Version + "-macos-arm64.dmg",
+			OS:                 "macos",
+			Arch:               "arm64",
+			MinimumOS:          "macOS 11.0+ ARM64",
+			SigningStatus:      "adhoc-development",
+			NotarizationStatus: "not-notarized-development",
+		},
+		{
+			Filename:           "VALDR-Desktop-" + config.Version + "-linux-x64.AppImage",
+			OS:                 "linux",
+			Arch:               "amd64",
+			MinimumOS:          "Ubuntu 24.04 CI baseline",
+			SigningStatus:      "unsigned-development",
+			NotarizationStatus: "not_applicable",
+		},
+	}
+
+	for _, item := range cases {
+		if err := validateArtifactMetadata(item, false); err == nil {
+			t.Fatalf("production metadata unexpectedly accepted development claim: %+v", item)
+		}
+		if err := validateArtifactMetadata(item, true); err != nil {
+			t.Fatalf("development metadata unexpectedly rejected: %v", err)
+		}
+	}
+}
+
+func TestValidateProductionArtifactSetRequiresMandatoryTargets(t *testing.T) {
+	version := config.Version
+	items := []artifactMetadata{
+		{Filename: "VALDR-Desktop-" + version + "-windows-x64-setup.exe", OS: "windows", Arch: "amd64"},
+		{Filename: "VALDR-Desktop-" + version + "-windows-x64-portable.zip", OS: "windows", Arch: "amd64"},
+		{Filename: "VALDR-Desktop-" + version + "-linux-x64.AppImage", OS: "linux", Arch: "amd64"},
+		{Filename: "VALDR-Desktop-" + version + "-linux-amd64.deb", OS: "linux", Arch: "amd64"},
+		{Filename: "VALDR-Desktop-" + version + "-macos-arm64.dmg", OS: "macos", Arch: "arm64"},
+		{Filename: "VALDR-Desktop-" + version + "-macos-x64.dmg", OS: "macos", Arch: "amd64"},
+	}
+
+	if err := validateProductionArtifactSet(items); err != nil {
+		t.Fatalf("complete mandatory release set rejected: %v", err)
+	}
+
+	incomplete := append([]artifactMetadata(nil), items[:len(items)-1]...)
+	err := validateProductionArtifactSet(incomplete)
+	if err == nil || !strings.Contains(err.Error(), "macOS Intel AMD64") {
+		t.Fatalf("expected missing Intel macOS artifact rejection, got %v", err)
+	}
+}
+
+func TestValidateProductionArtifactSetAllowsUniversalMac(t *testing.T) {
+	version := config.Version
+	items := []artifactMetadata{
+		{Filename: "VALDR-Desktop-" + version + "-windows-x64-setup.exe", OS: "windows", Arch: "amd64"},
+		{Filename: "VALDR-Desktop-" + version + "-windows-x64-portable.zip", OS: "windows", Arch: "amd64"},
+		{Filename: "VALDR-Desktop-" + version + "-linux-x64.AppImage", OS: "linux", Arch: "amd64"},
+		{Filename: "VALDR-Desktop-" + version + "-linux-amd64.deb", OS: "linux", Arch: "amd64"},
+		{Filename: "VALDR-Desktop-" + version + "-macos-universal.dmg", OS: "macos", Arch: "universal"},
+	}
+
+	if err := validateProductionArtifactSet(items); err != nil {
+		t.Fatalf("universal macOS release set rejected: %v", err)
+	}
+}
