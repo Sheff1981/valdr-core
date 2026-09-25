@@ -124,9 +124,13 @@ func (s *PreferenceStore) Save(prefs DesktopPreferences) error {
 }
 
 func validateDesktopPreferences(prefs DesktopPreferences) error {
-	if prefs.Version != DesktopPreferencesVersion ||
-		prefs.Language != "en" ||
-		prefs.Theme != "dark" {
+	if prefs.Version != DesktopPreferencesVersion {
+		return ErrDesktopPreferences
+	}
+	if prefs.Language != "en" && prefs.Language != "ru" {
+		return ErrDesktopPreferences
+	}
+	if prefs.Theme != "dark" && prefs.Theme != "classic" {
 		return ErrDesktopPreferences
 	}
 	timeout := time.Duration(prefs.WalletAutoLockMinutes) * time.Minute

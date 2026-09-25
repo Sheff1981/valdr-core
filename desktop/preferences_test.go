@@ -19,6 +19,8 @@ func TestDesktopPreferencesDefaultAndPersistence(t *testing.T) {
 		t.Fatalf("defaults=%+v want=%+v", prefs, DefaultDesktopPreferences())
 	}
 
+	prefs.Language = "ru"
+	prefs.Theme = "classic"
 	prefs.StartNode = false
 	prefs.Advanced = true
 	prefs.WalletAutoLockMinutes = 30
@@ -50,6 +52,11 @@ func TestDesktopPreferencesRejectUnsupportedValues(t *testing.T) {
 	prefs.Theme = "remote-theme"
 	if err := store.Save(prefs); !errors.Is(err, ErrDesktopPreferences) {
 		t.Fatalf("Save error=%v want ErrDesktopPreferences", err)
+	}
+	prefs = DefaultDesktopPreferences()
+	prefs.Language = "xx"
+	if err := store.Save(prefs); !errors.Is(err, ErrDesktopPreferences) {
+		t.Fatalf("unsupported language Save error=%v want ErrDesktopPreferences", err)
 	}
 
 	if err := os.WriteFile(

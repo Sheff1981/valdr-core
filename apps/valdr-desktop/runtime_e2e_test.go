@@ -82,7 +82,7 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 		t.Fatalf("unexpected receive QR data URI: %q", qr)
 	}
 
-	if _, err := app.SetDesktopPreferences(true, true); err != nil {
+	if _, err := app.SetDesktopPreferences("en", "dark", true, true); err != nil {
 		t.Fatal(err)
 	}
 

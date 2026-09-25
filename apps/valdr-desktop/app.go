@@ -551,10 +551,14 @@ func (a *App) restoreWalletFrom(
 }
 
 func (a *App) SetDesktopPreferences(
+	language string,
+	theme string,
 	startNode bool,
 	advanced bool,
 ) (desktopcore.DesktopPreferences, error) {
 	prefs := a.preferencesSnapshot()
+	prefs.Language = strings.ToLower(strings.TrimSpace(language))
+	prefs.Theme = strings.ToLower(strings.TrimSpace(theme))
 	prefs.StartNode = startNode
 	prefs.Advanced = advanced
 

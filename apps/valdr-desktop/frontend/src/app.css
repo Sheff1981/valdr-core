@@ -2025,3 +2025,104 @@ body {
     max-width: 72%;
   }
 }
+
+
+/* Stage 12 Settings interaction + sharp owner-reference header fix — 2026-09-25 */
+.settings-locked-field {
+  display: grid;
+  gap: 3px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid rgba(229,179,77,.16);
+  border-radius: 8px;
+  color: #d7cdbd;
+  background: rgba(5,8,10,.68);
+}
+
+.settings-locked-field strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-locked-field small {
+  color: #756e64;
+  font-size: 10px;
+}
+
+.valdr-topbar {
+  background:
+    url("/valdr-reference-hero.jpg") right center / cover no-repeat,
+    #050607;
+}
+
+.valdr-topbar::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0 42% 0 0;
+  background: linear-gradient(90deg, #050708 0%, rgba(5,7,8,.99) 74%, rgba(5,7,8,.78) 90%, transparent 100%);
+  pointer-events: none;
+}
+
+.valdr-topbar .product-heading .eyebrow,
+.valdr-topbar .product-title,
+.valdr-topbar .product-subtitle,
+.valdr-topbar .view-label {
+  visibility: visible;
+}
+
+.valdr-topbar .product-heading {
+  position: relative;
+  z-index: 2;
+}
+
+html[data-theme="classic"] body {
+  background:
+    radial-gradient(circle at 78% 10%, rgba(83,103,120,.12), transparent 30%),
+    linear-gradient(145deg, #070b10 0%, #0d141b 100%);
+}
+
+html[data-theme="classic"] .sidebar {
+  border-right-color: rgba(130,150,168,.18);
+  background: linear-gradient(180deg, rgba(9,14,19,.99), rgba(5,9,13,.99));
+}
+
+html[data-theme="classic"] .reference-brand-image {
+  filter: saturate(.72) brightness(.86);
+}
+
+html[data-theme="classic"] .valdr-topbar {
+  background: linear-gradient(135deg, #0b1117, #111a22);
+}
+
+html[data-theme="classic"] .valdr-topbar::before {
+  display: none;
+}
+
+html[data-theme="classic"] .reference-hero-art {
+  display: none;
+}
+
+html[data-theme="classic"] .reference-hero {
+  background: linear-gradient(135deg, rgba(13,19,25,.98), rgba(7,11,15,.98));
+  border-color: rgba(126,151,172,.22);
+}
+
+html[data-theme="classic"] .nav-item.active {
+  border-color: rgba(125,151,173,.34);
+  background: linear-gradient(90deg, rgba(71,96,117,.34), rgba(31,47,60,.12));
+  box-shadow: inset 3px 0 0 #8ba6ba;
+}
+
+html[data-theme="classic"] button.primary {
+  border-color: #a9bfd1;
+  color: #0b1218;
+  background: linear-gradient(180deg, #b9cfdf, #8eaabe);
+}
+
+html[data-theme="classic"] .card,
+html[data-theme="classic"] .node-panel,
+html[data-theme="classic"] .latest-transaction {
+  border-color: rgba(126,151,172,.18);
+  background: linear-gradient(180deg, rgba(16,24,31,.96), rgba(8,13,18,.96));
+}

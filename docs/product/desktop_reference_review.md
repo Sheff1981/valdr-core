@@ -259,3 +259,23 @@ Implementation rule:
 - the dashboard keeps live VALDR wallet/node data and controls over those local assets;
 - no remote runtime content is introduced;
 - no consensus, wallet, P2P, RPC or storage behavior changes.
+
+
+## 11. Settings interaction and reference rendering fixes
+
+**Date:** 2026-09-25
+
+Owner QA identified two Stage 12 Desktop defects:
+
+- the owner-reference title/header was being enlarged as a raster background and appeared visibly blurred;
+- Settings exposed language/theme controls as disabled placeholders, so the controls looked broken.
+
+Implemented:
+
+- keep the owner-supplied reference artwork, but cover the baked raster title area and render the live VALDR title copy sharply above it;
+- Language now supports English and Russian and persists locally;
+- Theme now switches immediately between Premium/reference and Classic dark and persists locally;
+- Start-node and Advanced switches persist immediately on change;
+- Network is displayed as a locked Testnet-only value rather than a non-functional dropdown because Mainnet remains disabled by the active Master-TZ.
+
+No consensus, P2P, wallet, RPC or storage behavior is changed.

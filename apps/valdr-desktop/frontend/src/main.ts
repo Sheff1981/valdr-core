@@ -21,8 +21,8 @@ type NodeStatus = {
 
 type DesktopPreferences = {
   version: number;
-  language: "en";
-  theme: "dark";
+  language: "en" | "ru";
+  theme: "dark" | "classic";
   start_node: boolean;
   advanced: boolean;
 };
@@ -135,6 +135,8 @@ type AppAPI = {
   RestoreWallet(passphrase: string): Promise<WalletMetadata>;
   GetTransactionHistory(address: string): Promise<TransactionHistoryItem[]>;
   SetDesktopPreferences(
+    language: "en" | "ru",
+    theme: "dark" | "classic",
     startNode: boolean,
     advanced: boolean,
   ): Promise<DesktopPreferences>;
@@ -283,7 +285,7 @@ root.innerHTML = `
 
       <div class="sidebar-foot">
         <span class="testnet-pill">TESTNET</span>
-        <small>Mainnet disabled</small>
+        <small id="mainnet-status">Mainnet disabled</small>
       </div>
     </aside>
 
@@ -656,55 +658,58 @@ root.innerHTML = `
       <section class="view" id="view-settings">
         <div class="section-head">
           <div>
-            <p class="eyebrow">DESKTOP PREFERENCES</p>
-            <h2>Settings</h2>
-            <p class="subtle">Only non-secret convenience settings are stored locally.</p>
+            <p class="eyebrow" id="settings-eyebrow">DESKTOP PREFERENCES</p>
+            <h2 id="settings-title">Settings</h2>
+            <p class="subtle" id="settings-intro">Only non-secret convenience settings are stored locally.</p>
           </div>
         </div>
         <div class="settings-grid">
           <article class="card">
-            <h3>Application</h3>
+            <h3 id="settings-application-title">Application</h3>
             <form id="desktop-settings-form">
               <label>
-                Language
-                <select id="settings-language" disabled>
-                  <option value="en">English · current build</option>
+                <span id="settings-language-label">Language</span>
+                <select id="settings-language">
+                  <option value="en">English</option>
+                  <option value="ru">Русский</option>
                 </select>
               </label>
               <label>
-                Theme
-                <select id="settings-theme" disabled>
-                  <option value="dark">Dark · current build</option>
+                <span id="settings-theme-label">Theme</span>
+                <select id="settings-theme">
+                  <option value="dark">Premium · reference</option>
+                  <option value="classic">Classic dark</option>
                 </select>
               </label>
               <label>
-                Network
-                <select id="settings-network" disabled>
-                  <option value="testnet">Testnet · valdr-testnet-1</option>
-                </select>
+                <span id="settings-network-label">Network</span>
+                <div class="settings-locked-field">
+                  <strong>Testnet · valdr-testnet-1</strong>
+                  <small id="settings-network-note">Mainnet is disabled in this build</small>
+                </div>
               </label>
               <label class="settings-check">
                 <input id="settings-start-node" type="checkbox">
-                <span>Start managed local node when VALDR Desktop launches</span>
+                <span id="settings-start-node-label">Start managed local node when VALDR Desktop launches</span>
               </label>
               <label class="settings-check">
                 <input id="settings-advanced" type="checkbox">
-                <span>Enable Advanced mode</span>
+                <span id="settings-advanced-label">Enable Advanced mode</span>
               </label>
-              <button class="primary" type="submit">Save settings</button>
+              <button class="primary" id="settings-save" type="submit">Save settings</button>
             </form>
             <p id="settings-status" class="subtle"></p>
           </article>
 
           <article class="card">
-            <h3>Local data</h3>
+            <h3 id="settings-local-data-title">Local data</h3>
             <dl class="details">
               <div><dt>Application data</dt><dd><code id="settings-root">—</code></dd></div>
               <div><dt>Node data</dt><dd><code id="settings-node-data">—</code></dd></div>
               <div><dt>Wallets</dt><dd><code id="settings-wallets">—</code></dd></div>
               <div><dt>Logs</dt><dd><code id="settings-logs">—</code></dd></div>
             </dl>
-            <p class="subtle">Data-directory editing is intentionally disabled while the managed-node migration flow is not yet implemented.</p>
+            <p class="subtle" id="settings-data-note">Data-directory editing is intentionally disabled while the managed-node migration flow is not yet implemented.</p>
           </article>
         </div>
       </section>
@@ -868,14 +873,112 @@ const clearPrivateKeyExport = (): void => {
   document.getElementById("private-key-result")?.classList.add("hidden");
 };
 
+const applyDesktopTheme = (theme: DesktopPreferences["theme"]): void => {
+  document.documentElement.dataset.theme = theme;
+};
+
+const applyDesktopLanguage = (language: DesktopPreferences["language"]): void => {
+  document.documentElement.lang = language;
+
+  const labels = language === "ru"
+    ? {
+        overview: "Главная",
+        wallet: "Кошелёк",
+        send: "Отправить",
+        receive: "Получить",
+        mining: "Майнинг",
+        network: "Сеть",
+        transactions: "Транзакции",
+        settings: "Настройки",
+        settingsEyebrow: "НАСТРОЙКИ DESKTOP",
+        settingsTitle: "Настройки",
+        settingsIntro: "Локально сохраняются только несекретные настройки приложения.",
+        application: "Приложение",
+        language: "Язык",
+        theme: "Тема",
+        networkLabel: "Сеть",
+        networkNote: "Mainnet отключён в этой сборке",
+        startNode: "Запускать локальную ноду при старте VALDR Desktop",
+        advanced: "Включить расширенный режим",
+        save: "Сохранить настройки",
+        localData: "Локальные данные",
+        dataNote: "Изменение каталога данных отключено, пока не реализован безопасный перенос управляемой ноды.",
+        mainnet: "Mainnet отключён",
+      }
+    : {
+        overview: "Dashboard",
+        wallet: "Wallet",
+        send: "Send",
+        receive: "Receive",
+        mining: "Mining",
+        network: "Network",
+        transactions: "Transactions",
+        settings: "Settings",
+        settingsEyebrow: "DESKTOP PREFERENCES",
+        settingsTitle: "Settings",
+        settingsIntro: "Only non-secret convenience settings are stored locally.",
+        application: "Application",
+        language: "Language",
+        theme: "Theme",
+        networkLabel: "Network",
+        networkNote: "Mainnet is disabled in this build",
+        startNode: "Start managed local node when VALDR Desktop launches",
+        advanced: "Enable Advanced mode",
+        save: "Save settings",
+        localData: "Local data",
+        dataNote: "Data-directory editing is intentionally disabled while the managed-node migration flow is not yet implemented.",
+        mainnet: "Mainnet disabled",
+      };
+
+  const navLabels: Record<string, string> = {
+    overview: labels.overview,
+    wallet: labels.wallet,
+    send: labels.send,
+    receive: labels.receive,
+    mining: labels.mining,
+    network: labels.network,
+    transactions: labels.transactions,
+    settings: labels.settings,
+  };
+  Object.entries(navLabels).forEach(([view, label]) => {
+    const button = document.querySelector<HTMLButtonElement>(`.nav-item[data-view="${view}"]`);
+    if (button) button.textContent = label;
+  });
+
+  text("settings-eyebrow", labels.settingsEyebrow);
+  text("settings-title", labels.settingsTitle);
+  text("settings-intro", labels.settingsIntro);
+  text("settings-application-title", labels.application);
+  text("settings-language-label", labels.language);
+  text("settings-theme-label", labels.theme);
+  text("settings-network-label", labels.networkLabel);
+  text("settings-network-note", labels.networkNote);
+  text("settings-start-node-label", labels.startNode);
+  text("settings-advanced-label", labels.advanced);
+  text("settings-save", labels.save);
+  text("settings-local-data-title", labels.localData);
+  text("settings-data-note", labels.dataNote);
+  text("mainnet-status", labels.mainnet);
+
+  const currentNav = document.querySelector<HTMLButtonElement>(`.nav-item[data-view="${currentView}"]`);
+  if (currentNav) text("view-title", currentNav.textContent?.trim() || "VALDR");
+};
+
 const renderDesktopPreferences = (): void => {
   const prefs = currentState?.preferences;
   if (!prefs) return;
 
+  const language = document.getElementById("settings-language") as HTMLSelectElement | null;
+  const theme = document.getElementById("settings-theme") as HTMLSelectElement | null;
   const startNode = document.getElementById("settings-start-node") as HTMLInputElement | null;
   const advanced = document.getElementById("settings-advanced") as HTMLInputElement | null;
+  if (language) language.value = prefs.language;
+  if (theme) theme.value = prefs.theme;
   if (startNode) startNode.checked = prefs.start_node;
   if (advanced) advanced.checked = prefs.advanced;
+
+  applyDesktopTheme(prefs.theme);
+  applyDesktopLanguage(prefs.language);
 
   document.querySelectorAll<HTMLElement>(".advanced-only").forEach((element) => {
     element.classList.toggle("hidden", !prefs.advanced);
@@ -1458,21 +1561,44 @@ document.getElementById("wallet-selector")?.addEventListener("change", (event) =
   }
 });
 
-document.getElementById("desktop-settings-form")?.addEventListener("submit", async (event) => {
-  event.preventDefault();
+const saveDesktopSettings = async (): Promise<void> => {
+  const language = ((document.getElementById("settings-language") as HTMLSelectElement | null)?.value ?? "en") as DesktopPreferences["language"];
+  const theme = ((document.getElementById("settings-theme") as HTMLSelectElement | null)?.value ?? "dark") as DesktopPreferences["theme"];
   const startNode = (document.getElementById("settings-start-node") as HTMLInputElement | null)?.checked ?? true;
   const advanced = (document.getElementById("settings-advanced") as HTMLInputElement | null)?.checked ?? false;
+
+  // Apply the visible choices immediately; backend persistence is authoritative.
+  applyDesktopTheme(theme);
+  applyDesktopLanguage(language);
+  document.querySelectorAll<HTMLElement>(".advanced-only").forEach((element) => {
+    element.classList.toggle("hidden", !advanced);
+  });
+
   try {
-    const preferences = await api().SetDesktopPreferences(startNode, advanced);
+    const preferences = await api().SetDesktopPreferences(language, theme, startNode, advanced);
     if (currentState) currentState.preferences = preferences;
     renderDesktopPreferences();
     text(
       "settings-status",
-      "Settings saved locally. Startup behavior applies on the next application launch.",
+      preferences.language === "ru"
+        ? "Настройки сохранены. Параметр запуска ноды применяется при следующем запуске приложения."
+        : "Settings saved. Node startup behavior applies on the next application launch.",
     );
   } catch (error) {
+    if (currentState) renderDesktopPreferences();
     text("settings-status", error instanceof Error ? error.message : String(error));
   }
+};
+
+document.getElementById("desktop-settings-form")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  void saveDesktopSettings();
+});
+
+["settings-language", "settings-theme", "settings-start-node", "settings-advanced"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("change", () => {
+    void saveDesktopSettings();
+  });
 });
 
 document.getElementById("start-node")?.addEventListener("click", async () => {
