@@ -1,7 +1,7 @@
 # VALDR Stage 12 Desktop acceptance matrix
 
 **Date:** 2026-09-25  
-**Master baseline:** `docs/VALDR_Master_TZ_v0.2.5.md`  
+**Master baseline:** `docs/VALDR_Master_TZ_v0.2.8.md`  
 **Branch:** `valdr-v0.2`
 
 This file records evidence for Master-TZ §22. It does not change consensus or release scope.
@@ -30,4 +30,8 @@ Stage 12 must **not** yet be marked fully complete.
 3. **Secret presentation hardening:** private-key output is automatically hidden when leaving the Wallet view or when the app is backgrounded, and wallet passphrase inputs are cleared after create/unlock attempts. Frontend source-contract coverage prevents silent regression.
 4. If manual QA finds a defect, fix it and rerun the full CI matrix before Stage 12 is frozen.
 
-When those items are closed, Stage 12 can be frozen and work can move to Stage 13 installers/release pipeline. Stage 13 must not begin merely because the automated matrix is green.
+Stage 13 development packaging is already being exercised in parallel under Master-TZ v0.2.8, but public release acceptance remains blocked by Stage 12 manual Windows QA. When the manual items above are closed, Stage 12 can be frozen and the existing Stage 13 pipeline can move to a deliberately frozen non-development Testnet release candidate.
+
+## Public positioning consistency
+
+The Desktop UI uses the same standalone public positioning as the official website: `INDEPENDENT CHAIN. NATIVE VDR.` Public product copy describes VALDR through its own properties rather than competitor comparisons. This is a presentation-only change and does not alter protocol, consensus, network identity or release gates.
