@@ -79,21 +79,6 @@ func initCommand(args []string, out, errOut io.Writer) int {
 		return 2
 	}
 
-	peerCachePath := ""
-	cachedBootstrapPeers := []string(nil)
-	if profile.ProtocolMax >= 2 {
-		peerCachePath = filepath.Join(*dataDir, "peers-v2.json")
-		cachedBootstrapPeers, err = p2p.LoadPeerCacheV2(peerCachePath, profile.Public)
-		if err != nil {
-			logging.Printf(
-				logging.CategoryP2P,
-				"peer cache load ignored path=%s error=%v",
-				peerCachePath,
-				err,
-			)
-			cachedBootstrapPeers = nil
-		}
-	}
 
 	if err := rejectUnmigratedLegacy(*dataDir); err != nil {
 		fmt.Fprintln(errOut, err)
@@ -208,6 +193,22 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	resolvedRPCPort := *rpcPort
 	if resolvedRPCPort == 0 {
 		resolvedRPCPort = uint(profile.RPCPort)
+	}
+
+	peerCachePath := ""
+	cachedBootstrapPeers := []string(nil)
+	if profile.ProtocolMax >= 2 {
+		peerCachePath = filepath.Join(*dataDir, "peers-v2.json")
+		cachedBootstrapPeers, err = p2p.LoadPeerCacheV2(peerCachePath, profile.Public)
+		if err != nil {
+			logging.Printf(
+				logging.CategoryP2P,
+				"peer cache load ignored path=%s error=%v",
+				peerCachePath,
+				err,
+			)
+			cachedBootstrapPeers = nil
+		}
 	}
 
 	if err := rejectUnmigratedLegacy(*dataDir); err != nil {
