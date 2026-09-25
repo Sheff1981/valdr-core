@@ -318,7 +318,6 @@ root.innerHTML = `
 
       <section class="view active" id="view-overview">
         <div class="hero valdr-hero reference-hero">
-          <div class="reference-hero-art" aria-hidden="true"></div>
           <div class="hero-main">
             <p class="eyebrow">TOTAL SPENDABLE BALANCE</p>
             <div class="balance"><span id="overview-balance">—</span> <span>VDR</span></div>

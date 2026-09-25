@@ -295,3 +295,21 @@ Implemented visual rule:
 - keep live wallet/node/network data and existing Stage 12 behavior.
 
 This remains a UI-only change; consensus, wallet format, RPC, P2P and storage are unchanged.
+
+
+## 13. Clean Premium Desktop visual reset
+
+**Date:** 2026-09-25
+
+After owner QA, the accumulated experimental CSS overrides were removed from the active Desktop build. The active implementation now uses the stable pre-reference stylesheet as the base plus one consolidated Premium reference layer.
+
+Key points:
+
+- one raven/reference background layer only;
+- no duplicated reference-art element inside the hero;
+- live VALDR title and controls remain HTML, not baked screenshot UI;
+- Send/Receive/Mining stay in normal document flow and cannot be clipped by the left edge;
+- Settings functionality from the prior Stage 12 fix is preserved;
+- dark Premium theme remains the default; Classic dark remains optional.
+
+No consensus, wallet format, RPC, P2P or storage behavior changed.
