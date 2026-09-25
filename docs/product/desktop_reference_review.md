@@ -481,3 +481,97 @@ A final Stage 12 wallet-UI security pass reduced the time sensitive material can
 
 This does not change wallet encryption, key derivation, consensus, RPC or P2P behavior. It is Desktop presentation hardening within the existing Stage 12 security model and does not require a Master-TZ revision.
 
+## 24. Stage 13 official release/download reference review
+
+**Date:** 2026-09-25  
+**Scope:** release/download UX, installer verification, platform packaging and node-onboarding language.
+
+Official references reviewed:
+
+- Bitcoin Core: https://bitcoincore.org/en/download/
+- Monero GUI: https://www.getmonero.org/downloads/
+- Litecoin: https://litecoin.org/ and official download host
+- Ethereum wallet/node education: https://ethereum.org/wallets/ and https://ethereum.org/run-a-node
+- Wails v2 official documentation: NSIS installer, code-signing guidance, CLI/platform support.
+
+### Bitcoin Core observations
+
+Useful patterns:
+
+- lead with the current version and direct OS-specific downloads;
+- keep alternative platforms visible;
+- publish SHA-256 checksums and signatures adjacent to downloads;
+- provide platform-specific verification instructions;
+- explicitly explain storage/bandwidth cost before users install a full node;
+- link source and version history separately from the primary download.
+
+VALDR adopts the presentation and verification principles, not Bitcoin branding, build system or consensus architecture.
+
+### Monero GUI observations
+
+Useful patterns:
+
+- clearly distinguish a beginner-oriented mode from Advanced controls;
+- present Windows installer/portable, Linux and separate macOS Intel/ARM artifacts explicitly;
+- show release notes beside the current version;
+- make download-hash verification prominent and explain why it matters;
+- keep GUI wallet positioning understandable to non-technical users.
+
+VALDR already uses Simple/Advanced behavior inside one Desktop application and keeps its own managed local-node architecture rather than Monero's remote-node/simple-mode model.
+
+### Litecoin observations
+
+Useful patterns:
+
+- distinguish a full-node "Core/Advanced" product from simpler wallet choices;
+- show the recommended platform artifact first while retaining other platforms;
+- keep signed release artifacts and source code independently discoverable.
+
+VALDR adopts the concise platform-selection concept but must not expose buy/exchange CTAs during Testnet.
+
+### Ethereum observations
+
+Useful education patterns:
+
+- explain that a wallet controls keys while a node independently verifies blockchain state;
+- explicitly distinguish public/shared-node trust from operating one's own node;
+- explain node storage, uptime and maintenance in user terms;
+- keep transaction irreversibility and key custody responsibilities visible.
+
+VALDR adopts the educational separation between wallet/key custody and node verification. It does not adopt Ethereum's multi-client, account, smart-contract, staking or remote-provider architecture.
+
+### Wails v2 observations
+
+The current VALDR Desktop build is pinned to Wails v2.12.0. Official Wails v2 documentation confirms:
+
+- Windows NSIS installer generation is supported with `wails build -nsis`;
+- installer metadata comes from the Wails application Info configuration;
+- Windows builds depend on WebView2 and Wails exposes explicit runtime strategies;
+- Wails v2 supports Windows 10/11 AMD64, macOS AMD64 release targets from 10.13+, macOS ARM64 from 11.0+, and Linux AMD64;
+- signing/notarization remains a platform-native release concern and must use protected credentials.
+
+Stage 13 should not upgrade Wails merely to implement packaging. Keep v2.12.0 pinned unless a concrete packaging blocker is demonstrated and separately reviewed.
+
+### Release implications for VALDR
+
+Adopt:
+
+- prominent Testnet release/version identity;
+- OS/architecture-specific downloads;
+- file size, SHA-256 and signed manifest next to each artifact;
+- platform verification instructions;
+- explicit disk/synchronization warning;
+- source link;
+- clean distinction between wallet security and local full-node operation;
+- Windows/macOS/Linux platform metadata generated from release artifacts rather than copied manually.
+
+Reject:
+
+- exchange/buy/sell CTAs during Testnet;
+- unsigned silent updates;
+- unofficial primary mirrors;
+- remote wallet/node dependencies that bypass the managed local VALDR node;
+- copying third-party branding, layouts or text.
+
+No consensus, P2P, wallet-format or storage changes follow from this review.
+

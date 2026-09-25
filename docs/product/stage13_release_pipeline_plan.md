@@ -165,7 +165,13 @@ Required UX from the Master-TZ:
 
 No placeholder public domain or unofficial mirror should be introduced.
 
-## 10. Stage 13 execution order after Stage 12 freeze
+## 10. Release identity prerequisite
+
+The pre-implementation metadata contract is defined in `docs/product/stage13_release_identity_contract.md`.
+
+A concrete release candidate must not use the current development string `0.2.0-dev`. The application version, package metadata, artifact names and release manifest must agree before any signed release is published. Master-spec revision `v0.2.5` remains separate from the application version.
+
+## 11. Stage 13 execution order after Stage 12 freeze
 
 1. freeze Stage 12 accepted commit;
 2. create release-version contract and tag policy;
