@@ -95,6 +95,9 @@ download_verified "$runtime_url" "$runtime_sha256" "$runtime_file"
 chmod 0755 "$linuxdeploy" "$appimagetool" "$runtime_file"
 
 appdir="$work_dir/VALDR.AppDir"
+staged_desktop="$work_dir/valdr-desktop"
+install -m755 "$desktop_bin" "$staged_desktop"
+
 icon_file="$work_dir/valdr-desktop.png"
 if ! command -v convert >/dev/null 2>&1; then
   echo "ImageMagick convert is required to normalize the Linux package icon" >&2
@@ -104,17 +107,16 @@ convert "$icon_source" -resize 512x512 "$icon_file"
 
 APPIMAGE_EXTRACT_AND_RUN=1 "$linuxdeploy" \
   --appdir "$appdir" \
-  --executable "$desktop_bin" \
+  --executable "$staged_desktop" \
   --desktop-file "$desktop_entry" \
   --icon-file "$icon_file"
 
 install -Dm755 "$node_bin" "$appdir/usr/bin/valdrd"
 install -Dm755 "$miner_bin" "$appdir/usr/bin/valdr-miner"
-if [[ ! -x "$appdir/usr/bin/VALDR" ]]; then
-  echo "linuxdeploy did not place VALDR in AppDir/usr/bin" >&2
+if [[ ! -x "$appdir/usr/bin/valdr-desktop" ]]; then
+  echo "linuxdeploy did not place valdr-desktop in AppDir/usr/bin" >&2
   exit 1
 fi
-ln -sfn VALDR "$appdir/usr/bin/valdr-desktop"
 
 if [[ ! -x "$appdir/AppRun" ]]; then
   echo "AppDir AppRun is missing" >&2
