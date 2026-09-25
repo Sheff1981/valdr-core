@@ -204,13 +204,10 @@ Each step must leave the repository buildable/testable. No public Testnet releas
 
 ## 12. Development release handoff workflow
 
-`.github/workflows/valdr-v02-release.yml` is a manual, non-public handoff verifier for Stage 13 development evidence.
+`.github/workflows/valdr-v02-release.yml` is a non-public handoff verifier for Stage 13 development evidence. It runs automatically after a successful `VALDR v0.2 CI` completion on `valdr-v0.2` and retains a manual `workflow_dispatch` path for explicit re-verification.
 
-It accepts only:
-
-- the numeric ID of a completed successful `VALDR v0.2 CI` run on `valdr-v0.2`;
-- the exact 40-character commit expected from that run.
+It accepts only a completed successful `VALDR v0.2 CI` run on `valdr-v0.2`. For automatic executions the source run ID and exact source commit are taken directly from the trusted `workflow_run` event; manual dispatch requires both values explicitly.
 
 It then downloads only the canonical Stage 13 assembly from that exact run, rechecks SHA-256 and manifest identity, verifies GitHub/Sigstore provenance against the expected repository/workflow/ref/commit, and emits a small `release-handoff.json` with `publication_allowed=false` and `stage14_allowed=false`.
 
-The workflow has no release/tag/write permission and cannot publish a GitHub Release. This preserves the v0.2.8 rule that Stage 12 manual Windows acceptance remains a public-release blocker while proving the exact source-run → commit → artifacts handoff boundary.
+The workflow has no release/tag/write permission and cannot publish a GitHub Release. Failed/cancelled source CI runs do not execute the handoff job. This preserves the v0.2.8 rule that Stage 12 manual Windows acceptance remains a public-release blocker while proving the exact source-run → commit → artifacts handoff boundary.
