@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=VALDR Desktop
+Comment=VALDR Testnet wallet and full node
+Exec=valdr-desktop
+Icon=valdr-desktop
+Terminal=false
+Categories=Finance;Network;
+StartupNotify=true

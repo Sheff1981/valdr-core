@@ -205,6 +205,164 @@ jobs:
           stop_process "$XVFB_PID"
           trap - EXIT
 
+      - name: Build Stage 13 Linux development packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-stage13-linux"
+          rm -rf "$DIST"
+          mkdir -p "$DIST"
+          bash scripts/package-linux-stage13.sh \
+            --bin-dir apps/valdr-desktop/build/bin \
+            --output-dir "$DIST"
+
+          VERSION="$(apps/valdr-desktop/build/bin/valdrd version | awk '{print $NF}')"
+          APPIMAGE="VALDR-Desktop-$VERSION-linux-x64.AppImage"
+          DEB="VALDR-Desktop-$VERSION-linux-amd64.deb"
+
+          cat >"$DIST/artifact-metadata.json" <<EOF
+          {
+            "artifacts": [
+              {
+                "filename": "$APPIMAGE",
+                "os": "linux",
+                "arch": "amd64",
+                "minimum_os": "Linux x86_64; CI baseline Ubuntu 24.04",
+                "signing_status": "unsigned-development",
+                "notarization_status": "not_applicable"
+              },
+              {
+                "filename": "$DEB",
+                "os": "linux",
+                "arch": "amd64",
+                "minimum_os": "Debian/Ubuntu x86_64; CI baseline Ubuntu 24.04",
+                "signing_status": "unsigned-development",
+                "notarization_status": "not_applicable"
+              }
+            ]
+          }
+          EOF
+
+          RELEASED_AT="$(git show -s --format=%cI "$GITHUB_SHA")"
+          go run ./cmd/valdr-release-manifest \
+            --artifacts-dir "$DIST" \
+            --metadata "$DIST/artifact-metadata.json" \
+            --commit "$GITHUB_SHA" \
+            --released-at "$RELEASED_AT" \
+            --output "$DIST/release-manifest.json" \
+            --development
+          rm "$DIST/artifact-metadata.json"
+
+          python3 - "$DIST/release-manifest.json" "$DIST" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          manifest_path = pathlib.Path(sys.argv[1])
+          dist = pathlib.Path(sys.argv[2])
+          manifest = json.loads(manifest_path.read_text())
+          assert manifest["development"] is True
+          for artifact in manifest["artifacts"]:
+              path = dist / artifact["filename"]
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              assert digest == artifact["sha256"], artifact["filename"]
+              assert path.stat().st_size == artifact["size_bytes"], artifact["filename"]
+          PY
+
+      - name: Clean-run Stage 13 Linux AppImage development package
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-stage13-linux"
+          APPIMAGE="$(find "$DIST" -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$APPIMAGE"
+          chmod +x "$APPIMAGE"
+
+          export HOME="$(mktemp -d)"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          Xvfb :98 -screen 0 1280x800x24 >"$RUNNER_TEMP/xvfb-stage13-appimage.log" 2>&1 &
+          XVFB_PID=$!
+          export DISPLAY=:98
+          LOG="$RUNNER_TEMP/valdr-stage13-appimage.log"
+
+          APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" >"$LOG" 2>&1 &
+          APP_PID=$!
+
+          cleanup() {
+            kill "$APP_PID" 2>/dev/null || true
+            wait "$APP_PID" 2>/dev/null || true
+            kill "$XVFB_PID" 2>/dev/null || true
+            wait "$XVFB_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          sleep 5
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            cat "$LOG"
+            exit 1
+          fi
+          if curl -fsS -X POST http://127.0.0.1:17332/rpc \
+            -H 'Content-Type: application/json' \
+            --data '{"method":"getStatus"}' >/dev/null 2>&1; then
+            echo "fresh AppImage unexpectedly started valdrd before first wallet setup"
+            exit 1
+          fi
+
+          cleanup
+          trap - EXIT
+
+      - name: Clean install and uninstall Stage 13 Linux deb development package
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-stage13-linux"
+          DEB="$(find "$DIST" -maxdepth 1 -name '*.deb' -print -quit)"
+          test -n "$DEB"
+
+          sudo apt-get install -y "$DEB"
+          test -x /usr/lib/valdr-desktop/VALDR
+          test -x /usr/lib/valdr-desktop/valdrd
+          test -x /usr/lib/valdr-desktop/valdr-miner
+          test -x /usr/bin/valdr-desktop
+          /usr/lib/valdr-desktop/valdrd version
+          /usr/lib/valdr-desktop/valdr-miner version
+
+          export HOME="$(mktemp -d)"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          mkdir -p "$XDG_DATA_HOME/valdr"
+          echo preserve >"$XDG_DATA_HOME/valdr/stage13-uninstall-preserve.marker"
+
+          Xvfb :97 -screen 0 1280x800x24 >"$RUNNER_TEMP/xvfb-stage13-deb.log" 2>&1 &
+          XVFB_PID=$!
+          export DISPLAY=:97
+          LOG="$RUNNER_TEMP/valdr-stage13-deb.log"
+          /usr/bin/valdr-desktop >"$LOG" 2>&1 &
+          APP_PID=$!
+
+          sleep 5
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            cat "$LOG"
+            kill "$XVFB_PID" 2>/dev/null || true
+            exit 1
+          fi
+          kill "$APP_PID" 2>/dev/null || true
+          wait "$APP_PID" 2>/dev/null || true
+          kill "$XVFB_PID" 2>/dev/null || true
+          wait "$XVFB_PID" 2>/dev/null || true
+
+          sudo apt-get remove -y valdr-desktop
+          test ! -e /usr/lib/valdr-desktop
+          test ! -e /usr/bin/valdr-desktop
+          test -f "$XDG_DATA_HOME/valdr/stage13-uninstall-preserve.marker"
+
+      - name: Upload Stage 13 Linux development packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: valdr-stage13-linux-development
+          path: ${{ runner.temp }}/valdr-stage13-linux/**
+          if-no-files-found: error
+
       - name: Upload Linux Desktop build
         uses: actions/upload-artifact@v4
         with:
