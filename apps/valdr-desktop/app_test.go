@@ -222,3 +222,71 @@ func TestDesktopNodeLogsRequireAdvancedModeAndRedactSecrets(t *testing.T) {
 		t.Fatalf("node log output missing redaction marker: %q", got)
 	}
 }
+
+
+func TestDesktopPublicNodeModeRequiresAdvancedAndPersists(t *testing.T) {
+	root := t.TempDir()
+	paths := desktopcore.Paths{
+		Root:     root,
+		NodeData: filepath.Join(root, "node", "testnet"),
+		Wallets:  filepath.Join(root, "wallets"),
+		Logs:     filepath.Join(root, "logs"),
+		Network:  config.NetworkTestnetV02,
+	}
+	if err := paths.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+
+	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
+		BinaryPath: filepath.Join(root, "valdrd-not-started"),
+		Network:    config.NetworkTestnetV02,
+		DataDir:    paths.NodeData,
+		NodeID:     "desktop-public-node-test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := desktopcore.NewPreferenceStore(
+		filepath.Join(root, "desktop-settings.json"),
+	)
+	prefs := desktopcore.DefaultDesktopPreferences()
+	app := &App{
+		paths:          paths,
+		node:           node,
+		preferenceStore: store,
+		preferences:     prefs,
+	}
+
+	if _, err := app.SetPublicNodeMode(
+		true,
+		"node.valdr.example:17333",
+	); !errors.Is(err, ErrDesktopAdvancedModeRequired) {
+		t.Fatalf("SetPublicNodeMode error=%v want ErrDesktopAdvancedModeRequired", err)
+	}
+
+	prefs.Advanced = true
+	app.preferences = prefs
+	got, err := app.SetPublicNodeMode(
+		true,
+		"node.valdr.example:17333",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.PublicNode ||
+		got.PublicNodeAdvertiseAddress != "node.valdr.example:17333" {
+		t.Fatalf("unexpected public-node preferences: %+v", got)
+	}
+
+	reloaded, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.PublicNode ||
+		reloaded.PublicNodeAdvertiseAddress != "node.valdr.example:17333" {
+		t.Fatalf("public-node preferences not persisted: %+v", reloaded)
+	}
+	if node.Endpoint() != "http://127.0.0.1:17332" {
+		t.Fatalf("public-node mode changed RPC boundary: %s", node.Endpoint())
+	}
+}

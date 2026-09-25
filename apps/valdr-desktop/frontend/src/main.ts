@@ -25,6 +25,8 @@ type DesktopPreferences = {
   theme: "dark" | "classic";
   start_node: boolean;
   advanced: boolean;
+  public_node: boolean;
+  public_node_advertise_address: string;
 };
 
 type DesktopState = {
@@ -122,6 +124,7 @@ type AppAPI = {
   GetWalletBalance(address: string): Promise<WalletBalance>;
   GetPeers(): Promise<PeerInfo[]>;
   GetNodeLogs(): Promise<string>;
+  SetPublicNodeMode(enabled: boolean, advertiseAddress: string): Promise<DesktopPreferences>;
   PreviewSend(
     selector: string,
     recipient: string,
@@ -599,6 +602,27 @@ root.innerHTML = `
             <div><dt>Wallet data</dt><dd><code id="detail-wallets">—</code></dd></div>
             <div><dt>Logs</dt><dd><code id="detail-logs">—</code></dd></div>
           </dl>
+          <div class="public-node-panel">
+            <div class="section-head">
+              <div>
+                <h3>Public full node</h3>
+                <p class="subtle">Advanced mode only. Normal Desktop operation remains outbound-only.</p>
+              </div>
+            </div>
+            <label class="settings-check public-node-toggle">
+              <input id="public-node-enabled" type="checkbox">
+              <span>Accept inbound Testnet P2P connections</span>
+            </label>
+            <label>
+              Advertised address
+              <input id="public-node-address" autocomplete="off" spellcheck="false" placeholder="node.example.org:17333">
+            </label>
+            <div class="actions">
+              <button class="secondary" id="apply-public-node" type="button">Apply &amp; restart node</button>
+            </div>
+            <p class="warning">This opens the P2P listener on all local interfaces. VALDR does not change your router or firewall. Use an explicitly routable DNS/IP endpoint. RPC remains bound to localhost.</p>
+            <p id="public-node-status" class="subtle"></p>
+          </div>
           <div class="network-peers">
             <div class="section-head">
               <div>
@@ -990,6 +1014,14 @@ const renderDesktopPreferences = (): void => {
   if (theme) theme.value = prefs.theme;
   if (startNode) startNode.checked = prefs.start_node;
   if (advanced) advanced.checked = prefs.advanced;
+
+  const publicNode = document.getElementById("public-node-enabled") as HTMLInputElement | null;
+  const publicAddress = document.getElementById("public-node-address") as HTMLInputElement | null;
+  if (publicNode) publicNode.checked = prefs.public_node;
+  if (publicAddress) {
+    publicAddress.value = prefs.public_node_advertise_address || "";
+    publicAddress.disabled = !prefs.public_node;
+  }
 
   applyDesktopTheme(prefs.theme);
   applyDesktopLanguage(prefs.language);
@@ -1515,9 +1547,15 @@ const renderState = (state: DesktopState): void => {
   if (state.node_error) {
     text("node-detail", state.node_error);
   } else if (healthy && status) {
-    text("node-detail", `Outbound-only · ${status.peer_count} peer(s) · height ${status.height}`);
+    const mode = state.preferences.public_node ? "Public P2P" : "Outbound-only";
+    text("node-detail", `${mode} · ${status.peer_count} peer(s) · height ${status.height}`);
   } else {
-    text("node-detail", "Desktop uses outbound-only P2P by default.");
+    text(
+      "node-detail",
+      state.preferences.public_node
+        ? "Public Testnet P2P mode configured."
+        : "Desktop uses outbound-only P2P by default.",
+    );
   }
 
   renderWalletSelector(state.wallets);
@@ -2077,6 +2115,38 @@ document.addEventListener("keydown", (event) => {
 
 document.getElementById("refresh-history")?.addEventListener("click", async () => {
   await refreshTransactionHistory();
+});
+
+document.getElementById("public-node-enabled")?.addEventListener("change", (event) => {
+  const enabled = (event.currentTarget as HTMLInputElement).checked;
+  const address = document.getElementById("public-node-address") as HTMLInputElement | null;
+  if (address) address.disabled = !enabled;
+});
+
+document.getElementById("apply-public-node")?.addEventListener("click", async () => {
+  const enabled = (document.getElementById("public-node-enabled") as HTMLInputElement | null)?.checked ?? false;
+  const addressInput = document.getElementById("public-node-address") as HTMLInputElement | null;
+  const advertiseAddress = addressInput?.value.trim() ?? "";
+  const button = document.getElementById("apply-public-node") as HTMLButtonElement | null;
+
+  if (button) button.disabled = true;
+  text("public-node-status", enabled ? "Applying public-node mode…" : "Applying outbound-only mode…");
+  try {
+    const preferences = await api().SetPublicNodeMode(enabled, advertiseAddress);
+    if (currentState) currentState.preferences = preferences;
+    await refresh();
+    text(
+      "public-node-status",
+      preferences.public_node
+        ? `Public Testnet P2P enabled · advertising ${preferences.public_node_advertise_address}`
+        : "Outbound-only Desktop P2P enabled.",
+    );
+  } catch (error) {
+    text("public-node-status", error instanceof Error ? error.message : String(error));
+    if (currentState) renderDesktopPreferences();
+  } finally {
+    if (button) button.disabled = false;
+  }
 });
 
 document.getElementById("refresh-peers")?.addEventListener("click", async () => {

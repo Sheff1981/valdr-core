@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,17 +23,20 @@ var (
 	ErrNodeAlreadyRunning    = errors.New("VALDR Desktop node is already running")
 	ErrNodeExitedUnexpectedly = errors.New("VALDR Desktop node exited unexpectedly")
 	ErrDesktopMainnet        = errors.New("VALDR Desktop Mainnet is not enabled")
+	ErrDesktopPublicNodeAddress = errors.New("invalid VALDR Desktop public-node advertise address")
 )
 
 type NodeProcessConfig struct {
-	BinaryPath string
-	Network    string
-	DataDir    string
-	NodeID     string
-	RPCPort    uint16
-	Seeds      []string
-	Stdout     io.Writer
-	Stderr     io.Writer
+	BinaryPath       string
+	Network          string
+	DataDir          string
+	NodeID           string
+	RPCPort          uint16
+	Seeds            []string
+	PublicNode       bool
+	AdvertiseAddress string
+	Stdout           io.Writer
+	Stderr           io.Writer
 }
 
 type NodeManager struct {
@@ -65,6 +69,15 @@ func NewNodeManager(cfg NodeProcessConfig) (*NodeManager, error) {
 	if cfg.RPCPort == 0 {
 		profile, _ := config.ResolveNetworkProfile(cfg.Network)
 		cfg.RPCPort = profile.RPCPort
+	}
+	cfg.AdvertiseAddress = strings.TrimSpace(cfg.AdvertiseAddress)
+	if cfg.AdvertiseAddress != "" {
+		if err := ValidatePublicNodeAdvertiseAddress(cfg.AdvertiseAddress); err != nil {
+			return nil, err
+		}
+	}
+	if cfg.PublicNode && cfg.AdvertiseAddress == "" {
+		return nil, ErrDesktopPublicNodeAddress
 	}
 	if strings.TrimSpace(cfg.BinaryPath) == "" {
 		binary, err := bundledBinaryPath("valdrd")
@@ -162,6 +175,81 @@ func (m *NodeManager) Running() bool {
 	return m.command != nil
 }
 
+func (m *NodeManager) ConfigurePublicNode(
+	enabled bool,
+	advertiseAddress string,
+) error {
+	advertiseAddress = strings.TrimSpace(advertiseAddress)
+	if advertiseAddress != "" {
+		if err := ValidatePublicNodeAdvertiseAddress(advertiseAddress); err != nil {
+			return err
+		}
+	}
+	if enabled && advertiseAddress == "" {
+		return ErrDesktopPublicNodeAddress
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.config.PublicNode = enabled
+	m.config.AdvertiseAddress = advertiseAddress
+	return nil
+}
+
+func ValidatePublicNodeAdvertiseAddress(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ErrDesktopPublicNodeAddress
+	}
+	host, portText, err := net.SplitHostPort(value)
+	if err != nil || host == "" {
+		return ErrDesktopPublicNodeAddress
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return ErrDesktopPublicNodeAddress
+	}
+
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	if host == "" ||
+		host == "localhost" ||
+		strings.HasSuffix(host, ".localhost") ||
+		strings.HasSuffix(host, ".local") {
+		return ErrDesktopPublicNodeAddress
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() ||
+			ip.IsPrivate() ||
+			ip.IsUnspecified() ||
+			ip.IsLinkLocalUnicast() ||
+			ip.IsLinkLocalMulticast() ||
+			ip.IsMulticast() {
+			return ErrDesktopPublicNodeAddress
+		}
+		return nil
+	}
+
+	if len(host) > 253 || !strings.Contains(host, ".") {
+		return ErrDesktopPublicNodeAddress
+	}
+	for _, label := range strings.Split(host, ".") {
+		if label == "" || len(label) > 63 ||
+			label[0] == '-' || label[len(label)-1] == '-' {
+			return ErrDesktopPublicNodeAddress
+		}
+		for _, r := range label {
+			if (r >= 'a' && r <= 'z') ||
+				(r >= '0' && r <= '9') ||
+				r == '-' {
+				continue
+			}
+			return ErrDesktopPublicNodeAddress
+		}
+	}
+	return nil
+}
+
 // ProcessID returns the PID of the currently managed valdrd child.
 // It is exposed to the Desktop backend for local diagnostics and runtime
 // recovery checks; it is not part of node RPC or the frontend API.
@@ -244,11 +332,26 @@ func desktopNodeArgs(cfg NodeProcessConfig) ([]string, error) {
 		"--network", profile.Name,
 		"--data", cfg.DataDir,
 		"--node-id", cfg.NodeID,
-		"--outbound-only",
+	}
+	if cfg.PublicNode {
+		advertiseAddress := strings.TrimSpace(cfg.AdvertiseAddress)
+		if err := ValidatePublicNodeAdvertiseAddress(advertiseAddress); err != nil {
+			return nil, err
+		}
+		args = append(
+			args,
+			"--p2p-host", "0.0.0.0",
+			"--advertise-address", advertiseAddress,
+		)
+	} else {
+		args = append(args, "--outbound-only")
+	}
+	args = append(
+		args,
 		"--managed-stdin-shutdown",
 		"--rpc-host", "127.0.0.1",
 		"--rpc-port", strconv.Itoa(int(port)),
-	}
+	)
 	for _, seed := range cfg.Seeds {
 		seed = strings.TrimSpace(seed)
 		if seed == "" {

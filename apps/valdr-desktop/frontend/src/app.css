@@ -702,6 +702,28 @@ button:disabled {
 }
 
 
+.public-node-panel {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+
+.public-node-panel label:not(.settings-check) {
+  display: grid;
+  gap: 7px;
+  max-width: 520px;
+  margin-top: 12px;
+}
+
+.public-node-toggle {
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.public-node-panel .actions {
+  margin-top: 14px;
+}
+
 .network-peers {
   margin-top: 22px;
   padding-top: 18px;

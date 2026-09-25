@@ -152,3 +152,88 @@ func TestDesktopNodeStartClearsPreviousCrashState(t *testing.T) {
 		t.Fatalf("restart attempt did not clear previous crash state: %v", manager.LastExitError())
 	}
 }
+
+
+func TestDesktopNodeArgsSupportExplicitAdvancedPublicNode(t *testing.T) {
+	cfg := NodeProcessConfig{
+		Network:          config.NetworkTestnetV02,
+		DataDir:          "/tmp/valdr-desktop-public-testnet",
+		NodeID:           "desktop-public-test",
+		RPCPort:          28332,
+		PublicNode:       true,
+		AdvertiseAddress: "node.valdr.example:17333",
+	}
+	args, err := desktopNodeArgs(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	required := [][]string{
+		{"--p2p-host", "0.0.0.0"},
+		{"--advertise-address", "node.valdr.example:17333"},
+		{"--rpc-host", "127.0.0.1"},
+	}
+	for _, sequence := range required {
+		if !containsSequence(args, sequence) {
+			t.Fatalf("args=%v missing sequence %v", args, sequence)
+		}
+	}
+	if slices.Contains(args, "--outbound-only") {
+		t.Fatalf("public Desktop node unexpectedly remains outbound-only: %v", args)
+	}
+}
+
+func TestDesktopPublicNodeAdvertiseAddressValidation(t *testing.T) {
+	valid := []string{
+		"node.valdr.example:17333",
+		"203.0.113.10:17333",
+		"[2001:db8::10]:17333",
+	}
+	for _, value := range valid {
+		if err := ValidatePublicNodeAdvertiseAddress(value); err != nil {
+			t.Fatalf("valid address %q rejected: %v", value, err)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"localhost:17333",
+		"node.local:17333",
+		"127.0.0.1:17333",
+		"10.0.0.5:17333",
+		"192.168.1.5:17333",
+		"node-without-domain:17333",
+		"node.valdr.example",
+		"node.valdr.example:0",
+	}
+	for _, value := range invalid {
+		if err := ValidatePublicNodeAdvertiseAddress(value); !errors.Is(
+			err,
+			ErrDesktopPublicNodeAddress,
+		) {
+			t.Fatalf("invalid address %q error=%v", value, err)
+		}
+	}
+}
+
+func TestDesktopNodePublicModeCanBeReconfiguredForNextStart(t *testing.T) {
+	manager, err := NewNodeManager(NodeProcessConfig{
+		BinaryPath: "/tmp/valdrd",
+		Network:    config.NetworkTestnetV02,
+		DataDir:    "/tmp/valdr-public-config",
+		NodeID:     "desktop-public-config",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.ConfigurePublicNode(
+		true,
+		"node.valdr.example:17333",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if !manager.config.PublicNode ||
+		manager.config.AdvertiseAddress != "node.valdr.example:17333" {
+		t.Fatalf("unexpected public-node config: %+v", manager.config)
+	}
+}

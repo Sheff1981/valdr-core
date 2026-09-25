@@ -30,6 +30,9 @@ var (
 	ErrInvalidReceiveAddress = errors.New(
 		"invalid VALDR receive address",
 	)
+	ErrDesktopPublicNodeDisableFirst = errors.New(
+		"disable public-node mode before leaving Advanced mode",
+	)
 )
 
 const privateKeyExportConfirmation = "EXPORT PRIVATE KEY"
@@ -88,9 +91,11 @@ func NewApp() (*App, error) {
 		Network:    config.NetworkTestnetV02,
 		DataDir:    paths.NodeData,
 		NodeID:     "valdr-desktop",
-		Seeds:      desktopSeedsFromEnv(),
-		Stdout:     nodeLogs,
-		Stderr:     nodeLogs,
+		Seeds:            desktopSeedsFromEnv(),
+		PublicNode:       preferences.PublicNode,
+		AdvertiseAddress: preferences.PublicNodeAdvertiseAddress,
+		Stdout:           nodeLogs,
+		Stderr:           nodeLogs,
 	})
 	if err != nil {
 		return nil, err
@@ -577,6 +582,9 @@ func (a *App) SetDesktopPreferences(
 	prefs.StartNode = startNode
 	prefs.Advanced = advanced
 
+	if !advanced && prefs.PublicNode {
+		return desktopcore.DesktopPreferences{}, ErrDesktopPublicNodeDisableFirst
+	}
 	if !advanced && a.miner != nil && a.miner.Running() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		err := a.miner.Stop(ctx)
@@ -600,6 +608,61 @@ func (a *App) SetDesktopPreferences(
 	a.preferenceStore = store
 	a.preferences = prefs
 	a.mu.Unlock()
+	return prefs, nil
+}
+
+func (a *App) SetPublicNodeMode(
+	enabled bool,
+	advertiseAddress string,
+) (desktopcore.DesktopPreferences, error) {
+	prefs := a.preferencesSnapshot()
+	if !prefs.Advanced {
+		return desktopcore.DesktopPreferences{}, ErrDesktopAdvancedModeRequired
+	}
+
+	advertiseAddress = strings.TrimSpace(advertiseAddress)
+	if advertiseAddress != "" {
+		if err := desktopcore.ValidatePublicNodeAdvertiseAddress(
+			advertiseAddress,
+		); err != nil {
+			return desktopcore.DesktopPreferences{}, err
+		}
+	}
+	if enabled && advertiseAddress == "" {
+		return desktopcore.DesktopPreferences{}, desktopcore.ErrDesktopPublicNodeAddress
+	}
+
+	previousEnabled := prefs.PublicNode
+	previousAddress := prefs.PublicNodeAdvertiseAddress
+	changed := previousEnabled != enabled || previousAddress != advertiseAddress
+
+	if err := a.node.ConfigurePublicNode(enabled, advertiseAddress); err != nil {
+		return desktopcore.DesktopPreferences{}, err
+	}
+	prefs.PublicNode = enabled
+	prefs.PublicNodeAdvertiseAddress = advertiseAddress
+
+	store := a.preferenceStore
+	if store == nil {
+		store = desktopcore.NewPreferenceStore(
+			filepath.Join(a.paths.Root, "desktop-settings.json"),
+		)
+	}
+	if err := store.Save(prefs); err != nil {
+		_ = a.node.ConfigurePublicNode(previousEnabled, previousAddress)
+		return desktopcore.DesktopPreferences{}, err
+	}
+
+	a.mu.Lock()
+	a.preferenceStore = store
+	a.preferences = prefs
+	a.mu.Unlock()
+
+	if changed && a.node.Running() {
+		if err := a.RestartNode(); err != nil {
+			return prefs, err
+		}
+	}
 	return prefs, nil
 }
 

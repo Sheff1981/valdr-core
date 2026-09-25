@@ -20,7 +20,9 @@ type DesktopPreferences struct {
 	Theme                 string `json:"theme"`
 	StartNode             bool   `json:"start_node"`
 	Advanced              bool   `json:"advanced"`
-	WalletAutoLockMinutes int    `json:"wallet_auto_lock_minutes"`
+	WalletAutoLockMinutes      int    `json:"wallet_auto_lock_minutes"`
+	PublicNode                 bool   `json:"public_node"`
+	PublicNodeAdvertiseAddress string `json:"public_node_advertise_address"`
 }
 
 func DefaultDesktopPreferences() DesktopPreferences {
@@ -135,6 +137,19 @@ func validateDesktopPreferences(prefs DesktopPreferences) error {
 	}
 	timeout := time.Duration(prefs.WalletAutoLockMinutes) * time.Minute
 	if err := validateWalletAutoLock(timeout); err != nil {
+		return ErrDesktopPreferences
+	}
+	if prefs.PublicNode && !prefs.Advanced {
+		return ErrDesktopPreferences
+	}
+	if prefs.PublicNodeAdvertiseAddress != "" {
+		if err := ValidatePublicNodeAdvertiseAddress(
+			prefs.PublicNodeAdvertiseAddress,
+		); err != nil {
+			return ErrDesktopPreferences
+		}
+	}
+	if prefs.PublicNode && prefs.PublicNodeAdvertiseAddress == "" {
 		return ErrDesktopPreferences
 	}
 	return nil

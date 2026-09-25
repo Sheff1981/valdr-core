@@ -331,3 +331,22 @@ Implemented rule:
 
 This is a UI/branding fix only. Consensus, PoW, UTXO, P2P, wallet format, storage and RPC security boundaries are unchanged. Mainnet remains disabled.
 
+## 15. Advanced public-node control
+
+**Date:** 2026-09-25
+
+Stage 12 Network/Node now implements the Master-TZ Advanced public-node control.
+
+Behavior:
+
+- default Desktop mode remains outbound-only;
+- public-node mode is available only while Advanced mode is enabled;
+- enabling it requires an explicit advertised `host:port` that is not loopback, private, link-local or a local-only hostname;
+- the managed node listens for P2P on local interfaces only after the user explicitly applies the change;
+- applying the mode performs a controlled managed-node restart when the node is already running;
+- VALDR does not attempt automatic router/NAT/firewall changes;
+- node RPC remains bound to `127.0.0.1`;
+- Mainnet remains unavailable.
+
+This implements an existing Stage 12 requirement and does not change consensus, PoW, UTXO, wallet format, storage or RPC trust boundaries.
+

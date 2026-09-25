@@ -24,6 +24,8 @@ func TestDesktopPreferencesDefaultAndPersistence(t *testing.T) {
 	prefs.StartNode = false
 	prefs.Advanced = true
 	prefs.WalletAutoLockMinutes = 30
+	prefs.PublicNode = true
+	prefs.PublicNodeAdvertiseAddress = "node.valdr.example:17333"
 	if err := store.Save(prefs); err != nil {
 		t.Fatal(err)
 	}
@@ -88,5 +90,23 @@ func TestDesktopPreferencesLoadLegacyFileDefaultsAutoLock(t *testing.T) {
 	}
 	if prefs.WalletAutoLockMinutes != 15 {
 		t.Fatalf("auto-lock=%d want=15", prefs.WalletAutoLockMinutes)
+	}
+}
+
+
+func TestDesktopPreferencesRejectUnsafePublicNodeConfiguration(t *testing.T) {
+	store := NewPreferenceStore(filepath.Join(t.TempDir(), "desktop-settings.json"))
+
+	prefs := DefaultDesktopPreferences()
+	prefs.PublicNode = true
+	prefs.PublicNodeAdvertiseAddress = "node.valdr.example:17333"
+	if err := store.Save(prefs); !errors.Is(err, ErrDesktopPreferences) {
+		t.Fatalf("public node without Advanced error=%v want ErrDesktopPreferences", err)
+	}
+
+	prefs.Advanced = true
+	prefs.PublicNodeAdvertiseAddress = "127.0.0.1:17333"
+	if err := store.Save(prefs); !errors.Is(err, ErrDesktopPreferences) {
+		t.Fatalf("unsafe public address error=%v want ErrDesktopPreferences", err)
 	}
 }
