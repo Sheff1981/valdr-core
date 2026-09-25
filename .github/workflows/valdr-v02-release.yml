@@ -1,0 +1,212 @@
+name: VALDR v0.2 Release Handoff
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful VALDR v0.2 CI run containing the canonical Stage 13 assembly
+        required: true
+        type: string
+      expected_commit:
+        description: Exact 40-character source commit expected in the release manifest and attestation
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  attestations: read
+
+concurrency:
+  group: valdr-v02-release-handoff-${{ inputs.source_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  verify-development-handoff:
+    name: verify-development-release-handoff
+    runs-on: ubuntu-24.04
+    env:
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+      EXPECTED_BRANCH: valdr-v0.2
+      EXPECTED_SOURCE_WORKFLOW: .github/workflows/valdr-v02-ci.yml
+      ASSEMBLY_NAME: valdr-stage13-release-assembly-development
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate requested source run identity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - "$SOURCE_RUN_ID" "$EXPECTED_COMMIT" <<'PY'
+          import re
+          import sys
+
+          run_id, commit = sys.argv[1], sys.argv[2].lower()
+          if not re.fullmatch(r"[1-9][0-9]*", run_id):
+              raise SystemExit("source_run_id must be a positive integer")
+          if not re.fullmatch(r"[0-9a-f]{40}", commit):
+              raise SystemExit("expected_commit must be exactly 40 hexadecimal characters")
+          PY
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" >"$RUNNER_TEMP/source-run.json"
+
+          python3 - "$RUNNER_TEMP/source-run.json" "$EXPECTED_COMMIT" "$EXPECTED_BRANCH" "$EXPECTED_SOURCE_WORKFLOW" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          run = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          expected_commit = sys.argv[2].lower()
+          expected_branch = sys.argv[3]
+          expected_workflow = sys.argv[4]
+
+          checks = {
+              "repository": run["repository"]["full_name"] == "Sheff1981/valdr-core",
+              "conclusion": run["status"] == "completed" and run["conclusion"] == "success",
+              "commit": run["head_sha"].lower() == expected_commit,
+              "branch": run["head_branch"] == expected_branch,
+              "workflow": run["path"] == expected_workflow,
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          if failed:
+              raise SystemExit(f"source CI run identity check failed: {', '.join(failed)}")
+          PY
+
+      - name: Download canonical Stage 13 development assembly
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ASSEMBLY_NAME }}
+          path: ${{ runner.temp }}/valdr-release-handoff
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify exact commit, checksums and manifest contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-release-handoff"
+          cd "$DIST"
+
+          test -f release-manifest.json
+          test -f SHA256SUMS
+          sha256sum -c SHA256SUMS
+
+          python3 - "$DIST/release-manifest.json" "$EXPECTED_COMMIT" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import re
+          import sys
+
+          manifest_path = pathlib.Path(sys.argv[1])
+          expected_commit = sys.argv[2].lower()
+          manifest = json.loads(manifest_path.read_text())
+
+          assert manifest["schema_version"] == 1
+          assert manifest["product"] == "VALDR Desktop"
+          assert manifest["development"] is True
+          assert manifest["release_kind"] == "development"
+          assert manifest["git_commit"] == expected_commit
+          assert re.fullmatch(r"[0-9a-f]{40}", manifest["git_commit"])
+          assert manifest["network"] == "testnet"
+          assert manifest["chain_id"] == "valdr-testnet-1"
+          assert manifest["protocol_min"] == 2
+          assert manifest["protocol_max"] == 2
+          assert manifest["provenance_method"] == "github-sigstore-keyless"
+          assert manifest["provenance_required"] is True
+          assert len(manifest["artifacts"]) == 6
+
+          expected_names = set()
+          for artifact in manifest["artifacts"]:
+              path = manifest_path.parent / artifact["filename"]
+              assert path.is_file(), artifact["filename"]
+              assert artifact["filename"] not in expected_names
+              expected_names.add(artifact["filename"])
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == artifact["sha256"]
+              assert path.stat().st_size == artifact["size_bytes"]
+
+          package_files = {
+              path.name
+              for path in manifest_path.parent.iterdir()
+              if path.is_file() and (
+                  path.name.endswith(".exe")
+                  or path.name.endswith(".zip")
+                  or path.name.endswith(".AppImage")
+                  or path.name.endswith(".deb")
+                  or path.name.endswith(".dmg")
+              )
+          }
+          assert package_files == expected_names, (package_files, expected_names)
+          PY
+
+      - name: Verify GitHub Sigstore provenance for handoff subjects
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-release-handoff"
+          BUNDLE="$(find "$DIST" -maxdepth 1 -name '*-provenance.sigstore.json' -print -quit)"
+          test -s "$BUNDLE"
+
+          while IFS= read -r artifact; do
+            gh attestation verify "$artifact"               --repo Sheff1981/valdr-core               --bundle "$BUNDLE"               --signer-workflow Sheff1981/valdr-core/.github/workflows/valdr-v02-ci.yml               --source-digest "$EXPECTED_COMMIT"               --source-ref "refs/heads/$EXPECTED_BRANCH"
+          done < <(
+            python3 - "$DIST/release-manifest.json" "$DIST" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          manifest = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          dist = pathlib.Path(sys.argv[2])
+          paths = [dist / artifact["filename"] for artifact in manifest["artifacts"]]
+          paths.extend([dist / "release-manifest.json", dist / "SHA256SUMS"])
+          for path in sorted(paths):
+              print(path)
+          PY
+          )
+
+      - name: Emit non-public release handoff record
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-release-handoff"
+          SOURCE_RUN_URL="https://github.com/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID"
+
+          python3 - "$DIST/release-manifest.json" "$DIST/release-handoff.json" "$SOURCE_RUN_ID" "$SOURCE_RUN_URL" "$EXPECTED_COMMIT" <<'PY'
+          import datetime
+          import json
+          import pathlib
+          import sys
+
+          manifest = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          out = {
+              "schema_version": 1,
+              "product": "VALDR Desktop",
+              "handoff_kind": "development",
+              "publication_allowed": False,
+              "stage14_allowed": False,
+              "source_run_id": int(sys.argv[3]),
+              "source_run_url": sys.argv[4],
+              "source_commit": sys.argv[5].lower(),
+              "version": manifest["version"],
+              "network": manifest["network"],
+              "chain_id": manifest["chain_id"],
+              "artifact_count": len(manifest["artifacts"]),
+              "checksums_verified": True,
+              "provenance_verified": True,
+              "verified_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+          }
+          pathlib.Path(sys.argv[2]).write_text(json.dumps(out, indent=2, sort_keys=True) + "\n")
+          PY
+
+      - name: Upload verified non-public handoff
+        uses: actions/upload-artifact@v4
+        with:
+          name: valdr-stage13-release-handoff-development
+          path: |
+            ${{ runner.temp }}/valdr-release-handoff/release-handoff.json
+            ${{ runner.temp }}/valdr-release-handoff/release-manifest.json
+            ${{ runner.temp }}/valdr-release-handoff/SHA256SUMS
+            ${{ runner.temp }}/valdr-release-handoff/*-provenance.sigstore.json
+          if-no-files-found: error

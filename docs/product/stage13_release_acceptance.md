@@ -24,6 +24,7 @@ This document records evidence only. It does not upgrade `0.2.0-dev` artifacts i
 | GitHub/Sigstore keyless provenance | `actions/attest@v4` creates signed provenance using GitHub Actions OIDC/Sigstore for the assembled release subjects | automated development gate green |
 | Provenance bundle retention | assembly contains `VALDR-Desktop-<version>-provenance.sigstore.json` | automated development gate green |
 | Clean provenance verification | separate clean runner verifies artifacts with `gh attestation verify` constrained to `Sheff1981/valdr-core`, expected workflow, source ref and exact commit | automated development gate green |
+| Exact CI-run → release handoff | manual `valdr-v02-release.yml` accepts a successful source CI run ID + exact commit, re-verifies manifest/checksums/provenance and emits a non-public handoff record; it has no release publication permission | implemented; execution evidence pending manual dispatch |
 | Production fail-closed gate | current `0.2.0-dev` cannot generate a production Testnet manifest; development signing/notarization claims remain invalid in production metadata; mandatory package set is enforced | automated safety gate green |
 | Windows Authenticode | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful `unsigned` metadata when absent | not a Testnet release blocker |
 | Apple Developer ID / notarization | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful ad-hoc / not-notarized metadata when absent | not a Testnet release blocker |
@@ -70,4 +71,4 @@ No fake, borrowed or misleading Microsoft/Apple identity may be introduced to sa
 
 Continue Stage 13 only. Do not start Stage 14.
 
-The software-only authenticity path is implemented and CI-verified. The next safe work is download/verification integration and preparation for the eventual Testnet RC freeze, while Stage 12 manual Windows acceptance remains the public-release blocker.
+The software-only authenticity path is implemented and CI-verified. The exact source-run-to-artifact release handoff workflow is now implemented in non-public mode. The next safe work is to execute that handoff against a green CI run, then continue download/verification integration and RC preparation while Stage 12 manual Windows acceptance remains the public-release blocker.

@@ -180,9 +180,23 @@ A concrete release candidate must not use the current development string `0.2.0-
 5. Linux AppImage + .deb + clean tests;
 6. GitHub/Sigstore keyless provenance attestation for the canonical release assembly;
 7. clean provenance verification bound to repository/workflow/commit;
-8. release workflow mapping every asset to the exact git commit;
+8. release workflow mapping every asset to the exact git commit — development handoff workflow implemented; public publication path intentionally disabled while Stage 12 is open;
 9. official download-page integration after its authoritative repository/deployment target is identified;
 10. second-clean-environment verification of the frozen public release candidate;
 11. close §23 evidence matrix.
 
 Each step must leave the repository buildable/testable. No public Testnet release and no Stage 14 rollout begins until the required Stage 12 and Stage 13 gates are both closed.
+
+
+## 12. Development release handoff workflow
+
+`.github/workflows/valdr-v02-release.yml` is a manual, non-public handoff verifier for Stage 13 development evidence.
+
+It accepts only:
+
+- the numeric ID of a completed successful `VALDR v0.2 CI` run on `valdr-v0.2`;
+- the exact 40-character commit expected from that run.
+
+It then downloads only the canonical Stage 13 assembly from that exact run, rechecks SHA-256 and manifest identity, verifies GitHub/Sigstore provenance against the expected repository/workflow/ref/commit, and emits a small `release-handoff.json` with `publication_allowed=false` and `stage14_allowed=false`.
+
+The workflow has no release/tag/write permission and cannot publish a GitHub Release. This preserves the v0.2.8 rule that Stage 12 manual Windows acceptance remains a public-release blocker while proving the exact source-run → commit → artifacts handoff boundary.
