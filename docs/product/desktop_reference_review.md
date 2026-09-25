@@ -575,3 +575,51 @@ Reject:
 
 No consensus, P2P, wallet-format or storage changes follow from this review.
 
+
+
+## 25. v0.2.8 release provenance review
+
+**Date:** 2026-09-25  
+**Scope:** replace unavailable OS-vendor signing gates with independently verifiable Testnet release provenance.
+
+Official references re-reviewed:
+
+- Bitcoin Core: https://bitcoincore.org/en/download/
+- Monero GUI: https://www.getmonero.org/downloads/
+- Litecoin: https://litecoin.org/ and https://download.litecoin.org/
+- Ethereum: https://ethereum.org/wallets/ and https://ethereum.org/run-a-node
+- GitHub Artifact Attestations: https://docs.github.com/en/actions/concepts/security/artifact-attestations
+- GitHub attestation usage/verification: https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations
+- Sigstore keyless signing model: https://docs.sigstore.dev/cosign/signing/overview/
+
+### Observations
+
+Bitcoin Core and Monero both make cryptographic download verification a first-class release concern by publishing SHA-256 data and signatures for the checksum material. Litecoin's official download host likewise publishes SHA256SUMS/SHA256SUMS.asc alongside platform binaries. Ethereum's node guidance reinforces the product principle that users should verify rather than blindly trust third-party infrastructure.
+
+GitHub Artifact Attestations provide signed build-provenance claims for binaries. For a public repository, GitHub uses the Sigstore Public Good instance; the provenance records repository/workflow/commit context and is written to a public transparency log. Verification can be performed with `gh attestation verify` and can constrain the expected repository, signer workflow and source commit. GitHub explicitly states that an attestation is provenance/integrity evidence, not a guarantee that the artifact is secure.
+
+Sigstore's keyless model uses short-lived certificates bound to OIDC workflow identity and transparency logging. This avoids placing a long-lived private release key in the repository or CI secret store.
+
+### VALDR decision
+
+Adopt for Testnet:
+
+- canonical SHA-256 checksums and release manifest;
+- GitHub/Sigstore keyless provenance attestation for release artifacts;
+- verification policy pinned to `Sheff1981/valdr-core`, the VALDR release workflow and the frozen source commit;
+- downloadable attestation bundle where practical for offline/repeatable verification;
+- explicit disclosure that Windows/macOS artifacts may be unsigned by the OS vendor.
+
+Keep optional only:
+
+- Windows Authenticode;
+- Apple Developer ID signing/notarization.
+
+Reject:
+
+- fake/self-asserted claims of Microsoft or Apple certification;
+- borrowed third-party code-signing identities;
+- disabling SmartScreen, Smart App Control or Gatekeeper globally merely to run VALDR;
+- describing GitHub/Sigstore provenance as a security audit or platform endorsement.
+
+This changes release-distribution security policy only. It does not modify VALDR consensus, P2P, transaction, wallet-encryption, storage or Mainnet behavior.
