@@ -1,11 +1,11 @@
 # VALDR Stage 13 release identity and version contract
 
-**Status:** DESIGN / PRE-STAGE-13  
+**Status:** ACTIVE / STAGE 13 IN PROGRESS — development-only release plumbing  
 **Date:** 2026-09-25  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.5.md`  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.7.md`  
 **Branch:** `valdr-v0.2`
 
-This document defines release metadata rules before installer implementation begins. It does not start Stage 13 and does not mark Stage 12 complete.
+This document defines the release metadata rules used by the active Stage 13 implementation. Stage 12 remains incomplete until its outstanding manual acceptance is closed; public release remains blocked.
 
 ## 1. Current repository facts
 
@@ -15,7 +15,7 @@ This document defines release metadata rules before installer implementation beg
 - Testnet protocol range: min 2 / max 2;
 - current Stage 12 Desktop framework: Wails v2.12.0;
 - there are currently no git tags in the repository;
-- Master-TZ version `v0.2.5` is the specification revision, not automatically the application release version.
+- Master-TZ version `v0.2.7` is the specification revision, not automatically the application release version.
 
 Therefore the release pipeline must never derive the application version from the master-spec filename.
 
@@ -41,7 +41,7 @@ A release job must fail if package/manifest versions disagree with the binary-re
 
 The following are separate identities:
 
-- Master-TZ revision: currently `v0.2.5`;
+- Master-TZ revision: currently `v0.2.7`;
 - product/application version: currently development value `0.2.0-dev`;
 - P2P protocol version: Testnet protocol 2;
 - Chain ID: `valdr-testnet-1`;
@@ -134,8 +134,24 @@ Before Stage 13 can satisfy the signed-release gate, the project still needs:
 
 These are external release prerequisites, not code defects. They must never be replaced with fake/test secrets in production release metadata.
 
-## 10. Gate before implementation
+## 10. Current implementation gate
 
-Do not change `config.Version`, create release tags or publish release assets while Stage 12 manual Windows QA is pending.
+Master-TZ v0.2.7 authorizes CI-safe Stage 13 development plumbing while Stage 12 manual Windows QA remains pending.
 
-After Stage 12 is accepted, the first Stage 13 implementation task is to freeze the chosen application release-candidate version and make package metadata derive from that single source.
+Until Stage 12 is accepted:
+
+- keep `config.Version = "0.2.0-dev"`;
+- do not create a public Testnet release tag;
+- do not claim production signing/notarization;
+- do not publish release assets as an accepted Testnet release;
+- do not start Stage 14.
+
+The deterministic manifest/checksum generator must therefore require an explicit development mode while `config.Version` is a development version. A production Testnet manifest must fail closed until a non-development release-candidate version is deliberately frozen.
+
+## 11. Implemented Stage 13 metadata plumbing
+
+The repository provides `cmd/valdr-release-manifest` as the canonical manifest/checksum generator.
+
+It derives application version from `config.Version`, Testnet identity from the compiled `testnet` network profile, computes artifact byte sizes and SHA-256 hashes from the actual files, sorts artifacts deterministically, binds the exact git commit and explicit UTC release timestamp, rejects unsafe/duplicate/missing artifacts, and labels current dry-runs as development-only.
+
+The detached production signature remains a later isolated release step and is not fabricated by the generator.

@@ -28,6 +28,9 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - name: Stage 13 release manifest gate
+        run: go test ./cmd/valdr-release-manifest -count=1
+
       - name: Race test
         run: go test -race ./...
 

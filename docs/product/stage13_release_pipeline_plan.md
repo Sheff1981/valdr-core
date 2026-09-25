@@ -1,11 +1,11 @@
 # VALDR Stage 13 release/installer design plan
 
-**Status:** PLANNED ONLY — implementation has not started.  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.5.md` §§19 and 23.  
+**Status:** IN PROGRESS — development-only release plumbing; public release blocked.  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.7.md` §§19 and 23.  
 **Branch:** `valdr-v0.2`  
 **Stage 12 state:** implementation/automated acceptance green; Windows manual GUI acceptance is still pending.
 
-This plan may be prepared before Stage 12 is frozen, but no Stage 13 packaging/release implementation should be merged until the Stage 12 manual acceptance gate is closed.
+Master-TZ v0.2.7 authorizes CI-safe Stage 13 implementation before Stage 12 manual acceptance closes. Public release tags, production signing/notarization claims, accepted release publication and Stage 14 remain blocked until Stage 12 is green.
 
 ## 1. Release invariants
 
@@ -33,7 +33,7 @@ The implementation pass should prefer the following minimal additions:
 - `packaging/linux/valdr-desktop.desktop` — Linux desktop entry;
 - `packaging/linux/valdr-desktop.svg` or generated PNG copy — package icon;
 - `packaging/linux/debian/` — minimal Debian package metadata only when required by the chosen packaging command;
-- `scripts/release-manifest.go` or a small Go command under `cmd/` — deterministic manifest/checksum generation;
+- `cmd/valdr-release-manifest/` — deterministic manifest/checksum generation;
 - `scripts/release-verify.sh` / PowerShell equivalent only if needed for clean-environment verification;
 - `docs/product/stage13_release_acceptance.md` — evidence matrix for §23.
 
@@ -169,20 +169,20 @@ No placeholder public domain or unofficial mirror should be introduced.
 
 The pre-implementation metadata contract is defined in `docs/product/stage13_release_identity_contract.md`.
 
-A concrete release candidate must not use the current development string `0.2.0-dev`. The application version, package metadata, artifact names and release manifest must agree before any signed release is published. Master-spec revision `v0.2.5` remains separate from the application version.
+A concrete release candidate must not use the current development string `0.2.0-dev`. The application version, package metadata, artifact names and release manifest must agree before any signed release is published. Master-spec revision `v0.2.7` remains separate from the application version.
 
-## 11. Stage 13 execution order after Stage 12 freeze
+## 11. Stage 13 execution order
 
-1. freeze Stage 12 accepted commit;
-2. create release-version contract and tag policy;
-3. implement deterministic manifest/checksum generator;
-4. implement Windows installer + clean install/uninstall test;
-5. implement Linux AppImage + .deb + clean tests;
-6. implement macOS Developer ID/notarization pipeline;
-7. add signing backend for manifest/checksums;
-8. add release workflow that maps every asset to the exact git commit;
-9. integrate official download page;
-10. perform a second-clean-environment verification;
+1. keep the outstanding Stage 12 manual acceptance as a blocking public-release gate;
+2. release-version contract and tag policy — design frozen;
+3. deterministic manifest/checksum generator — implementation introduced, CI acceptance required;
+4. Windows installer + clean install/uninstall test;
+5. Linux AppImage + .deb + clean tests;
+6. macOS Developer ID/notarization pipeline;
+7. signing backend for manifest/checksums;
+8. release workflow mapping every asset to the exact git commit;
+9. official download-page integration after its authoritative repository/deployment target is identified;
+10. second-clean-environment verification;
 11. close §23 evidence matrix.
 
-Each step must leave the repository buildable/testable. No Stage 14 public/private Testnet rollout begins until Stage 13 acceptance is recorded.
+Each step must leave the repository buildable/testable. No public Testnet release and no Stage 14 rollout begins until the required Stage 12 and Stage 13 gates are both closed.
