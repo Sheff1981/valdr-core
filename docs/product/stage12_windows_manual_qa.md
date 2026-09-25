@@ -8,15 +8,15 @@
 
 Use the CI-green Windows development package built from:
 
-- source commit: `44069f4eb33af43c22f8981c772b2484b1b08ef1`;
-- VALDR v0.2 CI run: `36165082888` (#350) — SUCCESS;
-- GitHub Actions artifact: `valdr-stage13-windows-development` (artifact ID `10876873833`);
+- source commit: `ea74320f9950dad733e4f95c0d24e9b008e2d221`;
+- VALDR v0.2 CI run: `36183171614` (#356) — SUCCESS;
+- GitHub Actions artifact: `valdr-stage13-windows-development` (artifact ID `10885735468`);
 - application version: `0.2.0-dev`;
 - installer: `VALDR-Desktop-0.2.0-dev-windows-x64-setup.exe`;
-- installer SHA-256: `3c364b96373a014ea241c84982f7ff13ec9c5a7cd423ca31dd58a3648b7bba7f`;
+- installer SHA-256: `f20d90211ab5e4e19633ae7563652bcdbfb9f04851f53a18031e705a5a68c365`;
 - portable ZIP: `VALDR-Desktop-0.2.0-dev-windows-x64-portable.zip`;
-- portable SHA-256: `f4693ebc7976972a72734b5b5616f306a01a9da7790369439792b55053afc9ad`;
-- release manifest SHA-256: `5e112477f7e37401ab23db1bc29b208b07165540ed4ab45984f47e1d358573f5`.
+- portable SHA-256: `6cd8b93c14e4ecb3233161f20e581b1cf195ed8c7b3c5b9024d19b8c257cfdba`;
+- release manifest SHA-256: `c1e3b213eebbd4b5e8f4d4c9e5b51e1c9447dc74b929b8a622eca518b3bf9ef2`.
 
 Before launch, verify the installer in PowerShell:
 
