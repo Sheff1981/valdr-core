@@ -96,7 +96,11 @@ chmod 0755 "$linuxdeploy" "$appimagetool" "$runtime_file"
 
 appdir="$work_dir/VALDR.AppDir"
 icon_file="$work_dir/valdr-desktop.png"
-cp "$icon_source" "$icon_file"
+if ! command -v convert >/dev/null 2>&1; then
+  echo "ImageMagick convert is required to normalize the Linux package icon" >&2
+  exit 1
+fi
+convert "$icon_source" -resize 512x512 "$icon_file"
 
 APPIMAGE_EXTRACT_AND_RUN=1 "$linuxdeploy" \
   --appdir "$appdir" \
@@ -128,7 +132,7 @@ install -Dm755 "$desktop_bin" "$deb_root/usr/lib/valdr-desktop/VALDR"
 install -Dm755 "$node_bin" "$deb_root/usr/lib/valdr-desktop/valdrd"
 install -Dm755 "$miner_bin" "$deb_root/usr/lib/valdr-desktop/valdr-miner"
 install -Dm644 "$desktop_entry" "$deb_root/usr/share/applications/valdr-desktop.desktop"
-install -Dm644 "$icon_source" "$deb_root/usr/share/icons/hicolor/256x256/apps/valdr-desktop.png"
+install -Dm644 "$icon_file" "$deb_root/usr/share/icons/hicolor/512x512/apps/valdr-desktop.png"
 mkdir -p "$deb_root/usr/bin" "$deb_root/DEBIAN"
 
 cat >"$deb_root/usr/bin/valdr-desktop" <<'EOF'
