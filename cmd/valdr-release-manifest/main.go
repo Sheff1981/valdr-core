@@ -194,7 +194,7 @@ func generateManifest(options manifestOptions) (releaseManifest, error) {
 	seen := make(map[string]struct{}, len(items))
 	artifacts := make([]manifestArtifact, 0, len(items))
 	for _, item := range items {
-		if err := validateArtifactMetadata(item); err != nil {
+		if err := validateArtifactMetadata(item, options.Development); err != nil {
 			return releaseManifest{}, err
 		}
 		if _, exists := seen[item.Filename]; exists {
@@ -231,6 +231,12 @@ func generateManifest(options manifestOptions) (releaseManifest, error) {
 		})
 	}
 
+	if !options.Development {
+		if err := validateProductionArtifactSet(items); err != nil {
+			return releaseManifest{}, err
+		}
+	}
+
 	releaseKind := "testnet"
 	if options.Development {
 		releaseKind = "development"
@@ -252,7 +258,7 @@ func generateManifest(options manifestOptions) (releaseManifest, error) {
 	}, nil
 }
 
-func validateArtifactMetadata(item artifactMetadata) error {
+func validateArtifactMetadata(item artifactMetadata, development bool) error {
 	if item.Filename == "" || item.Filename == "." || item.Filename == ".." ||
 		strings.ContainsAny(item.Filename, "/\\") ||
 		filepath.Base(item.Filename) != item.Filename {
@@ -274,7 +280,7 @@ func validateArtifactMetadata(item artifactMetadata) error {
 		return fmt.Errorf("artifact %q has unsupported os %q", item.Filename, item.OS)
 	}
 	switch item.Arch {
-	case "amd64", "arm64":
+	case "amd64", "arm64", "universal":
 	default:
 		return fmt.Errorf("artifact %q has unsupported arch %q", item.Filename, item.Arch)
 	}
@@ -287,6 +293,134 @@ func validateArtifactMetadata(item artifactMetadata) error {
 	}
 	if strings.TrimSpace(item.NotarizationStatus) == "" {
 		return fmt.Errorf("artifact %q notarization_status is required", item.Filename)
+	}
+	if !development {
+		if err := validateProductionSigningMetadata(item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateProductionSigningMetadata(item artifactMetadata) error {
+	signing := strings.ToLower(strings.TrimSpace(item.SigningStatus))
+	notarization := strings.ToLower(strings.TrimSpace(item.NotarizationStatus))
+
+	hasUnsafeClaim := func(value string) bool {
+		for _, token := range []string{
+			"development",
+			"unsigned",
+			"adhoc",
+			"ad-hoc",
+			"pending",
+			"unverified",
+			"not-signed",
+			"not_signed",
+			"not-notarized",
+			"not_notarized",
+		} {
+			if strings.Contains(value, token) {
+				return true
+			}
+		}
+		return false
+	}
+
+	switch item.OS {
+	case "windows":
+		if signing == "not_applicable" || signing == "not-applicable" || hasUnsafeClaim(signing) {
+			return fmt.Errorf(
+				"production Windows artifact %q requires verified Authenticode signing metadata",
+				item.Filename,
+			)
+		}
+	case "macos":
+		if signing == "not_applicable" || signing == "not-applicable" || hasUnsafeClaim(signing) {
+			return fmt.Errorf(
+				"production macOS artifact %q requires verified Developer ID signing metadata",
+				item.Filename,
+			)
+		}
+		if notarization == "not_applicable" || notarization == "not-applicable" || hasUnsafeClaim(notarization) {
+			return fmt.Errorf(
+				"production macOS artifact %q requires verified notarization metadata",
+				item.Filename,
+			)
+		}
+	case "linux":
+		if hasUnsafeClaim(signing) {
+			return fmt.Errorf(
+				"production Linux artifact %q contains non-release signing metadata %q",
+				item.Filename,
+				item.SigningStatus,
+			)
+		}
+		if notarization != "not_applicable" && notarization != "not-applicable" {
+			return fmt.Errorf(
+				"production Linux artifact %q must mark notarization not_applicable",
+				item.Filename,
+			)
+		}
+	}
+
+	return nil
+}
+
+func validateProductionArtifactSet(items []artifactMetadata) error {
+	var (
+		windowsInstaller bool
+		windowsPortable  bool
+		linuxAppImage    bool
+		linuxDeb         bool
+		macARM64         bool
+		macAMD64         bool
+		macUniversal     bool
+	)
+
+	for _, item := range items {
+		name := strings.ToLower(item.Filename)
+		switch {
+		case item.OS == "windows" && item.Arch == "amd64" && strings.HasSuffix(name, "-setup.exe"):
+			windowsInstaller = true
+		case item.OS == "windows" && item.Arch == "amd64" && strings.HasSuffix(name, "-portable.zip"):
+			windowsPortable = true
+		case item.OS == "linux" && item.Arch == "amd64" && strings.HasSuffix(name, ".appimage"):
+			linuxAppImage = true
+		case item.OS == "linux" && item.Arch == "amd64" && strings.HasSuffix(name, ".deb"):
+			linuxDeb = true
+		case item.OS == "macos" && item.Arch == "arm64" && strings.HasSuffix(name, ".dmg"):
+			macARM64 = true
+		case item.OS == "macos" && item.Arch == "amd64" && strings.HasSuffix(name, ".dmg"):
+			macAMD64 = true
+		case item.OS == "macos" && item.Arch == "universal" && strings.HasSuffix(name, ".dmg"):
+			macUniversal = true
+		}
+	}
+
+	var missing []string
+	if !windowsInstaller {
+		missing = append(missing, "Windows AMD64 installer")
+	}
+	if !windowsPortable {
+		missing = append(missing, "Windows AMD64 portable archive")
+	}
+	if !linuxAppImage {
+		missing = append(missing, "Linux AMD64 AppImage")
+	}
+	if !linuxDeb {
+		missing = append(missing, "Linux AMD64 deb")
+	}
+	if !macUniversal && !macARM64 {
+		missing = append(missing, "macOS ARM64 DMG (or universal DMG)")
+	}
+	if !macUniversal && !macAMD64 {
+		missing = append(missing, "macOS Intel AMD64 DMG (or universal DMG)")
+	}
+	if len(missing) != 0 {
+		return fmt.Errorf(
+			"production Testnet manifest missing mandatory release artifacts: %s",
+			strings.Join(missing, ", "),
+		)
 	}
 	return nil
 }
