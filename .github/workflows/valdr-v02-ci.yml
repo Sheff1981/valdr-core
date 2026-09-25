@@ -223,16 +223,19 @@ jobs:
             platform: windows/amd64
             output: VALDR.exe
             artifact: valdr-desktop-windows-amd64
+            wails_args: "-webview2 embed"
           - name: macos-arm64
             os: macos-15
             platform: darwin/arm64
             output: VALDR
             artifact: valdr-desktop-macos-arm64
+            wails_args: ""
           - name: macos-amd64
             os: macos-15-intel
             platform: darwin/amd64
             output: VALDR
             artifact: valdr-desktop-macos-amd64
+            wails_args: ""
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout VALDR
@@ -270,7 +273,7 @@ jobs:
 
       - name: Build native Wails Desktop
         working-directory: apps/valdr-desktop
-        run: go run github.com/wailsapp/wails/v2/cmd/wails@v2.12.0 build -clean -s -nosyncgomod -platform "${{ matrix.platform }}" -o "${{ matrix.output }}"
+        run: go run github.com/wailsapp/wails/v2/cmd/wails@v2.12.0 build -clean -s -nosyncgomod -platform "${{ matrix.platform }}" -o "${{ matrix.output }}" ${{ matrix.wails_args }}
 
       - name: Bundle managed node and miner on Windows
         if: matrix.name == 'windows-amd64'
@@ -381,6 +384,192 @@ jobs:
           kill "$DESKTOP_PID"
           wait "$DESKTOP_PID" 2>/dev/null || true
           trap - EXIT
+
+      - name: Install NSIS for Stage 13 Windows packaging
+        if: matrix.name == 'windows-amd64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $command = Get-Command makensis.exe -ErrorAction SilentlyContinue
+          if (-not $command) {
+            choco install nsis -y --no-progress
+            $candidates = @(
+              "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+              "${env:ProgramFiles}\NSIS\makensis.exe"
+            )
+            $path = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+            if (-not $path) { throw "makensis.exe not found after NSIS installation" }
+          } else {
+            $path = $command.Source
+          }
+          & $path /VERSION
+          if ($LASTEXITCODE -ne 0) { throw "makensis version check failed" }
+          "VALDR_MAKENSIS=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build Stage 13 Windows development packages
+        if: matrix.name == 'windows-amd64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $bin = Join-Path $env:GITHUB_WORKSPACE "apps\valdr-desktop\build\bin"
+          $desktop = Join-Path $bin "VALDR.exe"
+          $node = Join-Path $bin "valdrd.exe"
+          $miner = Join-Path $bin "valdr-miner.exe"
+
+          $versionLine = (& $node version | Out-String).Trim()
+          $version = ($versionLine -split "\s+")[-1]
+          if ($version -notmatch "^(\d+)\.(\d+)\.(\d+)") {
+            throw "cannot derive numeric file version from $version"
+          }
+          $fileVersion = "$($Matches[1]).$($Matches[2]).$($Matches[3]).0"
+
+          $dist = Join-Path $env:RUNNER_TEMP "valdr-stage13-windows"
+          $portableDir = Join-Path $env:RUNNER_TEMP "valdr-stage13-portable"
+          Remove-Item $dist -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $portableDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $dist, $portableDir | Out-Null
+
+          $installerName = "VALDR-Desktop-$version-windows-x64-setup.exe"
+          $portableName = "VALDR-Desktop-$version-windows-x64-portable.zip"
+          $installer = Join-Path $dist $installerName
+          $portable = Join-Path $dist $portableName
+
+          & $env:VALDR_MAKENSIS `
+            "/DAPP_VERSION=$version" `
+            "/DAPP_FILE_VERSION=$fileVersion" `
+            "/DOUTFILE=$installer" `
+            "/DDESKTOP_EXE=$desktop" `
+            "/DNODE_EXE=$node" `
+            "/DMINER_EXE=$miner" `
+            "packaging\windows\valdr-desktop.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "NSIS package build failed" }
+          if (-not (Test-Path $installer)) { throw "Windows installer missing" }
+
+          Copy-Item $desktop (Join-Path $portableDir "VALDR.exe")
+          Copy-Item $node (Join-Path $portableDir "valdrd.exe")
+          Copy-Item $miner (Join-Path $portableDir "valdr-miner.exe")
+          Compress-Archive -Path (Join-Path $portableDir "*") -DestinationPath $portable
+          if (-not (Test-Path $portable)) { throw "Windows portable archive missing" }
+
+          $metadataPath = Join-Path $dist "artifact-metadata.json"
+          $metadata = @{
+            artifacts = @(
+              @{
+                filename = $installerName
+                os = "windows"
+                arch = "amd64"
+                minimum_os = "Windows 10/11 x64"
+                signing_status = "unsigned-development"
+                notarization_status = "not_applicable"
+              },
+              @{
+                filename = $portableName
+                os = "windows"
+                arch = "amd64"
+                minimum_os = "Windows 10/11 x64"
+                signing_status = "unsigned-development"
+                notarization_status = "not_applicable"
+              }
+            )
+          } | ConvertTo-Json -Depth 5
+          [System.IO.File]::WriteAllText($metadataPath, $metadata, [System.Text.UTF8Encoding]::new($false))
+
+          $releasedAt = (git show -s --format=%cI $env:GITHUB_SHA).Trim()
+          go run ./cmd/valdr-release-manifest `
+            --artifacts-dir $dist `
+            --metadata $metadataPath `
+            --commit $env:GITHUB_SHA `
+            --released-at $releasedAt `
+            --output (Join-Path $dist "release-manifest.json") `
+            --development
+          if ($LASTEXITCODE -ne 0) { throw "development manifest generation failed" }
+          Remove-Item $metadataPath -Force
+
+          $manifest = Get-Content (Join-Path $dist "release-manifest.json") -Raw | ConvertFrom-Json
+          if (-not $manifest.development) { throw "development manifest flag missing" }
+          if ($manifest.version -ne $version) { throw "manifest version mismatch" }
+          if ($manifest.git_commit -ne $env:GITHUB_SHA.ToLowerInvariant()) { throw "manifest commit mismatch" }
+          foreach ($artifact in $manifest.artifacts) {
+            $artifactPath = Join-Path $dist $artifact.filename
+            $actualHash = (Get-FileHash $artifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualHash -ne $artifact.sha256) {
+              throw "manifest hash mismatch for $($artifact.filename)"
+            }
+          }
+
+      - name: Clean install and uninstall Stage 13 Windows development package
+        if: matrix.name == 'windows-amd64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dist = Join-Path $env:RUNNER_TEMP "valdr-stage13-windows"
+          $installer = Get-ChildItem $dist -Filter "*-setup.exe" | Select-Object -First 1
+          $portable = Get-ChildItem $dist -Filter "*-portable.zip" | Select-Object -First 1
+          if (-not $installer) { throw "development installer not found" }
+          if (-not $portable) { throw "development portable archive not found" }
+
+          $installDir = Join-Path $env:LOCALAPPDATA "Programs\VALDR Desktop"
+          Remove-Item $installDir -Recurse -Force -ErrorAction SilentlyContinue
+
+          $install = Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "installer exited $($install.ExitCode)" }
+
+          foreach ($name in @("VALDR.exe", "valdrd.exe", "valdr-miner.exe", "Uninstall.exe")) {
+            if (-not (Test-Path (Join-Path $installDir $name))) {
+              throw "installed file missing: $name"
+            }
+          }
+
+          & (Join-Path $installDir "valdrd.exe") version
+          if ($LASTEXITCODE -ne 0) { throw "installed valdrd version check failed" }
+          & (Join-Path $installDir "valdr-miner.exe") version
+          if ($LASTEXITCODE -ne 0) { throw "installed valdr-miner version check failed" }
+
+          $stdout = Join-Path $env:RUNNER_TEMP "valdr-stage13-installed.out.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "valdr-stage13-installed.err.log"
+          $desktop = Start-Process -FilePath (Join-Path $installDir "VALDR.exe") -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          Start-Sleep -Seconds 5
+          if ($desktop.HasExited) {
+            Get-Content $stdout -ErrorAction SilentlyContinue
+            Get-Content $stderr -ErrorAction SilentlyContinue
+            throw "installed VALDR Desktop exited during launch smoke"
+          }
+          Stop-Process -Id $desktop.Id -Force
+          $desktop.WaitForExit()
+
+          $userData = Join-Path $env:LOCALAPPDATA "VALDR"
+          New-Item -ItemType Directory -Force -Path $userData | Out-Null
+          $marker = Join-Path $userData "stage13-uninstall-preserve.marker"
+          Set-Content -Path $marker -Value "preserve"
+
+          $uninstaller = Join-Path $installDir "Uninstall.exe"
+          $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "uninstaller exited $($uninstall.ExitCode)" }
+
+          for ($i = 0; $i -lt 20 -and (Test-Path $installDir); $i++) {
+            Start-Sleep -Milliseconds 250
+          }
+          if (Test-Path $installDir) { throw "installer program directory survived uninstall" }
+          if (-not (Test-Path $marker)) { throw "uninstaller removed VALDR user data" }
+
+          $portableExtract = Join-Path $env:RUNNER_TEMP "valdr-stage13-portable-check"
+          Remove-Item $portableExtract -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -Path $portable.FullName -DestinationPath $portableExtract
+          foreach ($name in @("VALDR.exe", "valdrd.exe", "valdr-miner.exe")) {
+            if (-not (Test-Path (Join-Path $portableExtract $name))) {
+              throw "portable file missing: $name"
+            }
+          }
+          & (Join-Path $portableExtract "valdrd.exe") version
+          if ($LASTEXITCODE -ne 0) { throw "portable valdrd version check failed" }
+
+      - name: Upload Stage 13 Windows development packages
+        if: matrix.name == 'windows-amd64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: valdr-stage13-windows-development
+          path: ${{ runner.temp }}/valdr-stage13-windows/**
+          if-no-files-found: error
 
       - name: Upload native Desktop build
         uses: actions/upload-artifact@v4
