@@ -376,6 +376,16 @@ func (a *App) GetNodeLogs() (string, error) {
 	return a.nodeLogs.String(), nil
 }
 
+func (a *App) GetStorageDiagnostics() (desktopcore.StorageDiagnostics, error) {
+	if !a.preferencesSnapshot().Advanced {
+		return desktopcore.StorageDiagnostics{}, ErrDesktopAdvancedModeRequired
+	}
+	return desktopcore.InspectStorage(
+		a.paths.NodeData,
+		desktopcore.DefaultStorageDiagnosticsMaxEntries,
+	), nil
+}
+
 func (a *App) GetPeers() ([]rpc.PeerResult, error) {
 	ctx, cancel := context.WithTimeout(
 		context.Background(),

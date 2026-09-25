@@ -350,3 +350,19 @@ Behavior:
 
 This implements an existing Stage 12 requirement and does not change consensus, PoW, UTXO, wallet format, storage or RPC trust boundaries.
 
+## 16. Bounded local storage diagnostics
+
+**Date:** 2026-09-25
+
+Stage 12 Network/Node now exposes read-only local storage state in Advanced mode.
+
+The diagnostics report:
+
+- the existing node-data path;
+- whether the directory is accessible;
+- bounded file count;
+- bounded aggregate file size;
+- whether the scan reached its safety entry limit.
+
+The scan runs only when the Advanced Network view requests it; it is not added to the normal five-second Desktop state loop. It does not modify BadgerDB, consensus state, wallet files or RPC.
+

@@ -702,6 +702,12 @@ button:disabled {
 }
 
 
+.storage-diagnostics-panel {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+
 .public-node-panel {
   margin-top: 22px;
   padding-top: 18px;

@@ -49,6 +49,15 @@ type DesktopState = {
   preferences: DesktopPreferences;
 };
 
+type StorageDiagnostics = {
+  path: string;
+  ready: boolean;
+  file_count: number;
+  size_bytes: number;
+  truncated: boolean;
+  error?: string;
+};
+
 type PeerInfo = {
   node_id: string;
   address: string;
@@ -124,6 +133,7 @@ type AppAPI = {
   GetWalletBalance(address: string): Promise<WalletBalance>;
   GetPeers(): Promise<PeerInfo[]>;
   GetNodeLogs(): Promise<string>;
+  GetStorageDiagnostics(): Promise<StorageDiagnostics>;
   SetPublicNodeMode(enabled: boolean, advertiseAddress: string): Promise<DesktopPreferences>;
   PreviewSend(
     selector: string,
@@ -599,9 +609,22 @@ root.innerHTML = `
             <div><dt>Tip</dt><dd><code id="detail-tip">—</code></dd></div>
             <div><dt>Chainwork</dt><dd><code id="detail-chainwork">—</code></dd></div>
             <div><dt>Node data</dt><dd><code id="detail-data">—</code></dd></div>
+            <div><dt>Node data state</dt><dd id="detail-storage-state">—</dd></div>
+            <div><dt>Node data size</dt><dd id="detail-storage-size">—</dd></div>
+            <div><dt>Node data files</dt><dd id="detail-storage-files">—</dd></div>
             <div><dt>Wallet data</dt><dd><code id="detail-wallets">—</code></dd></div>
             <div><dt>Logs</dt><dd><code id="detail-logs">—</code></dd></div>
           </dl>
+          <div class="storage-diagnostics-panel">
+            <div class="section-head">
+              <div>
+                <h3>Storage diagnostics</h3>
+                <p class="subtle">Read-only inspection of the local node data directory.</p>
+              </div>
+              <button class="secondary" id="refresh-storage-diagnostics" type="button">Refresh storage</button>
+            </div>
+            <p id="storage-diagnostics-status" class="subtle">Not inspected yet.</p>
+          </div>
           <div class="public-node-panel">
             <div class="section-head">
               <div>
@@ -1380,6 +1403,48 @@ const refreshNodeLogs = async (): Promise<void> => {
   }
 };
 
+const formatBytes = (value: number): string => {
+  if (!Number.isFinite(value) || value < 0) return "—";
+  if (value < 1024) return `${Math.round(value)} B`;
+  const units = ["KiB", "MiB", "GiB", "TiB"];
+  let amount = value / 1024;
+  let unit = units[0];
+  for (let i = 1; i < units.length && amount >= 1024; i++) {
+    amount /= 1024;
+    unit = units[i];
+  }
+  return `${amount >= 100 ? amount.toFixed(0) : amount >= 10 ? amount.toFixed(1) : amount.toFixed(2)} ${unit}`;
+};
+
+const refreshStorageDiagnostics = async (): Promise<void> => {
+  if (!currentState?.preferences.advanced) return;
+  text("storage-diagnostics-status", "Inspecting local node data…");
+  try {
+    const diagnostics = await api().GetStorageDiagnostics();
+    text(
+      "detail-storage-state",
+      diagnostics.ready ? (diagnostics.truncated ? "Ready · bounded scan" : "Ready") : "Unavailable",
+    );
+    text("detail-storage-size", formatBytes(diagnostics.size_bytes));
+    text(
+      "detail-storage-files",
+      diagnostics.truncated ? `${diagnostics.file_count}+` : String(diagnostics.file_count),
+    );
+    text(
+      "storage-diagnostics-status",
+      diagnostics.error ||
+        (diagnostics.truncated
+          ? "Directory is healthy. Scan stopped at the safety entry limit."
+          : "Directory is readable and the bounded inspection completed."),
+    );
+  } catch (error) {
+    text("detail-storage-state", "Unavailable");
+    text("detail-storage-size", "—");
+    text("detail-storage-files", "—");
+    text("storage-diagnostics-status", error instanceof Error ? error.message : String(error));
+  }
+};
+
 const refreshMining = async (): Promise<void> => {
   const rewardInput = document.getElementById("mining-reward-address") as HTMLInputElement | null;
   if (rewardInput && !rewardInput.value && activeWalletAddress) {
@@ -1590,6 +1655,7 @@ const navigateToView = (view: string): void => {
   } else if (view === "network") {
     void refreshPeers();
     void refreshNodeLogs();
+    void refreshStorageDiagnostics();
   } else if (view === "mining") {
     void refreshMining();
   }
@@ -2155,6 +2221,10 @@ document.getElementById("refresh-peers")?.addEventListener("click", async () => 
 
 document.getElementById("refresh-node-logs")?.addEventListener("click", async () => {
   await refreshNodeLogs();
+});
+
+document.getElementById("refresh-storage-diagnostics")?.addEventListener("click", async () => {
+  await refreshStorageDiagnostics();
 });
 
 document.getElementById("copy-address")?.addEventListener("click", async () => {

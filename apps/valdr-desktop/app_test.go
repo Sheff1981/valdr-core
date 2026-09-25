@@ -290,3 +290,45 @@ func TestDesktopPublicNodeModeRequiresAdvancedAndPersists(t *testing.T) {
 		t.Fatalf("public-node mode changed RPC boundary: %s", node.Endpoint())
 	}
 }
+
+
+func TestDesktopStorageDiagnosticsRequireAdvancedMode(t *testing.T) {
+	root := t.TempDir()
+	nodeData := filepath.Join(root, "node", "testnet")
+	if err := os.MkdirAll(nodeData, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(nodeData, "sample.dat"),
+		[]byte("VALDR"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	prefs := desktopcore.DefaultDesktopPreferences()
+	app := &App{
+		paths: desktopcore.Paths{
+			Root:     root,
+			NodeData: nodeData,
+			Network:  config.NetworkTestnetV02,
+		},
+		preferences: prefs,
+	}
+	if _, err := app.GetStorageDiagnostics(); !errors.Is(
+		err,
+		ErrDesktopAdvancedModeRequired,
+	) {
+		t.Fatalf("GetStorageDiagnostics error=%v want Advanced required", err)
+	}
+
+	prefs.Advanced = true
+	app.preferences = prefs
+	got, err := app.GetStorageDiagnostics()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Ready || got.FileCount != 1 || got.SizeBytes != 5 {
+		t.Fatalf("unexpected storage diagnostics: %+v", got)
+	}
+}
