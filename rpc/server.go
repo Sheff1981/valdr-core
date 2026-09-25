@@ -236,7 +236,7 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			NextHeight:             nextHeight,
 			CurrentDifficulty:      tip.Difficulty,
 			CurrentTarget:          tip.Target,
-			BlockRewardVal:         consensus.BlockReward(nextHeight),
+			BlockRewardVal:         consensus.BlockRewardForProfile(profile, nextHeight),
 			TargetBlockTimeSeconds: profile.TargetBlockTimeSeconds,
 			RetargetInterval:       profile.RetargetInterval,
 			BlocksUntilRetarget:    blocksUntilRetarget(nextHeight, profile.RetargetInterval),
@@ -300,7 +300,7 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 		return MineBlockResult{}, err
 	}
 
-	reward := consensus.BlockReward(candidate.Height)
+	reward := consensus.BlockRewardForProfile(s.chain.Profile(), candidate.Height)
 	if len(candidate.Transactions) > 0 &&
 		candidate.Transactions[0] != nil &&
 		len(candidate.Transactions[0].Outputs) > 0 {

@@ -239,3 +239,54 @@ func assertTargetHex(t *testing.T, target *big.Int, want string) {
 		t.Fatalf("target=%s want=%s", got, want)
 	}
 }
+
+func TestTestnetV029BootstrapCalibrationAndRetarget(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	powLimit, err := PowLimitForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertTargetHex(
+		t,
+		powLimit,
+		"000003ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	)
+
+	initial := mustTargetHex(t, config.TestnetV029GenesisTarget)
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	expectedHashes := new(big.Int).Div(
+		two256,
+		new(big.Int).Add(initial, big.NewInt(1)),
+	)
+	if expectedHashes.Uint64() != 5_400_000 {
+		t.Fatalf("bootstrap expected hashes=%s want=5400000", expectedHashes)
+	}
+
+	history := make([]V2DifficultyHeader, 10)
+	for i := range history {
+		history[i] = V2DifficultyHeader{
+			Height:    uint64(i),
+			Timestamp: 10_000 + int64(i)*15,
+			Target:    new(big.Int).Set(initial),
+		}
+	}
+	next, special, err := NextTargetV2(
+		history,
+		history[len(history)-1].Timestamp+15,
+		profile,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if special {
+		t.Fatal("active Testnet retarget unexpectedly marked min-difficulty")
+	}
+	assertTargetHex(
+		t,
+		next,
+		"000000c6d750ebfa67b90d1c384cdf0d90ba7649524980e3f7db468b95eaa887",
+	)
+}

@@ -49,7 +49,7 @@ func MineBlock(
 		return nil, ErrNilBlockchain
 	}
 	height := tip.Height + 1
-	reward := consensus.BlockReward(height)
+	reward := consensus.BlockRewardForProfile(profile, height)
 	if reward == 0 {
 		return nil, fmt.Errorf("no block reward configured for height %d", height)
 	}

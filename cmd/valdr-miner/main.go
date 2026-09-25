@@ -19,7 +19,10 @@ import (
 	"github.com/Sheff1981/valdr-core/rpc"
 )
 
-const defaultNodeEndpoint = "http://127.0.0.1:7332"
+const (
+	defaultNodeEndpoint = "http://127.0.0.1:7332"
+	mineBlockRPCTimeout = 5 * time.Minute
+)
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
@@ -99,7 +102,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		default:
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), mineBlockRPCTimeout)
 		var result rpc.MineBlockResult
 		err := client.Call(
 			ctx,

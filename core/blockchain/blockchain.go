@@ -663,7 +663,7 @@ func (bc *Blockchain) validateCandidateLocked(
 	if err != nil {
 		return nil, err
 	}
-	reward := consensus.BlockReward(candidate.Height)
+	reward := consensus.BlockRewardForProfile(bc.profile, candidate.Height)
 	if err := working.ApplyBlockTransactionsForChain(
 		candidate.Height,
 		candidate.Transactions,
@@ -793,7 +793,7 @@ func (bc *Blockchain) reorganizeUTXOLocked(newTip *chainNode) (*utxo.Set, error)
 		if err := working.ApplyBlockTransactionsForChain(
 			node.block.Height,
 			node.block.Transactions,
-			consensus.BlockReward(node.block.Height),
+			consensus.BlockRewardForProfile(bc.profile, node.block.Height),
 			bc.profile.ChainID,
 		); err != nil {
 			return nil, fmt.Errorf("connect block %s: %w", node.block.BlockHash, err)

@@ -18,13 +18,13 @@ func TestTestnetInitAndVerifyDB(t *testing.T) {
 	code := run([]string{
 		"init",
 		"--data", dir,
-		"--network", config.NetworkTestnetV02,
+		"--network", config.NetworkTestnetV029,
 	}, &out, &errOut)
 	if code != 0 {
 		t.Fatalf("init exit=%d stderr=%s", code, errOut.String())
 	}
-	if !strings.Contains(out.String(), `"network": "testnet"`) ||
-		!strings.Contains(out.String(), `"chain_id": "valdr-testnet-1"`) {
+	if !strings.Contains(out.String(), `"network": "testnet2"`) ||
+		!strings.Contains(out.String(), `"chain_id": "valdr-testnet-2"`) {
 		t.Fatalf("unexpected init output: %s", out.String())
 	}
 
@@ -32,14 +32,14 @@ func TestTestnetInitAndVerifyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), `"chain_id": "valdr-testnet-1"`) {
+	if !strings.Contains(string(raw), `"chain_id": "valdr-testnet-2"`) {
 		t.Fatalf("node metadata missing testnet chain id: %s", raw)
 	}
 
 	store, err := storage.NewBadgerStore(
 		dir,
-		"valdr-testnet-1",
-		config.TestnetV02GenesisHash,
+		"valdr-testnet-2",
+		config.TestnetV029GenesisHash,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -52,10 +52,10 @@ func TestTestnetInitAndVerifyDB(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if info.Network != "valdr-testnet-1" ||
-		info.GenesisHash != config.TestnetV02GenesisHash ||
+	if info.Network != "valdr-testnet-2" ||
+		info.GenesisHash != config.TestnetV029GenesisHash ||
 		info.Height != 0 ||
-		info.ActiveTip != config.TestnetV02GenesisHash {
+		info.ActiveTip != config.TestnetV029GenesisHash {
 		t.Fatalf("unexpected testnet storage info: %+v", info)
 	}
 
@@ -64,14 +64,14 @@ func TestTestnetInitAndVerifyDB(t *testing.T) {
 	code = run([]string{
 		"verify-db",
 		"--data", dir,
-		"--network", config.NetworkTestnetV02,
+		"--network", config.NetworkTestnetV029,
 	}, &out, &errOut)
 	if code != 0 {
 		t.Fatalf("verify-db exit=%d stderr=%s", code, errOut.String())
 	}
 	if !strings.Contains(out.String(), `"valid": true`) ||
-		!strings.Contains(out.String(), `"network": "valdr-testnet-1"`) ||
-		!strings.Contains(out.String(), config.TestnetV02GenesisHash) {
+		!strings.Contains(out.String(), `"network": "valdr-testnet-2"`) ||
+		!strings.Contains(out.String(), config.TestnetV029GenesisHash) {
 		t.Fatalf("unexpected verify output: %s", out.String())
 	}
 }
@@ -82,7 +82,7 @@ func TestTestnetDBRejectsLegacyProfile(t *testing.T) {
 	if code := run([]string{
 		"init",
 		"--data", dir,
-		"--network", config.NetworkTestnetV02,
+		"--network", config.NetworkTestnetV029,
 	}, &out, &errOut); code != 0 {
 		t.Fatalf("init exit=%d stderr=%s", code, errOut.String())
 	}

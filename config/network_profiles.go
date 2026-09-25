@@ -10,6 +10,7 @@ const (
 	NetworkLegacyV01 = "legacy-v0.1"
 	NetworkDevnetV02 = "devnet2"
 	NetworkTestnetV02 = "testnet"
+	NetworkTestnetV029 = "testnet2"
 
 	DevnetV02GenesisTimestamp = int64(1790121600)
 	DevnetV02GenesisTarget = "000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -22,6 +23,12 @@ const (
 	TestnetV02GenesisNonce = uint64(12480)
 	TestnetV02GenesisMessage = "VALDR genesis block | valdr-testnet-1 | 2026-09-24"
 	TestnetV02GenesisHash = "0009d956448a8caefcd798af1a7957840d0aa7b72f8350362909f241ea100122"
+
+	TestnetV029GenesisTimestamp = int64(1790380800)
+	TestnetV029GenesisTarget = "0000031b5d43afe99ee43470e1337c3642e9d9254926038fdf6d1a2e57aaa21f"
+	TestnetV029GenesisNonce = uint64(22759786)
+	TestnetV029GenesisMessage = "VALDR genesis block | valdr-testnet-2 | 2026-09-26"
+	TestnetV029GenesisHash = "000000a065ed224c03ff3107b2d3a073906415b347600f2e83a8874371f15485"
 )
 
 var ErrUnknownNetworkProfile = errors.New("unknown VALDR network profile")
@@ -128,6 +135,34 @@ func ResolveNetworkProfile(name string) (NetworkProfile, error) {
 			TargetTimespanSeconds:  3600,
 			MinRetargetTimespanSeconds: 900,
 			MaxRetargetTimespanSeconds: 14400,
+			MedianTimePastWindow:   11,
+			MaxFutureBlockSeconds:  2 * 60 * 60,
+			MinDifficultyAfterSeconds: 10 * 60,
+			MinRelayFeePerByte:     1,
+			Public:                 true,
+		}, nil
+	case NetworkTestnetV029:
+		return NetworkProfile{
+			Name:                   NetworkTestnetV029,
+			ChainID:                "valdr-testnet-2",
+			BlockVersion:           2,
+			GenesisTimestamp:       TestnetV029GenesisTimestamp,
+			GenesisTarget:          TestnetV029GenesisTarget,
+			GenesisNonce:           TestnetV029GenesisNonce,
+			GenesisMessage:         TestnetV029GenesisMessage,
+			GenesisHash:            TestnetV029GenesisHash,
+			ProtocolMin:            2,
+			ProtocolMax:            2,
+			P2PPort:                17333,
+			RPCPort:                17332,
+			AddressPrefix:          "VDR1",
+			TargetBlockTimeSeconds: 60,
+			InitialSubsidyVDR:      1,
+			PowLimitLeadingZeroBits: 22,
+			RetargetInterval:       10,
+			TargetTimespanSeconds:  540,
+			MinRetargetTimespanSeconds: 135,
+			MaxRetargetTimespanSeconds: 2160,
 			MedianTimePastWindow:   11,
 			MaxFutureBlockSeconds:  2 * 60 * 60,
 			MinDifficultyAfterSeconds: 10 * 60,
