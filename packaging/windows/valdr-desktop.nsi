@@ -79,7 +79,13 @@ Section "Uninstall"
 
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VALDRDesktop"
 
-  RMDir /r "$INSTDIR"
+  ; Remove only files owned by VALDR. Never recursively delete a user-selected
+  ; install directory because it may contain unrelated user files.
+  Delete "$INSTDIR\VALDR.exe"
+  Delete "$INSTDIR\valdrd.exe"
+  Delete "$INSTDIR\valdr-miner.exe"
+  Delete "$INSTDIR\Uninstall.exe"
+  RMDir "$INSTDIR"
 
   ; User data lives outside the program directory and is intentionally preserved.
 SectionEnd

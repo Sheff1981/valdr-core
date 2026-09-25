@@ -853,10 +853,13 @@ jobs:
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw "uninstaller exited $($uninstall.ExitCode)" }
 
-          for ($i = 0; $i -lt 20 -and (Test-Path $installDir); $i++) {
+          for ($i = 0; $i -lt 60 -and (Test-Path $installDir); $i++) {
             Start-Sleep -Milliseconds 250
           }
-          if (Test-Path $installDir) { throw "installer program directory survived uninstall" }
+          if (Test-Path $installDir) {
+            Get-ChildItem -Force -Recurse $installDir | Format-List FullName,Length,Attributes
+            throw "installer program directory survived uninstall"
+          }
           if (-not (Test-Path $marker)) { throw "uninstaller removed VALDR user data" }
 
           $portableExtract = Join-Path $env:RUNNER_TEMP "valdr-stage13-portable-check"
