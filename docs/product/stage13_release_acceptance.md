@@ -2,8 +2,8 @@
 
 **Status:** IN PROGRESS — development packaging + keyless provenance evidence green; public Testnet release acceptance not yet satisfied.  
 **Baseline:** `docs/VALDR_Master_TZ_v0.2.8.md` §23  
-**Implementation evidence commit:** `5b30f98b34b73eab0668f95a494b5ffd75c2ddf2`  
-**CI evidence:** VALDR v0.2 CI run `36160765319` (#349) — SUCCESS on 2026-09-25.
+**Current evidence commit:** `44069f4eb33af43c22f8981c772b2484b1b08ef1`  
+**CI evidence:** VALDR v0.2 CI run `36165082888` (#350) — SUCCESS on 2026-09-25.
 
 This document records evidence only. It does not upgrade `0.2.0-dev` artifacts into a public Testnet release and does not authorize Stage 14.
 
@@ -24,19 +24,19 @@ This document records evidence only. It does not upgrade `0.2.0-dev` artifacts i
 | GitHub/Sigstore keyless provenance | `actions/attest@v4` creates signed provenance using GitHub Actions OIDC/Sigstore for the assembled release subjects | automated development gate green |
 | Provenance bundle retention | assembly contains `VALDR-Desktop-<version>-provenance.sigstore.json` | automated development gate green |
 | Clean provenance verification | separate clean runner verifies artifacts with `gh attestation verify` constrained to `Sheff1981/valdr-core`, expected workflow, source ref and exact commit | automated development gate green |
-| Exact CI-run → release handoff | `valdr-v02-release.yml` is called as a same-commit reusable workflow after clean release verification; run `36160765319` (#349) completed `stage13-release-handoff-development / verify-development-release-handoff` successfully on exact commit `5b30f98b34b73eab0668f95a494b5ffd75c2ddf2`; the handoff re-verifies manifest/checksums/provenance and emits a non-public record only | automated development gate green |
+| Exact CI-run → release handoff | `valdr-v02-release.yml` is called as a same-commit reusable workflow after clean release verification; run `36165082888` (#350) completed `stage13-release-handoff-development / verify-development-release-handoff` successfully on exact commit `44069f4eb33af43c22f8981c772b2484b1b08ef1`; the handoff re-verifies manifest/checksums/provenance and emits a non-public record only | automated development gate green |
 | Production fail-closed gate | current `0.2.0-dev` cannot generate a production Testnet manifest; development signing/notarization claims remain invalid in production metadata; mandatory package set is enforced | automated safety gate green |
 | Windows Authenticode | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful `unsigned` metadata when absent | not a Testnet release blocker |
 | Apple Developer ID / notarization | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful ad-hoc / not-notarized metadata when absent | not a Testnet release blocker |
 | Official download page | authoritative source identified as `Sheff1981/valdr-site`; fail-closed metadata-driven artifact rendering is implemented; commit `571a3fcaa23e3bd1b7a84cc927c0054a1a44a745` adds OS auto-suggestion without hiding alternatives plus the local-node disk/network warning | implementation present; final RC links pending |
-| Official website CI | website runs `36145756061`, `36146021905`, `36146351810` and `36146923469` terminated before any step with `runner_id=0`; changing the runner label did not resolve allocation | infrastructure blocked / no GitHub CI test evidence |
+| Official website CI | latest observed site run `36170935148` (#47) completed with an empty step list; no validation step executed, consistent with the existing runner-allocation infrastructure block | infrastructure blocked / no GitHub CI test evidence |
 | Final Testnet release-candidate version | repository still uses `config.Version = "0.2.0-dev"` | pending deliberate freeze |
 | Final release clean verification | development path is proven; frozen non-development RC must repeat checksum + provenance verification | pending release candidate |
 | Stage 12 manual Windows acceptance | automated acceptance is green, but outstanding Windows manual GUI acceptance is not recorded as closed | blocking public release |
 
 ## 2. Development artifacts proven by CI
 
-Run `36160765319` (#349) proves the current Stage 13 development pipeline and final non-public handoff execute successfully. The packaging/provenance artifacts remain development artifacts:
+Run `36165082888` (#350) proves the current Stage 13 development pipeline and final non-public handoff execute successfully. The packaging/provenance artifacts remain development artifacts:
 
 - Windows x64 installer and portable ZIP;
 - Linux x64 AppImage and amd64 `.deb`;
@@ -72,4 +72,4 @@ No fake, borrowed or misleading Microsoft/Apple identity may be introduced to sa
 
 Continue Stage 13 only. Do not start Stage 14.
 
-The software-only authenticity path, clean verification and exact-run non-public handoff are implemented and CI-green on run `36160765319` (#349). Website CI remains an infrastructure-only zero-step runner failure, so the website is still not CI-verified. The next safe work is the manual Windows Stage 12 acceptance package/checklist; no public RC freeze or Stage 14 begins before Stage 12 closes.
+The software-only authenticity path, clean verification and exact-run non-public handoff are implemented and CI-green on run `36165082888` (#350). Website CI remains an infrastructure-only zero-step runner failure, so the website is still not CI-verified. The next safe work is the manual Windows Stage 12 acceptance package/checklist; no public RC freeze or Stage 14 begins before Stage 12 closes.
