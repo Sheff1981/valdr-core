@@ -1,8 +1,28 @@
 # VALDR Stage 12 Windows manual QA
 
-**Baseline:** Master-TZ `docs/VALDR_Master_TZ_v0.2.5.md`  
+**Baseline:** Master-TZ `docs/VALDR_Master_TZ_v0.2.8.md`  
 **Branch:** `valdr-v0.2`  
 **Purpose:** final human-visible acceptance before Stage 12 is frozen.
+
+## QA candidate
+
+Use the CI-green Windows development package built from:
+
+- source commit: `f4b24b89ea28782abb902fe2055897e5f85b8244`;
+- VALDR v0.2 CI run: `36145374543` — SUCCESS;
+- application version: `0.2.0-dev`;
+- installer: `VALDR-Desktop-0.2.0-dev-windows-x64-setup.exe`;
+- installer SHA-256: `e721a83b2832779d21cd3a867fceb91dbd4bd5e576647984316fe1df9742d490`;
+- portable ZIP: `VALDR-Desktop-0.2.0-dev-windows-x64-portable.zip`;
+- portable SHA-256: `977d9859fc72f7f9f13e0b89a60eafd5ab308c0492422f44d79d047c810485cb`.
+
+Before launch, verify the installer in PowerShell:
+
+```powershell
+Get-FileHash .\VALDR-Desktop-0.2.0-dev-windows-x64-setup.exe -Algorithm SHA256
+```
+
+The value must equal the installer SHA-256 above. This package is a development acceptance candidate, not a public Testnet release. It is intentionally not Authenticode-signed; Master-TZ v0.2.8 uses SHA-256 + GitHub/Sigstore provenance as the mandatory Testnet authenticity model.
 
 Use a fresh Windows profile/data directory for first-run checks. Mainnet must remain unavailable.
 
@@ -82,4 +102,13 @@ Confirm language, theme, managed-node startup preference, Testnet-only network f
 
 ## Acceptance result
 
-Stage 12 may be frozen only after this checklist passes on the Windows build. Record any failed item before moving to Stage 13.
+Stage 12 may be frozen only after this checklist passes on the Windows build. Record any failed item before freezing the Testnet release candidate.
+
+Record the manual result with:
+
+- Windows version/build;
+- PASS/FAIL for sections 1–8;
+- failed item text and screenshot/log reference if any;
+- tester date/time.
+
+A manual PASS closes only the Stage 12 human-visible gate. Stage 13 final RC, website CI and final release verification remain separate gates.
