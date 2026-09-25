@@ -290,6 +290,7 @@ root.innerHTML = `
     </aside>
 
     <main class="content">
+      <div class="premium-continuous-scene" aria-hidden="true"></div>
       <header class="topbar valdr-topbar">
         <div class="product-heading">
           <p class="eyebrow">NOT A TOKEN. A CHAIN.</p>

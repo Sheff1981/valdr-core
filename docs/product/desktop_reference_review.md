@@ -279,3 +279,19 @@ Implemented:
 - Network is displayed as a locked Testnet-only value rather than a non-functional dropdown because Mainnet remains disabled by the active Master-TZ.
 
 No consensus, P2P, wallet, RPC or storage behavior is changed.
+
+
+## 12. Continuous raven dashboard composition
+
+**Date:** 2026-09-25  
+**Source:** owner-approved dashboard screenshot supplied in project chat.
+
+Implemented visual rule:
+
+- keep the dark Premium Desktop palette;
+- use a single continuous raven/background composition spanning the top header and Overview hero, instead of rendering the same raven asset twice;
+- mask baked/ghost text from the raster reference with live dark UI surfaces and render the actual Desktop labels above them;
+- keep Send/Receive/Mining inside the live hero flow so all three controls remain fully visible;
+- keep live wallet/node/network data and existing Stage 12 behavior.
+
+This remains a UI-only change; consensus, wallet format, RPC, P2P and storage are unchanged.

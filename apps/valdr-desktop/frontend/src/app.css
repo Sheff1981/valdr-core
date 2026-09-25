@@ -2126,3 +2126,161 @@ html[data-theme="classic"] .latest-transaction {
   border-color: rgba(126,151,172,.18);
   background: linear-gradient(180deg, rgba(16,24,31,.96), rgba(8,13,18,.96));
 }
+
+
+/* Owner QA — one continuous raven across header + hero; keep dark theme; fix hero buttons. */
+.content {
+  position: relative;
+  isolation: isolate;
+  background: #050607;
+}
+
+.premium-continuous-scene {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 500px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(4,6,7,.98) 0%, rgba(4,6,7,.76) 37%, rgba(4,6,7,.08) 67%, rgba(4,6,7,.06) 100%),
+    url("/valdr-reference-hero.jpg") right 42% center / cover no-repeat;
+  filter: none;
+}
+
+.valdr-topbar,
+#view-overview {
+  position: relative;
+  z-index: 2;
+}
+
+.valdr-topbar {
+  overflow: visible;
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.valdr-topbar::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0 47% 0 0;
+  background:
+    linear-gradient(90deg, #050607 0%, rgba(5,6,7,.995) 74%, rgba(5,6,7,.90) 91%, transparent 100%);
+  pointer-events: none;
+}
+
+.valdr-topbar::after {
+  z-index: 2;
+}
+
+.product-heading,
+.top-actions {
+  position: relative;
+  z-index: 4;
+}
+
+.valdr-topbar .top-actions {
+  padding: 10px 12px;
+  border: 1px solid rgba(232,183,79,.18);
+  background: rgba(4,7,8,.97);
+  box-shadow: 0 0 0 10px rgba(4,7,8,.80), 0 12px 30px rgba(0,0,0,.32);
+  backdrop-filter: none;
+}
+
+.reference-hero {
+  position: relative;
+  min-height: 260px;
+  overflow: hidden;
+  isolation: isolate;
+  background: rgba(4,7,8,.08) !important;
+}
+
+.reference-hero-art {
+  display: none !important;
+}
+
+.reference-hero::before {
+  display: block !important;
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  background:
+    linear-gradient(90deg,
+      rgba(4,7,8,.995) 0%,
+      rgba(4,7,8,.995) 42%,
+      rgba(4,7,8,.96) 54%,
+      rgba(4,7,8,.56) 63%,
+      rgba(4,7,8,.08) 74%,
+      rgba(4,7,8,0) 100%);
+  pointer-events: none;
+}
+
+.reference-hero::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: 38%;
+  top: 0;
+  width: 27%;
+  height: 47%;
+  background: linear-gradient(90deg, rgba(4,7,8,.98), rgba(4,7,8,.86), rgba(4,7,8,0));
+  pointer-events: none;
+}
+
+.reference-hero .hero-main,
+.reference-hero .hero-network-id {
+  position: relative;
+  z-index: 5;
+}
+
+.reference-hero .hero-main {
+  max-width: 58%;
+  padding-left: 0;
+}
+
+.reference-hero .hero-actions {
+  position: static !important;
+  right: auto !important;
+  bottom: auto !important;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 28px 0 0 18px !important;
+  transform: none !important;
+  width: max-content;
+  max-width: calc(100% - 18px);
+}
+
+.reference-hero .hero-actions button {
+  min-width: 128px;
+  min-height: 48px;
+}
+
+.reference-hero .hero-network-id {
+  margin-left: auto;
+  margin-right: 12px;
+  align-self: start;
+  padding: 12px 16px;
+  background: rgba(5,7,8,.96);
+  border-color: rgba(232,183,79,.30);
+  backdrop-filter: none;
+  box-shadow: 0 10px 26px rgba(0,0,0,.24);
+}
+
+@media (max-width: 1180px) {
+  .premium-continuous-scene {
+    height: 455px;
+    background-position: 64% center;
+  }
+
+  .reference-hero .hero-main {
+    max-width: 65%;
+  }
+
+  .reference-hero .hero-actions {
+    margin-left: 8px !important;
+  }
+}
