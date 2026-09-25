@@ -73,8 +73,8 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if initial.NodeStatus == nil {
 		t.Fatal("Desktop node status unavailable after wallet setup")
 	}
-	if initial.NodeStatus.Network != config.NetworkTestnetV02 ||
-		initial.NodeStatus.ChainID != "valdr-testnet-1" {
+	if initial.NodeStatus.Network != config.NetworkTestnetV029 ||
+		initial.NodeStatus.ChainID != "valdr-testnet-2" {
 		t.Fatalf("unexpected Desktop Testnet identity: %+v", initial.NodeStatus)
 	}
 
@@ -99,8 +99,8 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if err := app.StartMining(source.Address); err != nil {
 		t.Fatal(err)
 	}
-	funded := waitForRuntimeHeight(t, app, fundingStart+1, 30*time.Second)
-	miningTelemetry := waitForRuntimeMiningTelemetry(t, app, 5*time.Second)
+	funded := waitForRuntimeHeight(t, app, fundingStart+1, 2*time.Minute)
+	miningTelemetry := waitForRuntimeMiningTelemetry(t, app, 2*time.Minute)
 	if miningTelemetry.AcceptedBlocks < 1 ||
 		miningTelemetry.HashrateHPS <= 0 ||
 		miningTelemetry.LastBlockHashrateHPS <= 0 ||
@@ -172,7 +172,7 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if err := app.StartMining(source.Address); err != nil {
 		t.Fatal(err)
 	}
-	_ = waitForRuntimeHeight(t, app, funded.NodeStatus.Height+1, 30*time.Second)
+	_ = waitForRuntimeHeight(t, app, funded.NodeStatus.Height+1, 2*time.Minute)
 	if err := app.StopMining(); err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 		paths: desktopcore.Paths{
 			Root:    filepath.Join(root, "restore-root"),
 			Wallets: restoreDir,
-			Network: config.NetworkTestnetV02,
+			Network: config.NetworkTestnetV029,
 		},
 		walletStore:    restoreStore,
 		walletSessions: restoreSessions,

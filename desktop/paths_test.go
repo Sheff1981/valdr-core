@@ -56,7 +56,7 @@ func TestResolveDesktopPathsByPlatform(t *testing.T) {
 				tc.goos,
 				tc.home,
 				getenv,
-				config.NetworkTestnetV02,
+				config.NetworkTestnetV029,
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -68,12 +68,12 @@ func TestResolveDesktopPathsByPlatform(t *testing.T) {
 					tc.want,
 				)
 			}
-			if paths.Network != config.NetworkTestnetV02 {
+			if paths.Network != config.NetworkTestnetV029 {
 				t.Fatalf("network=%q", paths.Network)
 			}
 			if !strings.HasSuffix(
 				filepath.ToSlash(paths.NodeData),
-				"/node/testnet",
+				"/node/testnet2",
 			) {
 				t.Fatalf("unexpected node path %q", paths.NodeData)
 			}

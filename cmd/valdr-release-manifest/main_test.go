@@ -80,8 +80,8 @@ func TestGenerateManifestDeterministicAndHashesArtifacts(t *testing.T) {
 	if one.GitCommit != strings.Repeat("a", 40) {
 		t.Fatalf("git commit = %q", one.GitCommit)
 	}
-	if one.Network != config.NetworkTestnetV02 ||
-		one.ChainID != "valdr-testnet-1" ||
+	if one.Network != config.NetworkTestnetV029 ||
+		one.ChainID != "valdr-testnet-2" ||
 		one.ProtocolMin != 2 ||
 		one.ProtocolMax != 2 {
 		t.Fatalf("unexpected Testnet identity: %+v", one)

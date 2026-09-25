@@ -183,7 +183,7 @@ func generateManifest(options manifestOptions) (releaseManifest, error) {
 		)
 	}
 
-	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		return releaseManifest{}, fmt.Errorf("resolve Testnet profile: %w", err)
 	}

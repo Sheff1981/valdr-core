@@ -11,7 +11,7 @@ import (
 
 func TestDesktopNodeArgsUseCanonicalOutboundNode(t *testing.T) {
 	cfg := NodeProcessConfig{
-		Network: config.NetworkTestnetV02,
+		Network: config.NetworkTestnetV029,
 		DataDir: "/tmp/valdr-desktop-testnet",
 		NodeID:  "desktop-test",
 		RPCPort: 28332,
@@ -28,7 +28,7 @@ func TestDesktopNodeArgsUseCanonicalOutboundNode(t *testing.T) {
 
 	required := [][]string{
 		{"start"},
-		{"--network", "testnet"},
+		{"--network", "testnet2"},
 		{"--data", cfg.DataDir},
 		{"--node-id", cfg.NodeID},
 		{"--outbound-only"},
@@ -77,11 +77,11 @@ func TestDesktopNodeDefaultsToTestnet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manager.config.Network != config.NetworkTestnetV02 {
+	if manager.config.Network != config.NetworkTestnetV029 {
 		t.Fatalf(
 			"network=%q want=%q",
 			manager.config.Network,
-			config.NetworkTestnetV02,
+			config.NetworkTestnetV029,
 		)
 	}
 	if manager.Endpoint() != "http://127.0.0.1:17332" {
@@ -105,7 +105,7 @@ func containsSequence(values []string, sequence []string) bool {
 func TestDesktopNodeSurfacesUnexpectedExitButNotIntentionalStop(t *testing.T) {
 	manager, err := NewNodeManager(NodeProcessConfig{
 		BinaryPath: "/tmp/valdrd",
-		Network:    config.NetworkTestnetV02,
+		Network:    config.NetworkTestnetV029,
 		DataDir:    "/tmp/valdr-desktop-crash-test",
 		NodeID:     "desktop-crash-test",
 	})
@@ -136,7 +136,7 @@ func TestDesktopNodeSurfacesUnexpectedExitButNotIntentionalStop(t *testing.T) {
 func TestDesktopNodeStartClearsPreviousCrashState(t *testing.T) {
 	manager, err := NewNodeManager(NodeProcessConfig{
 		BinaryPath: "/path/that/does/not/exist/valdrd",
-		Network:    config.NetworkTestnetV02,
+		Network:    config.NetworkTestnetV029,
 		DataDir:    "/tmp/valdr-desktop-restart-test",
 		NodeID:     "desktop-restart-test",
 	})
@@ -156,7 +156,7 @@ func TestDesktopNodeStartClearsPreviousCrashState(t *testing.T) {
 
 func TestDesktopNodeArgsSupportExplicitAdvancedPublicNode(t *testing.T) {
 	cfg := NodeProcessConfig{
-		Network:          config.NetworkTestnetV02,
+		Network:          config.NetworkTestnetV029,
 		DataDir:          "/tmp/valdr-desktop-public-testnet",
 		NodeID:           "desktop-public-test",
 		RPCPort:          28332,
@@ -219,7 +219,7 @@ func TestDesktopPublicNodeAdvertiseAddressValidation(t *testing.T) {
 func TestDesktopNodePublicModeCanBeReconfiguredForNextStart(t *testing.T) {
 	manager, err := NewNodeManager(NodeProcessConfig{
 		BinaryPath: "/tmp/valdrd",
-		Network:    config.NetworkTestnetV02,
+		Network:    config.NetworkTestnetV029,
 		DataDir:    "/tmp/valdr-public-config",
 		NodeID:     "desktop-public-config",
 	})

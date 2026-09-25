@@ -24,10 +24,10 @@ func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
 	root := t.TempDir()
 	paths := desktopcore.Paths{
 		Root:     root,
-		NodeData: filepath.Join(root, "node", "testnet"),
+		NodeData: filepath.Join(root, "node", "testnet2"),
 		Wallets:  filepath.Join(root, "wallets"),
 		Logs:     filepath.Join(root, "logs"),
-		Network:  config.NetworkTestnetV02,
+		Network:  config.NetworkTestnetV029,
 	}
 	if err := paths.Ensure(); err != nil {
 		t.Fatal(err)
@@ -35,7 +35,7 @@ func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
 
 	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
 		BinaryPath: filepath.Join(root, "valdrd-not-started"),
-		Network:    config.NetworkTestnetV02,
+		Network:    config.NetworkTestnetV029,
 		DataDir:    paths.NodeData,
 		NodeID:     "desktop-test",
 	})
@@ -88,8 +88,8 @@ func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
 	if state.MainnetEnabled {
 		t.Fatal("Mainnet unexpectedly enabled in Stage 12 Desktop")
 	}
-	if state.Network != config.NetworkTestnetV02 ||
-		state.ChainID != "valdr-testnet-1" {
+	if state.Network != config.NetworkTestnetV029 ||
+		state.ChainID != "valdr-testnet-2" {
 		t.Fatalf("unexpected Desktop network state: %+v", state)
 	}
 	if len(state.Wallets) != 1 ||
@@ -234,10 +234,10 @@ func TestDesktopPublicNodeModeRequiresAdvancedAndPersists(t *testing.T) {
 	root := t.TempDir()
 	paths := desktopcore.Paths{
 		Root:     root,
-		NodeData: filepath.Join(root, "node", "testnet"),
+		NodeData: filepath.Join(root, "node", "testnet2"),
 		Wallets:  filepath.Join(root, "wallets"),
 		Logs:     filepath.Join(root, "logs"),
-		Network:  config.NetworkTestnetV02,
+		Network:  config.NetworkTestnetV029,
 	}
 	if err := paths.Ensure(); err != nil {
 		t.Fatal(err)
@@ -245,7 +245,7 @@ func TestDesktopPublicNodeModeRequiresAdvancedAndPersists(t *testing.T) {
 
 	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
 		BinaryPath: filepath.Join(root, "valdrd-not-started"),
-		Network:    config.NetworkTestnetV02,
+		Network:    config.NetworkTestnetV029,
 		DataDir:    paths.NodeData,
 		NodeID:     "desktop-public-node-test",
 	})
@@ -300,7 +300,7 @@ func TestDesktopPublicNodeModeRequiresAdvancedAndPersists(t *testing.T) {
 
 func TestDesktopStorageDiagnosticsRequireAdvancedMode(t *testing.T) {
 	root := t.TempDir()
-	nodeData := filepath.Join(root, "node", "testnet")
+	nodeData := filepath.Join(root, "node", "testnet2")
 	if err := os.MkdirAll(nodeData, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +317,7 @@ func TestDesktopStorageDiagnosticsRequireAdvancedMode(t *testing.T) {
 		paths: desktopcore.Paths{
 			Root:     root,
 			NodeData: nodeData,
-			Network:  config.NetworkTestnetV02,
+			Network:  config.NetworkTestnetV029,
 		},
 		preferences: prefs,
 	}
@@ -344,17 +344,17 @@ func TestDesktopDiagnosticsRequireAdvancedAndExcludeSecrets(t *testing.T) {
 	root := t.TempDir()
 	paths := desktopcore.Paths{
 		Root:     root,
-		NodeData: filepath.Join(root, "node", "testnet"),
+		NodeData: filepath.Join(root, "node", "testnet2"),
 		Wallets:  filepath.Join(root, "wallets"),
 		Logs:     filepath.Join(root, "logs"),
-		Network:  config.NetworkTestnetV02,
+		Network:  config.NetworkTestnetV029,
 	}
 	if err := paths.Ensure(); err != nil {
 		t.Fatal(err)
 	}
 	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
 		BinaryPath: filepath.Join(root, "valdrd-not-started"),
-		Network:    config.NetworkTestnetV02,
+		Network:    config.NetworkTestnetV029,
 		DataDir:    paths.NodeData,
 		NodeID:     "desktop-diagnostics-test",
 	})
@@ -456,7 +456,7 @@ func TestProbeDesktopExplorerAcceptsLocalMatchingTestnet(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(
-			`{"status":"ok","chain_id":"valdr-testnet-1","height":42,"tip_hash":"abc"}`,
+			`{"status":"ok","chain_id":"valdr-testnet-2","height":42,"tip_hash":"abc"}`,
 		))
 	}))
 	defer server.Close()
@@ -468,7 +468,7 @@ func TestProbeDesktopExplorerAcceptsLocalMatchingTestnet(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !got.Available ||
-		got.ChainID != "valdr-testnet-1" ||
+		got.ChainID != "valdr-testnet-2" ||
 		got.Height != 42 ||
 		got.TipHash != "abc" {
 		t.Fatalf("unexpected Explorer status: %+v", got)
@@ -527,17 +527,17 @@ func TestDesktopFirstRunNodeDataDirectoryPersistsBeforeWalletOnly(t *testing.T) 
 	root := t.TempDir()
 	paths := desktopcore.Paths{
 		Root:     root,
-		NodeData: filepath.Join(root, "node", "testnet"),
+		NodeData: filepath.Join(root, "node", "testnet2"),
 		Wallets:  filepath.Join(root, "wallets"),
 		Logs:     filepath.Join(root, "logs"),
-		Network:  config.NetworkTestnetV02,
+		Network:  config.NetworkTestnetV029,
 	}
 	if err := paths.Ensure(); err != nil {
 		t.Fatal(err)
 	}
 	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
 		BinaryPath: filepath.Join(root, "valdrd-not-started"),
-		Network:    config.NetworkTestnetV02,
+		Network:    config.NetworkTestnetV029,
 		DataDir:    paths.NodeData,
 		NodeID:     "desktop-data-dir-test",
 	})
@@ -634,7 +634,7 @@ func TestDesktopFrontendDoesNotOfferMainnet(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"Testnet · valdr-testnet-1",
+		"Testnet · valdr-testnet-2",
 		"Mainnet is disabled in this build",
 	} {
 		if !strings.Contains(source, required) {
@@ -738,7 +738,7 @@ func TestDesktopFrontendStage12ScreenContract(t *testing.T) {
 			`id="settings-advanced"`,
 			`id="settings-node-data"`,
 			`id="export-diagnostics"`,
-			"Testnet · valdr-testnet-1",
+			"Testnet · valdr-testnet-2",
 			"Mainnet is disabled in this build",
 		},
 	}

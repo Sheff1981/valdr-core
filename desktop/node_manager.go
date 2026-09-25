@@ -51,9 +51,9 @@ type NodeManager struct {
 
 func NewNodeManager(cfg NodeProcessConfig) (*NodeManager, error) {
 	if cfg.Network == "" {
-		cfg.Network = config.NetworkTestnetV02
+		cfg.Network = config.NetworkTestnetV029
 	}
-	if cfg.Network != config.NetworkTestnetV02 &&
+	if cfg.Network != config.NetworkTestnetV029 &&
 		cfg.Network != config.NetworkDevnetV02 {
 		return nil, ErrDesktopMainnet
 	}
@@ -326,7 +326,7 @@ func desktopNodeArgs(cfg NodeProcessConfig) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if profile.Name != config.NetworkTestnetV02 &&
+	if profile.Name != config.NetworkTestnetV029 &&
 		profile.Name != config.NetworkDevnetV02 {
 		return nil, ErrDesktopMainnet
 	}

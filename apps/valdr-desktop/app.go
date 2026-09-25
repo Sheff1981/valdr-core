@@ -148,7 +148,7 @@ type App struct {
 }
 
 func NewApp() (*App, error) {
-	paths, err := desktopcore.DefaultPaths(config.NetworkTestnetV02)
+	paths, err := desktopcore.DefaultPaths(config.NetworkTestnetV029)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func NewApp() (*App, error) {
 	nodeLogs := desktopcore.NewLogBuffer(desktopcore.DefaultDesktopLogBytes)
 	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
 		BinaryPath: strings.TrimSpace(os.Getenv("VALDRD_PATH")),
-		Network:    config.NetworkTestnetV02,
+		Network:    config.NetworkTestnetV029,
 		DataDir:    paths.NodeData,
 		NodeID:     "valdr-desktop",
 		Seeds:            desktopSeedsFromEnv(),
@@ -281,8 +281,8 @@ func (a *App) GetState() (DesktopState, error) {
 	}
 
 	state := DesktopState{
-		Network:         config.NetworkTestnetV02,
-		ChainID:         "valdr-testnet-1",
+		Network:         config.NetworkTestnetV029,
+		ChainID:         "valdr-testnet-2",
 		MainnetEnabled:  false,
 		Paths:           paths,
 		NodeRunning:     a.node.Running(),
@@ -700,7 +700,7 @@ func probeDesktopExplorer(
 		return status, nil
 	}
 	if health.Status != "ok" ||
-		health.ChainID != "valdr-testnet-1" {
+		health.ChainID != "valdr-testnet-2" {
 		status.Message = "Local Explorer is not connected to VALDR Testnet."
 		return status, nil
 	}

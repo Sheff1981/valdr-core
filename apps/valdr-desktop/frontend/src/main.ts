@@ -371,7 +371,7 @@ root.innerHTML = `
           <div class="network-id hero-network-id">
             <span>Network</span>
             <strong id="network-name">Testnet</strong>
-            <code id="chain-id">valdr-testnet-1</code>
+            <code id="chain-id">valdr-testnet-2</code>
           </div>
         </div>
 
@@ -623,8 +623,8 @@ root.innerHTML = `
         <article class="card">
           <h2>Network diagnostics</h2>
           <dl class="details">
-            <div><dt>Profile</dt><dd id="detail-network">testnet</dd></div>
-            <div><dt>Chain ID</dt><dd id="detail-chain">valdr-testnet-1</dd></div>
+            <div><dt>Profile</dt><dd id="detail-network">testnet2</dd></div>
+            <div><dt>Chain ID</dt><dd id="detail-chain">valdr-testnet-2</dd></div>
             <div><dt>Node state</dt><dd id="detail-node-state">—</dd></div>
             <div><dt>Synchronization</dt><dd id="detail-sync">—</dd></div>
             <div><dt>Local / best height</dt><dd id="detail-height">—</dd></div>
@@ -781,7 +781,7 @@ root.innerHTML = `
               <label>
                 <span id="settings-network-label">Network</span>
                 <div class="settings-locked-field">
-                  <strong>Testnet · valdr-testnet-1</strong>
+                  <strong>Testnet · valdr-testnet-2</strong>
                   <small id="settings-network-note">Mainnet is disabled in this build</small>
                 </div>
               </label>
@@ -1628,10 +1628,7 @@ const renderState = (state: DesktopState): void => {
     "detail-height",
     status ? `${status.height} / ${status.best_known_height}` : "—",
   );
-  text(
-    "detail-sync",
-    status ? `${Math.round(status.sync_progress * 100)}%` : "—",
-  );
+  text("detail-sync", syncLabel);
 
   const healthy = state.node_running && Boolean(status);
   text(
