@@ -200,7 +200,7 @@ root.innerHTML = `
         <img src="/valdr-emblem.svg" alt="">
       </div>
       <div class="boot-copy">
-        <p class="eyebrow">NOT A TOKEN. A CHAIN.</p>
+        <p class="eyebrow">INDEPENDENT CHAIN. NATIVE VDR.</p>
         <h1>VALDR DESKTOP</h1>
         <p>Preparing secure wallet and Testnet environment</p>
         <div class="boot-progress"><span></span></div>
@@ -333,7 +333,7 @@ root.innerHTML = `
     <main class="content">
       <header class="topbar valdr-topbar">
         <div class="product-heading">
-          <p class="eyebrow">NOT A TOKEN. A CHAIN.</p>
+          <p class="eyebrow">INDEPENDENT CHAIN. NATIVE VDR.</p>
           <h1 class="product-title">VALDR DESKTOP</h1>
           <p class="product-subtitle">SECURE WALLET · STRONGER NETWORK · A BRIGHTER TOMORROW</p>
           <p class="view-label" id="view-title">Dashboard</p>
