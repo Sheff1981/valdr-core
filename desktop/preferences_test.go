@@ -25,7 +25,7 @@ func TestDesktopPreferencesDefaultAndPersistence(t *testing.T) {
 	prefs.Advanced = true
 	prefs.WalletAutoLockMinutes = 30
 	prefs.PublicNode = true
-	prefs.PublicNodeAdvertiseAddress = "node.valdr.example:17333"
+	prefs.PublicNodeAdvertiseAddress = "node.example.com:17333"
 	if err := store.Save(prefs); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestDesktopPreferencesRejectUnsafePublicNodeConfiguration(t *testing.T) {
 
 	prefs := DefaultDesktopPreferences()
 	prefs.PublicNode = true
-	prefs.PublicNodeAdvertiseAddress = "node.valdr.example:17333"
+	prefs.PublicNodeAdvertiseAddress = "node.example.com:17333"
 	if err := store.Save(prefs); !errors.Is(err, ErrDesktopPreferences) {
 		t.Fatalf("public node without Advanced error=%v want ErrDesktopPreferences", err)
 	}

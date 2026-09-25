@@ -644,7 +644,7 @@ root.innerHTML = `
             </div>
             <pre id="node-log-output" class="node-log-output">No node log output yet.</pre>
           </div>
-          <p class="subtle">Desktop remains outbound-only. Public-node mode will be exposed only in Advanced mode.</p>
+          <p class="subtle">Default mode is outbound-only. Public Testnet P2P is opt-in above and never changes the localhost RPC boundary.</p>
         </article>
       </section>
 

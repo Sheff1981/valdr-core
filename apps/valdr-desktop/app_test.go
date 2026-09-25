@@ -259,7 +259,7 @@ func TestDesktopPublicNodeModeRequiresAdvancedAndPersists(t *testing.T) {
 
 	if _, err := app.SetPublicNodeMode(
 		true,
-		"node.valdr.example:17333",
+		"node.example.com:17333",
 	); !errors.Is(err, ErrDesktopAdvancedModeRequired) {
 		t.Fatalf("SetPublicNodeMode error=%v want ErrDesktopAdvancedModeRequired", err)
 	}
@@ -268,13 +268,13 @@ func TestDesktopPublicNodeModeRequiresAdvancedAndPersists(t *testing.T) {
 	app.preferences = prefs
 	got, err := app.SetPublicNodeMode(
 		true,
-		"node.valdr.example:17333",
+		"node.example.com:17333",
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !got.PublicNode ||
-		got.PublicNodeAdvertiseAddress != "node.valdr.example:17333" {
+		got.PublicNodeAdvertiseAddress != "node.example.com:17333" {
 		t.Fatalf("unexpected public-node preferences: %+v", got)
 	}
 
@@ -283,7 +283,7 @@ func TestDesktopPublicNodeModeRequiresAdvancedAndPersists(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reloaded.PublicNode ||
-		reloaded.PublicNodeAdvertiseAddress != "node.valdr.example:17333" {
+		reloaded.PublicNodeAdvertiseAddress != "node.example.com:17333" {
 		t.Fatalf("public-node preferences not persisted: %+v", reloaded)
 	}
 	if node.Endpoint() != "http://127.0.0.1:17332" {

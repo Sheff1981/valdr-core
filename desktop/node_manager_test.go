@@ -161,7 +161,7 @@ func TestDesktopNodeArgsSupportExplicitAdvancedPublicNode(t *testing.T) {
 		NodeID:           "desktop-public-test",
 		RPCPort:          28332,
 		PublicNode:       true,
-		AdvertiseAddress: "node.valdr.example:17333",
+		AdvertiseAddress: "node.example.com:17333",
 	}
 	args, err := desktopNodeArgs(cfg)
 	if err != nil {
@@ -170,7 +170,7 @@ func TestDesktopNodeArgsSupportExplicitAdvancedPublicNode(t *testing.T) {
 
 	required := [][]string{
 		{"--p2p-host", "0.0.0.0"},
-		{"--advertise-address", "node.valdr.example:17333"},
+		{"--advertise-address", "node.example.com:17333"},
 		{"--rpc-host", "127.0.0.1"},
 	}
 	for _, sequence := range required {
@@ -185,9 +185,9 @@ func TestDesktopNodeArgsSupportExplicitAdvancedPublicNode(t *testing.T) {
 
 func TestDesktopPublicNodeAdvertiseAddressValidation(t *testing.T) {
 	valid := []string{
-		"node.valdr.example:17333",
-		"203.0.113.10:17333",
-		"[2001:db8::10]:17333",
+		"node.example.com:17333",
+		"8.8.8.8:17333",
+		"[2606:4700:4700::1111]:17333",
 	}
 	for _, value := range valid {
 		if err := ValidatePublicNodeAdvertiseAddress(value); err != nil {
@@ -228,12 +228,12 @@ func TestDesktopNodePublicModeCanBeReconfiguredForNextStart(t *testing.T) {
 	}
 	if err := manager.ConfigurePublicNode(
 		true,
-		"node.valdr.example:17333",
+		"node.example.com:17333",
 	); err != nil {
 		t.Fatal(err)
 	}
 	if !manager.config.PublicNode ||
-		manager.config.AdvertiseAddress != "node.valdr.example:17333" {
+		manager.config.AdvertiseAddress != "node.example.com:17333" {
 		t.Fatalf("unexpected public-node config: %+v", manager.config)
 	}
 }
