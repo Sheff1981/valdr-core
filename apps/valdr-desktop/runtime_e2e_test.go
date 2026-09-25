@@ -54,13 +54,12 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 		app.shutdown(context.Background())
 	})
 
-	initial := waitForRuntimeNode(t, app, 30*time.Second)
-	if initial.NodeStatus == nil {
-		t.Fatal("Desktop node status unavailable")
+	beforeWallet, err := app.GetState()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if initial.NodeStatus.Network != config.NetworkTestnetV02 ||
-		initial.NodeStatus.ChainID != "valdr-testnet-1" {
-		t.Fatalf("unexpected Desktop Testnet identity: %+v", initial.NodeStatus)
+	if beforeWallet.NodeRunning || beforeWallet.NodeStatus != nil {
+		t.Fatalf("first-run started managed node before encrypted wallet setup: %+v", beforeWallet)
 	}
 
 	sourcePassphrase := "runtime-source-passphrase"
@@ -69,6 +68,16 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	initial := waitForRuntimeNode(t, app, 30*time.Second)
+	if initial.NodeStatus == nil {
+		t.Fatal("Desktop node status unavailable after wallet setup")
+	}
+	if initial.NodeStatus.Network != config.NetworkTestnetV02 ||
+		initial.NodeStatus.ChainID != "valdr-testnet-1" {
+		t.Fatalf("unexpected Desktop Testnet identity: %+v", initial.NodeStatus)
+	}
+
 	recipient, err := app.CreateWallet("runtime-recipient", recipientPassphrase)
 	if err != nil {
 		t.Fatal(err)

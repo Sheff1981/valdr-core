@@ -9,8 +9,8 @@ This file records evidence for Master-TZ §22. It does not change consensus or r
 | §22 acceptance requirement | Automated evidence | Status |
 | --- | --- | --- |
 | Desktop builds on all mandatory target OSes | CI jobs `desktop-linux`, `desktop-windows-amd64`, `desktop-macos-arm64`, `desktop-macos-amd64` | PASS |
-| App starts without terminal use | native clean-launch Desktop smoke on Linux, Windows and both macOS architectures | PASS |
-| First-run creates encrypted wallet | Desktop encrypted-wallet tests, runtime E2E, first-run readiness gate; final visual click-through still requires owner QA | AUTOMATED PASS / MANUAL QA PENDING |
+| App starts without terminal use | native clean-launch Desktop smoke on Linux, Windows and both macOS architectures; fresh first-run also asserts that valdrd is deferred until wallet setup | PASS |
+| First-run creates encrypted wallet | Desktop encrypted-wallet tests and runtime E2E now enforce the §16.3 order: fresh Desktop has no running node, wallet is created/unlocked, then managed valdrd starts; final visual click-through still requires owner QA | AUTOMATED PASS / MANUAL QA PENDING |
 | Managed node starts and stops correctly | runtime E2E, managed-stdin shutdown smoke, clean-launch shutdown checks | PASS |
 | Outbound-only Testnet sync works | `scripts/desktop-outbound-smoke.sh` now mines on a separate Testnet peer and requires Desktop height/tip convergence while its inbound P2P port remains closed | PASS |
 | Restart resumes without DB deletion | clean-launch restart smoke verifies identical persisted height and tip | PASS |

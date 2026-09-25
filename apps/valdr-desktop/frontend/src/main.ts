@@ -271,8 +271,8 @@ root.innerHTML = `
         <button class="secondary" id="first-run-choose-data" type="button">Choose folder</button>
       </div>
       <div class="first-run-network">
-        <span id="first-run-node-state">Starting local node…</span>
-        <strong id="first-run-sync">Waiting for status</strong>
+        <span id="first-run-node-state">Local node starts after wallet setup</span>
+        <strong id="first-run-sync">Waiting for encrypted wallet</strong>
       </div>
       <button class="secondary full-button hidden restart-node-action" id="first-run-restart-node" type="button">Start / restart local node</button>
       <div id="first-run-wallet-setup">
@@ -1649,6 +1649,7 @@ const renderState = (state: DesktopState): void => {
   if (startNodeButton) startNodeButton.disabled = state.node_running;
   if (stopNodeButton) stopNodeButton.disabled = !state.node_running;
   const firstRunRestartVisible =
+    state.wallets.length > 0 &&
     !state.initialization_ready &&
     (!state.node_running || Boolean(state.node_error));
   document.querySelectorAll<HTMLButtonElement>(".restart-node-action").forEach((button) => {
@@ -1673,21 +1674,25 @@ const renderState = (state: DesktopState): void => {
   if (chooseData) chooseData.disabled = state.wallets.length > 0;
   text(
     "first-run-node-state",
-    state.node_error
-      ? "Local node needs attention"
-      : healthy
-        ? "Local validating node online"
-        : state.node_running
-          ? "Starting local validating node…"
-          : "Local node stopped",
+    state.wallets.length === 0
+      ? "Local node starts after wallet setup"
+      : state.node_error
+        ? "Local node needs attention"
+        : healthy
+          ? "Local validating node online"
+          : state.node_running
+            ? "Starting local validating node…"
+            : "Local node stopped",
   );
   text(
     "first-run-sync",
-    !status
-      ? "Waiting for node status"
-      : status.peer_count === 0
-        ? `Height ${status.height} · waiting for peers`
-        : `Sync ${Math.round(status.sync_progress * 100)}% · ${status.height}/${status.best_known_height}`,
+    state.wallets.length === 0
+      ? "Waiting for encrypted wallet"
+      : !status
+        ? "Waiting for node status"
+        : status.peer_count === 0
+          ? `Height ${status.height} · waiting for peers`
+          : `Sync ${Math.round(status.sync_progress * 100)}% · ${status.height}/${status.best_known_height}`,
   );
 
   if (state.node_error) {

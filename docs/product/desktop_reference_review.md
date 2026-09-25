@@ -438,3 +438,20 @@ The selected node directory is accepted only before the first wallet is created.
 
 This implements Master-TZ §16.3 step 2 and §16.5 "data directory where safe"; consensus, PoW, wallet format, Testnet identity and Mainnet state are unchanged.
 
+## 21. First-run node startup ordering
+
+**Date:** 2026-09-25
+
+The first-run lifecycle was aligned with Master-TZ §16.3:
+
+- a fresh Desktop launch no longer starts the managed node before an encrypted wallet exists;
+- the user can choose the node-data directory and create/restore the encrypted wallet first;
+- after successful wallet setup, the managed Testnet node starts automatically when the saved startup preference permits it;
+- if automatic startup is disabled or startup fails, first-run remains visible and exposes the controlled start/restart action only after a wallet exists;
+- an existing installation that already has a wallet retains normal automatic node startup on Desktop launch;
+- changing the first-run node-data directory no longer starts the node merely because the default startup preference is enabled.
+
+Native clean-launch CI now verifies that the GUI process stays alive on a fresh profile while localhost RPC remains closed before wallet setup. Cross-platform runtime E2E verifies that wallet creation then starts the managed node and that the rest of the wallet/send/receive/history/crash-recovery path still works.
+
+This is a Stage 12 lifecycle correction to match the existing Master-TZ. It does not change consensus, P2P protocol, storage format, wallet format, Testnet identity or Mainnet state.
+

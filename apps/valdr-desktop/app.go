@@ -244,9 +244,15 @@ func (a *App) startup(ctx context.Context) {
 	if !a.preferencesSnapshot().StartNode {
 		return
 	}
-	if err := a.node.Start(); err != nil {
+	ready, err := a.walletSetupComplete()
+	if err != nil {
 		a.setNodeError(err.Error())
+		return
 	}
+	if !ready {
+		return
+	}
+	a.startManagedNodeAfterWalletSetup()
 }
 
 func (a *App) shutdown(context.Context) {
@@ -331,6 +337,33 @@ func desktopInitializationReady(
 	return walletCount > 0 && nodeRunning && status != nil
 }
 
+func (a *App) walletSetupComplete() (bool, error) {
+	paths := a.pathsSnapshot()
+	store := a.walletStore
+	if store == nil {
+		store = wallet.NewStore(paths.Wallets)
+	}
+	items, err := store.List()
+	if err != nil {
+		return false, err
+	}
+	return len(items) > 0, nil
+}
+
+func (a *App) startManagedNodeAfterWalletSetup() {
+	if a.ctx == nil ||
+		!a.preferencesSnapshot().StartNode ||
+		a.node == nil ||
+		a.node.Running() {
+		return
+	}
+	if err := a.node.Start(); err != nil {
+		a.setNodeError(err.Error())
+		return
+	}
+	a.setNodeError("")
+}
+
 func (a *App) CreateWallet(
 	name string,
 	passphrase string,
@@ -355,6 +388,7 @@ func (a *App) CreateWallet(
 			return wallet.Metadata{}, err
 		}
 	}
+	a.startManagedNodeAfterWalletSetup()
 	return meta, nil
 }
 
@@ -491,7 +525,7 @@ func (a *App) setFirstRunNodeDataDirectory(path string) (string, error) {
 	a.preferences = prefs
 	a.mu.Unlock()
 
-	if wasRunning || prefs.StartNode {
+	if wasRunning {
 		if err := a.StartNode(); err != nil {
 			return clean, err
 		}
@@ -1020,6 +1054,7 @@ func (a *App) restoreWalletFrom(
 	if _, err := a.walletSessions.Unlock(meta.Address, secret); err != nil {
 		return wallet.Metadata{}, err
 	}
+	a.startManagedNodeAfterWalletSetup()
 	return meta, nil
 }
 
