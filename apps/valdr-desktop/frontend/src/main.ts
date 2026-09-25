@@ -49,6 +49,15 @@ type DesktopState = {
   preferences: DesktopPreferences;
 };
 
+type ExplorerStatus = {
+  available: boolean;
+  url: string;
+  chain_id?: string;
+  height?: number;
+  tip_hash?: string;
+  message?: string;
+};
+
 type StorageDiagnostics = {
   path: string;
   ready: boolean;
@@ -134,6 +143,8 @@ type AppAPI = {
   GetPeers(): Promise<PeerInfo[]>;
   GetNodeLogs(): Promise<string>;
   GetStorageDiagnostics(): Promise<StorageDiagnostics>;
+  GetExplorerStatus(): Promise<ExplorerStatus>;
+  OpenExplorer(): Promise<void>;
   ExportDiagnostics(): Promise<string>;
   SetPublicNodeMode(enabled: boolean, advertiseAddress: string): Promise<DesktopPreferences>;
   PreviewSend(
@@ -616,6 +627,19 @@ root.innerHTML = `
             <div><dt>Wallet data</dt><dd><code id="detail-wallets">—</code></dd></div>
             <div><dt>Logs</dt><dd><code id="detail-logs">—</code></dd></div>
           </dl>
+          <div class="explorer-panel">
+            <div class="section-head">
+              <div>
+                <h3>Explorer</h3>
+                <p class="subtle">Open the separate read-only VALDR Explorer when it is running locally on Testnet.</p>
+              </div>
+              <div class="actions">
+                <button class="secondary" id="refresh-explorer-status" type="button">Check Explorer</button>
+                <button class="secondary" id="open-explorer" type="button" disabled>Open Explorer</button>
+              </div>
+            </div>
+            <p id="explorer-status" class="subtle">Not checked yet.</p>
+          </div>
           <div class="storage-diagnostics-panel">
             <div class="section-head">
               <div>
@@ -1454,6 +1478,26 @@ const refreshStorageDiagnostics = async (): Promise<void> => {
   }
 };
 
+const refreshExplorerStatus = async (): Promise<void> => {
+  const openButton = document.getElementById("open-explorer") as HTMLButtonElement | null;
+  if (openButton) openButton.disabled = true;
+  if (!currentState?.preferences.advanced) return;
+
+  text("explorer-status", "Checking local Explorer…");
+  try {
+    const status = await api().GetExplorerStatus();
+    if (openButton) openButton.disabled = !status.available;
+    text(
+      "explorer-status",
+      status.available
+        ? `Ready · Testnet height ${status.height ?? 0} · ${status.url}`
+        : (status.message || "Local Explorer is not running."),
+    );
+  } catch (error) {
+    text("explorer-status", error instanceof Error ? error.message : String(error));
+  }
+};
+
 const refreshMining = async (): Promise<void> => {
   const rewardInput = document.getElementById("mining-reward-address") as HTMLInputElement | null;
   if (rewardInput && !rewardInput.value && activeWalletAddress) {
@@ -1665,6 +1709,7 @@ const navigateToView = (view: string): void => {
     void refreshPeers();
     void refreshNodeLogs();
     void refreshStorageDiagnostics();
+    void refreshExplorerStatus();
   } else if (view === "mining") {
     void refreshMining();
   }
@@ -2254,6 +2299,23 @@ document.getElementById("refresh-node-logs")?.addEventListener("click", async ()
 
 document.getElementById("refresh-storage-diagnostics")?.addEventListener("click", async () => {
   await refreshStorageDiagnostics();
+});
+
+document.getElementById("refresh-explorer-status")?.addEventListener("click", async () => {
+  await refreshExplorerStatus();
+});
+
+document.getElementById("open-explorer")?.addEventListener("click", async () => {
+  const button = document.getElementById("open-explorer") as HTMLButtonElement | null;
+  if (button) button.disabled = true;
+  try {
+    await api().OpenExplorer();
+    text("explorer-status", "Opened local VALDR Explorer in your default browser.");
+  } catch (error) {
+    text("explorer-status", error instanceof Error ? error.message : String(error));
+  } finally {
+    await refreshExplorerStatus();
+  }
 });
 
 document.getElementById("copy-address")?.addEventListener("click", async () => {

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -425,5 +427,77 @@ func TestWriteDesktopDiagnosticsUsesPrivateFileMode(t *testing.T) {
 	}
 	if string(raw) != "{\"ok\":true}\n" {
 		t.Fatalf("unexpected diagnostics file: %q", raw)
+	}
+}
+
+
+func TestDesktopExplorerStatusRequiresAdvancedMode(t *testing.T) {
+	prefs := desktopcore.DefaultDesktopPreferences()
+	app := &App{preferences: prefs}
+	if _, err := app.GetExplorerStatus(); !errors.Is(
+		err,
+		ErrDesktopAdvancedModeRequired,
+	) {
+		t.Fatalf("GetExplorerStatus error=%v want Advanced required", err)
+	}
+}
+
+func TestProbeDesktopExplorerAcceptsLocalMatchingTestnet(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		if r.URL.Path != "/healthz" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(
+			`{"status":"ok","chain_id":"valdr-testnet-1","height":42,"tip_hash":"abc"}`,
+		))
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, err := probeDesktopExplorer(ctx, server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Available ||
+		got.ChainID != "valdr-testnet-1" ||
+		got.Height != 42 ||
+		got.TipHash != "abc" {
+		t.Fatalf("unexpected Explorer status: %+v", got)
+	}
+}
+
+func TestProbeDesktopExplorerRejectsWrongChainAndRemoteEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(
+		w http.ResponseWriter,
+		_ *http.Request,
+	) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(
+			`{"status":"ok","chain_id":"valdr-devnet-2","height":7,"tip_hash":"def"}`,
+		))
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, err := probeDesktopExplorer(ctx, server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Available {
+		t.Fatalf("wrong-chain Explorer unexpectedly accepted: %+v", got)
+	}
+
+	if _, err := probeDesktopExplorer(
+		context.Background(),
+		"http://example.com:8080",
+	); !errors.Is(err, ErrDesktopExplorerUnavailable) {
+		t.Fatalf("remote Explorer endpoint error=%v want unavailable", err)
 	}
 }

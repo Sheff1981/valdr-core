@@ -383,3 +383,21 @@ The user-selected local JSON report contains only operational data needed for su
 
 Private keys, wallet passphrases, encrypted wallet payloads and automatic telemetry/upload are excluded. The diagnostics file is written locally with private permissions where the platform supports POSIX modes.
 
+## 18. Advanced local Explorer link
+
+**Date:** 2026-09-25
+
+Stage 12 Network/Node now exposes the optional Explorer link required by the Advanced-mode plan.
+
+Rules:
+
+- VALDR Desktop does not embed or silently start the Explorer service;
+- the separate Stage 10 read-only Explorer remains its own process;
+- Desktop probes only the fixed local endpoint `http://127.0.0.1:8080/healthz`;
+- redirects and non-loopback endpoints are rejected;
+- the Open Explorer action is enabled only when the local service reports `status=ok` and Chain ID `valdr-testnet-1`;
+- opening the Explorer uses the user's default browser;
+- no wallet secrets or privileged RPC are exposed to Explorer.
+
+This preserves the Stage 10 separation and the Desktop localhost RPC security boundary.
+

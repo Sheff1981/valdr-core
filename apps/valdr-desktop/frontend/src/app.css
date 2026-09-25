@@ -702,6 +702,21 @@ button:disabled {
 }
 
 
+.explorer-panel {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+
+.explorer-panel .actions {
+  flex-wrap: wrap;
+}
+
+#explorer-status {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
 .storage-diagnostics-panel {
   margin-top: 22px;
   padding-top: 18px;

@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,9 +39,15 @@ var (
 	ErrDesktopPublicNodeDisableFirst = errors.New(
 		"disable public-node mode before leaving Advanced mode",
 	)
+	ErrDesktopExplorerUnavailable = errors.New(
+		"VALDR Explorer is not available on the local Testnet endpoint",
+	)
 )
 
-const privateKeyExportConfirmation = "EXPORT PRIVATE KEY"
+const (
+	privateKeyExportConfirmation = "EXPORT PRIVATE KEY"
+	localExplorerURL             = "http://127.0.0.1:8080"
+)
 
 type DesktopState struct {
 	Network               string                         `json:"network"`
@@ -50,6 +61,22 @@ type DesktopState struct {
 	Wallets               []wallet.Metadata  `json:"wallets"`
 	UnlockedWallets       []string           `json:"unlocked_wallets"`
 	WalletAutoLockMinutes int                `json:"wallet_auto_lock_minutes"`
+}
+
+type DesktopExplorerStatus struct {
+	Available bool   `json:"available"`
+	URL       string `json:"url"`
+	ChainID   string `json:"chain_id,omitempty"`
+	Height    uint64 `json:"height,omitempty"`
+	TipHash   string `json:"tip_hash,omitempty"`
+	Message   string `json:"message,omitempty"`
+}
+
+type explorerHealthResponse struct {
+	Status  string `json:"status"`
+	ChainID string `json:"chain_id"`
+	Height  uint64 `json:"height"`
+	TipHash string `json:"tip_hash"`
 }
 
 type DesktopDiagnosticsPreferences struct {
@@ -431,6 +458,109 @@ func (a *App) GetStorageDiagnostics() (desktopcore.StorageDiagnostics, error) {
 		a.paths.NodeData,
 		desktopcore.DefaultStorageDiagnosticsMaxEntries,
 	), nil
+}
+
+func (a *App) GetExplorerStatus() (DesktopExplorerStatus, error) {
+	if !a.preferencesSnapshot().Advanced {
+		return DesktopExplorerStatus{}, ErrDesktopAdvancedModeRequired
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer cancel()
+	return probeDesktopExplorer(ctx, localExplorerURL)
+}
+
+func (a *App) OpenExplorer() error {
+	if !a.preferencesSnapshot().Advanced {
+		return ErrDesktopAdvancedModeRequired
+	}
+	status, err := a.GetExplorerStatus()
+	if err != nil {
+		return err
+	}
+	if !status.Available {
+		return ErrDesktopExplorerUnavailable
+	}
+	if a.ctx == nil {
+		return errors.New("VALDR Desktop is not started")
+	}
+	wailsruntime.BrowserOpenURL(a.ctx, localExplorerURL+"/")
+	return nil
+}
+
+func probeDesktopExplorer(
+	ctx context.Context,
+	baseURL string,
+) (DesktopExplorerStatus, error) {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	status := DesktopExplorerStatus{URL: baseURL}
+
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Scheme != "http" || parsed.Host == "" ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return status, ErrDesktopExplorerUnavailable
+	}
+	host := strings.TrimSpace(parsed.Hostname())
+	if host == "" {
+		return status, ErrDesktopExplorerUnavailable
+	}
+	if !strings.EqualFold(host, "localhost") {
+		ip := net.ParseIP(host)
+		if ip == nil || !ip.IsLoopback() {
+			return status, ErrDesktopExplorerUnavailable
+		}
+	}
+
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		baseURL+"/healthz",
+		nil,
+	)
+	if err != nil {
+		return status, err
+	}
+	client := &http.Client{
+		Timeout: 1500 * time.Millisecond,
+		CheckRedirect: func(
+			_ *http.Request,
+			_ []*http.Request,
+		) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		status.Message = "Local Explorer is not running."
+		return status, nil
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		status.Message = fmt.Sprintf(
+			"Local Explorer health returned HTTP %d.",
+			response.StatusCode,
+		)
+		return status, nil
+	}
+
+	var health explorerHealthResponse
+	if err := json.NewDecoder(
+		io.LimitReader(response.Body, 64*1024),
+	).Decode(&health); err != nil {
+		status.Message = "Local Explorer health response is invalid."
+		return status, nil
+	}
+	if health.Status != "ok" ||
+		health.ChainID != "valdr-testnet-1" {
+		status.Message = "Local Explorer is not connected to VALDR Testnet."
+		return status, nil
+	}
+
+	status.Available = true
+	status.ChainID = health.ChainID
+	status.Height = health.Height
+	status.TipHash = health.TipHash
+	status.Message = "Local VALDR Explorer is ready."
+	return status, nil
 }
 
 func (a *App) ExportDiagnostics() (string, error) {
