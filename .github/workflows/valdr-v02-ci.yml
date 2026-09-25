@@ -1203,7 +1203,7 @@ jobs:
 
   stage13-release-handoff-development:
     name: stage13-release-handoff-development
-    needs: stage13-release-verification-clean
+    needs: [build-test-storage, stage13-release-verification-clean]
     uses: ./.github/workflows/valdr-v02-release.yml
     with:
       source_run_id: ${{ github.run_id }}
