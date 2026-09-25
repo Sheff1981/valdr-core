@@ -25,8 +25,8 @@ This file records evidence for Master-TZ §22. It does not change consensus or r
 
 Stage 12 must **not** yet be marked fully complete.
 
-1. **Known owner-QA defect:** mining hashrate is not displaying in the GUI. The backend diagnostics already expose the mining counters needed to diagnose it. This remains intentionally deferred until the agreed manual QA pass.
-2. **Manual GUI acceptance:** owner click-through of first-run, wallet, Send/Receive, Transactions, Settings and Advanced screens on the Windows build is still pending.
+1. **Manual GUI acceptance:** owner click-through of first-run, wallet, Send/Receive, Transactions, Settings and Advanced screens on the Windows build is still pending.
+2. **Mining visual confirmation:** the previously reported blank hashrate was traced to the Desktop miner manager parsing pretty-printed JSON one line at a time. The parser now decodes the real JSON stream, and cross-platform runtime E2E requires positive accepted-block/hashrate/hash-count telemetry after a mined block. The GUI value still needs owner visual confirmation on Windows.
 3. If manual QA finds a defect, fix it and rerun the full CI matrix before Stage 12 is frozen.
 
 When those items are closed, Stage 12 can be frozen and work can move to Stage 13 installers/release pipeline. Stage 13 must not begin merely because the automated matrix is green.

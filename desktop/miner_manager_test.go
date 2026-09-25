@@ -104,8 +104,22 @@ func TestDesktopMinerConsumesHashrateTelemetry(t *testing.T) {
 	}
 
 	manager.consumeOutput(strings.NewReader(
-		"{\"height\":1,\"block_hash\":\"000abc\",\"nonce\":99,\"hashes_tried\":100,\"mining_duration_ms\":20,\"hashrate_hps\":5000}\n" +
-			"{\"height\":2,\"block_hash\":\"000def\",\"nonce\":199,\"hashes_tried\":200,\"mining_duration_ms\":40,\"hashrate_hps\":5000}\n",
+		"{\n" +
+			"  \"height\": 1,\n" +
+			"  \"block_hash\": \"000abc\",\n" +
+			"  \"nonce\": 99,\n" +
+			"  \"hashes_tried\": 100,\n" +
+			"  \"mining_duration_ms\": 20,\n" +
+			"  \"hashrate_hps\": 5000\n" +
+			"}\n" +
+			"{\n" +
+			"  \"height\": 2,\n" +
+			"  \"block_hash\": \"000def\",\n" +
+			"  \"nonce\": 199,\n" +
+			"  \"hashes_tried\": 200,\n" +
+			"  \"mining_duration_ms\": 40,\n" +
+			"  \"hashrate_hps\": 5000\n" +
+			"}\n",
 	))
 
 	manager.mu.Lock()

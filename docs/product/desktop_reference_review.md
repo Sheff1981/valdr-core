@@ -455,3 +455,15 @@ Native clean-launch CI now verifies that the GUI process stays alive on a fresh 
 
 This is a Stage 12 lifecycle correction to match the existing Master-TZ. It does not change consensus, P2P protocol, storage format, wallet format, Testnet identity or Mainnet state.
 
+## 22. Mining telemetry stream fix
+
+**Date:** 2026-09-25
+
+The Stage 12 hashrate display defect was traced to the managed miner stdout parser.
+
+`valdr-miner` writes each accepted-block result as indented multi-line JSON. The Desktop `MinerManager` previously scanned stdout line-by-line and attempted to decode each line as a complete `MineBlockResult`. Real miner output therefore mined blocks successfully but never populated the Desktop accepted-block, hash-count, duration or hashrate counters.
+
+The manager now uses a streaming JSON decoder over the actual child-process stdout and preserves the optional stdout mirror through an `io.TeeReader`. The unit test now uses the same multi-line JSON shape emitted by `valdr-miner`, and the live cross-platform Desktop runtime test requires positive accepted-block, average-hashrate, last-block-hashrate and hash-count telemetry after mining.
+
+This is a Desktop telemetry/parser correction only. Consensus PoW, target calculation, block validation and miner RPC behavior are unchanged.
+

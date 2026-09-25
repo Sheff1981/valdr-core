@@ -1,7 +1,6 @@
 package desktop
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -252,28 +251,34 @@ func desktopMinerArgs(
 }
 
 func (m *MinerManager) consumeOutput(reader io.Reader) {
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		line := scanner.Text()
+	stream := reader
+	if m.config.Stdout != nil {
+		stream = io.TeeReader(reader, m.config.Stdout)
+	}
+	decoder := json.NewDecoder(stream)
+	for {
 		var result rpc.MineBlockResult
-		if err := json.Unmarshal([]byte(line), &result); err == nil &&
-			result.BlockHash != "" {
-			m.mu.Lock()
-			m.acceptedBlocks++
-			m.lastBlockHashrateHPS = result.HashrateHPS
-			m.lastBlockHashes = result.HashesTried
-			m.lastBlockDurationMS = result.MiningDurationMS
-			if ^uint64(0)-m.totalHashes < result.HashesTried {
-				m.totalHashes = ^uint64(0)
-			} else {
-				m.totalHashes += result.HashesTried
+		if err := decoder.Decode(&result); err != nil {
+			if errors.Is(err, io.EOF) {
+				return
 			}
-			m.totalMiningDurationMS += result.MiningDurationMS
-			m.mu.Unlock()
+			return
 		}
-		if m.config.Stdout != nil {
-			_, _ = fmt.Fprintln(m.config.Stdout, line)
+		if result.BlockHash == "" {
+			continue
 		}
+		m.mu.Lock()
+		m.acceptedBlocks++
+		m.lastBlockHashrateHPS = result.HashrateHPS
+		m.lastBlockHashes = result.HashesTried
+		m.lastBlockDurationMS = result.MiningDurationMS
+		if ^uint64(0)-m.totalHashes < result.HashesTried {
+			m.totalHashes = ^uint64(0)
+		} else {
+			m.totalHashes += result.HashesTried
+		}
+		m.totalMiningDurationMS += result.MiningDurationMS
+		m.mu.Unlock()
 	}
 }
 

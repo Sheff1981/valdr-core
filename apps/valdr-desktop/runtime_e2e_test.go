@@ -100,6 +100,14 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	funded := waitForRuntimeHeight(t, app, fundingStart+1, 30*time.Second)
+	miningTelemetry := waitForRuntimeMiningTelemetry(t, app, 5*time.Second)
+	if miningTelemetry.AcceptedBlocks < 1 ||
+		miningTelemetry.HashrateHPS <= 0 ||
+		miningTelemetry.LastBlockHashrateHPS <= 0 ||
+		miningTelemetry.LastBlockHashes == 0 ||
+		miningTelemetry.TotalHashes == 0 {
+		t.Fatalf("Desktop mining telemetry incomplete: %+v", miningTelemetry)
+	}
 	if err := app.StopMining(); err != nil {
 		t.Fatal(err)
 	}
@@ -401,6 +409,40 @@ func waitForRuntimeNodeCrash(
 		last,
 	)
 	return DesktopState{}
+}
+
+func waitForRuntimeMiningTelemetry(
+	t *testing.T,
+	app *App,
+	timeout time.Duration,
+) desktopcore.MinerStatus {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last desktopcore.MinerStatus
+	var lastErr error
+	for time.Now().Before(deadline) {
+		status, err := app.GetMiningState()
+		if err == nil {
+			last = status
+			if status.AcceptedBlocks > 0 &&
+				status.HashrateHPS > 0 &&
+				status.LastBlockHashrateHPS > 0 &&
+				status.LastBlockHashes > 0 &&
+				status.TotalHashes > 0 {
+				return status
+			}
+		} else {
+			lastErr = err
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf(
+		"Desktop mining telemetry did not become available within %s: status=%+v error=%v",
+		timeout,
+		last,
+		lastErr,
+	)
+	return desktopcore.MinerStatus{}
 }
 
 func waitForRuntimeHeight(
