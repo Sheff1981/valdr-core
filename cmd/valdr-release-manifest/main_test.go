@@ -89,6 +89,9 @@ func TestGenerateManifestDeterministicAndHashesArtifacts(t *testing.T) {
 	if one.ReleaseKind != "development" || !one.Development {
 		t.Fatalf("development identity not preserved: %+v", one)
 	}
+	if one.ProvenanceMethod != "github-sigstore-keyless" || !one.ProvenanceRequired {
+		t.Fatalf("provenance policy not preserved: %+v", one)
+	}
 	if one.ReleasedAt != "2026-09-25T08:30:00Z" {
 		t.Fatalf("released_at = %q", one.ReleasedAt)
 	}
@@ -244,6 +247,41 @@ func TestValidateProductionSigningMetadataRejectsDevelopmentClaims(t *testing.T)
 		}
 		if err := validateArtifactMetadata(item, true); err != nil {
 			t.Fatalf("development metadata unexpectedly rejected: %v", err)
+		}
+	}
+}
+
+func TestValidateProductionSigningMetadataAllowsExplicitUnsignedVendorState(t *testing.T) {
+	cases := []artifactMetadata{
+		{
+			Filename:           "VALDR-Desktop-" + config.Version + "-windows-x64-setup.exe",
+			OS:                 "windows",
+			Arch:               "amd64",
+			MinimumOS:          "Windows 10/11 x64",
+			SigningStatus:      "unsigned",
+			NotarizationStatus: "not_applicable",
+		},
+		{
+			Filename:           "VALDR-Desktop-" + config.Version + "-macos-arm64.dmg",
+			OS:                 "macos",
+			Arch:               "arm64",
+			MinimumOS:          "macOS 11.0+ ARM64",
+			SigningStatus:      "adhoc",
+			NotarizationStatus: "not-notarized",
+		},
+		{
+			Filename:           "VALDR-Desktop-" + config.Version + "-linux-x64.AppImage",
+			OS:                 "linux",
+			Arch:               "amd64",
+			MinimumOS:          "Linux x86_64",
+			SigningStatus:      "unsigned",
+			NotarizationStatus: "not_applicable",
+		},
+	}
+
+	for _, item := range cases {
+		if err := validateArtifactMetadata(item, false); err != nil {
+			t.Fatalf("explicit unsigned vendor state rejected for %s: %v", item.OS, err)
 		}
 	}
 }

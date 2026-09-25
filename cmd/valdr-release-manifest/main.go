@@ -53,9 +53,11 @@ type releaseManifest struct {
 	Network       string             `json:"network"`
 	ChainID       string             `json:"chain_id"`
 	ProtocolMin   uint16             `json:"protocol_min"`
-	ProtocolMax   uint16             `json:"protocol_max"`
-	ReleasedAt    string             `json:"released_at"`
-	Artifacts     []manifestArtifact `json:"artifacts"`
+	ProtocolMax        uint16             `json:"protocol_max"`
+	ReleasedAt         string             `json:"released_at"`
+	ProvenanceMethod   string             `json:"provenance_method"`
+	ProvenanceRequired bool               `json:"provenance_required"`
+	Artifacts          []manifestArtifact `json:"artifacts"`
 }
 
 type manifestOptions struct {
@@ -252,9 +254,11 @@ func generateManifest(options manifestOptions) (releaseManifest, error) {
 		Network:       profile.Name,
 		ChainID:       profile.ChainID,
 		ProtocolMin:   profile.ProtocolMin,
-		ProtocolMax:   profile.ProtocolMax,
-		ReleasedAt:    options.ReleasedAt.UTC().Format(time.RFC3339),
-		Artifacts:     artifacts,
+		ProtocolMax:        profile.ProtocolMax,
+		ReleasedAt:         options.ReleasedAt.UTC().Format(time.RFC3339),
+		ProvenanceMethod:   "github-sigstore-keyless",
+		ProvenanceRequired: true,
+		Artifacts:          artifacts,
 	}, nil
 }
 
@@ -306,56 +310,48 @@ func validateProductionSigningMetadata(item artifactMetadata) error {
 	signing := strings.ToLower(strings.TrimSpace(item.SigningStatus))
 	notarization := strings.ToLower(strings.TrimSpace(item.NotarizationStatus))
 
-	hasUnsafeClaim := func(value string) bool {
-		for _, token := range []string{
-			"development",
-			"unsigned",
-			"adhoc",
-			"ad-hoc",
-			"pending",
-			"unverified",
-			"not-signed",
-			"not_signed",
-			"not-notarized",
-			"not_notarized",
-		} {
-			if strings.Contains(value, token) {
-				return true
-			}
-		}
-		return false
+	if strings.Contains(signing, "development") || strings.Contains(notarization, "development") {
+		return fmt.Errorf(
+			"production artifact %q must not use development signing/notarization metadata",
+			item.Filename,
+		)
 	}
 
 	switch item.OS {
 	case "windows":
-		if signing == "not_applicable" || signing == "not-applicable" || hasUnsafeClaim(signing) {
+		if signing != "unsigned" && signing != "authenticode-signed" {
 			return fmt.Errorf(
-				"production Windows artifact %q requires verified Authenticode signing metadata",
+				"production Windows artifact %q must declare signing_status as unsigned or authenticode-signed",
+				item.Filename,
+			)
+		}
+		if notarization != "not_applicable" {
+			return fmt.Errorf(
+				"production Windows artifact %q must mark notarization not_applicable",
 				item.Filename,
 			)
 		}
 	case "macos":
-		if signing == "not_applicable" || signing == "not-applicable" || hasUnsafeClaim(signing) {
+		if signing != "adhoc" && signing != "developer-id-signed" {
 			return fmt.Errorf(
-				"production macOS artifact %q requires verified Developer ID signing metadata",
+				"production macOS artifact %q must declare signing_status as adhoc or developer-id-signed",
 				item.Filename,
 			)
 		}
-		if notarization == "not_applicable" || notarization == "not-applicable" || hasUnsafeClaim(notarization) {
+		if notarization != "not-notarized" && notarization != "notarized" {
 			return fmt.Errorf(
-				"production macOS artifact %q requires verified notarization metadata",
+				"production macOS artifact %q must declare notarization_status as not-notarized or notarized",
 				item.Filename,
 			)
 		}
 	case "linux":
-		if hasUnsafeClaim(signing) {
+		if signing != "unsigned" && signing != "not_applicable" {
 			return fmt.Errorf(
-				"production Linux artifact %q contains non-release signing metadata %q",
+				"production Linux artifact %q must declare signing_status as unsigned or not_applicable",
 				item.Filename,
-				item.SigningStatus,
 			)
 		}
-		if notarization != "not_applicable" && notarization != "not-applicable" {
+		if notarization != "not_applicable" {
 			return fmt.Errorf(
 				"production Linux artifact %q must mark notarization not_applicable",
 				item.Filename,

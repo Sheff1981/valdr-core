@@ -894,6 +894,11 @@ jobs:
     name: stage13-release-assembly-development
     needs: [desktop-linux, desktop-native]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
       - name: Checkout VALDR
         uses: actions/checkout@v4
@@ -1071,6 +1076,26 @@ jobs:
           PY
           (cd "$DIST" && sha256sum -c SHA256SUMS)
 
+      - name: Generate keyless Sigstore provenance attestation
+        id: stage13-attest
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            ${{ runner.temp }}/valdr-stage13-release-assembly/VALDR-Desktop-*
+            ${{ runner.temp }}/valdr-stage13-release-assembly/release-manifest.json
+            ${{ runner.temp }}/valdr-stage13-release-assembly/SHA256SUMS
+
+      - name: Include provenance bundle in development release assembly
+        shell: bash
+        env:
+          ATTESTATION_BUNDLE: ${{ steps.stage13-attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-stage13-release-assembly"
+          VERSION="$(go run ./cmd/valdrd version | awk '{print $NF}')"
+          test -s "$ATTESTATION_BUNDLE"
+          install -m0644 "$ATTESTATION_BUNDLE" "$DIST/VALDR-Desktop-$VERSION-provenance.sigstore.json"
+
       - name: Upload canonical Stage 13 development release assembly
         uses: actions/upload-artifact@v4
         with:
@@ -1082,6 +1107,8 @@ jobs:
     name: stage13-release-verification-clean-development
     needs: stage13-release-assembly
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
       - name: Download canonical Stage 13 development release
         uses: actions/download-artifact@v4
@@ -1147,6 +1174,26 @@ jobs:
           assert sums == expected
           assert all("development" in artifact["signing_status"] or artifact["os"] == "linux"
                      for artifact in manifest["artifacts"])
+          assert manifest["provenance_method"] == "github-sigstore-keyless"
+          assert manifest["provenance_required"] is True
           assert all(artifact["notarization_status"] != "notarized"
                      for artifact in manifest["artifacts"])
           PY
+
+      - name: Verify keyless provenance from clean environment
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+          EXPECTED_REF: ${{ github.ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-stage13-clean-verify"
+          BUNDLE="$(find "$DIST" -maxdepth 1 -name '*-provenance.sigstore.json' -print -quit)"
+          test -s "$BUNDLE"
+          gh --version
+          while IFS= read -r artifact; do
+            gh attestation verify "$artifact"               --repo Sheff1981/valdr-core               --bundle "$BUNDLE"               --signer-workflow Sheff1981/valdr-core/.github/workflows/valdr-v02-ci.yml               --source-digest "$EXPECTED_COMMIT"               --source-ref "$EXPECTED_REF"
+          done < <(
+            find "$DIST" -maxdepth 1 -type f \(               -name 'VALDR-Desktop-*.exe' -o               -name 'VALDR-Desktop-*.zip' -o               -name 'VALDR-Desktop-*.AppImage' -o               -name 'VALDR-Desktop-*.deb' -o               -name 'VALDR-Desktop-*.dmg' -o               -name 'release-manifest.json' -o               -name 'SHA256SUMS'             \) -print | sort
+          )

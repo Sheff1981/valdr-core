@@ -2,7 +2,7 @@
 
 **Status:** ACTIVE / STAGE 13 IN PROGRESS — development-only release plumbing  
 **Date:** 2026-09-25  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.7.md`  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.8.md`  
 **Branch:** `valdr-v0.2`
 
 This document defines the release metadata rules used by the active Stage 13 implementation. Stage 12 remains incomplete until its outstanding manual acceptance is closed; public release remains blocked.
@@ -15,7 +15,7 @@ This document defines the release metadata rules used by the active Stage 13 imp
 - Testnet protocol range: min 2 / max 2;
 - current Stage 12 Desktop framework: Wails v2.12.0;
 - there are currently no git tags in the repository;
-- Master-TZ version `v0.2.7` is the specification revision, not automatically the application release version.
+- Master-TZ version `v0.2.8` is the specification revision, not automatically the application release version.
 
 Therefore the release pipeline must never derive the application version from the master-spec filename.
 
@@ -41,7 +41,7 @@ A release job must fail if package/manifest versions disagree with the binary-re
 
 The following are separate identities:
 
-- Master-TZ revision: currently `v0.2.7`;
+- Master-TZ revision: currently `v0.2.8`;
 - product/application version: currently development value `0.2.0-dev`;
 - P2P protocol version: Testnet protocol 2;
 - Chain ID: `valdr-testnet-1`;
@@ -51,7 +51,7 @@ No release UI or manifest may collapse these into one ambiguous "version" field.
 
 ## 4. Planned release-candidate naming
 
-The first signed public Testnet build should use an explicit pre-release/Testnet application version rather than silently publishing `0.2.0-dev`.
+The first cryptographically provenance-attested public Testnet build should use an explicit pre-release/Testnet application version rather than silently publishing `0.2.0-dev`.
 
 Recommended pattern for implementation review:
 
@@ -95,11 +95,12 @@ Every manifest must bind:
 - OS/architecture;
 - byte size;
 - SHA-256;
-- signing status;
-- notarization status where relevant;
+- truthful OS-vendor signing status;
+- truthful notarization status where relevant;
+- provenance method and requirement;
 - minimum supported OS.
 
-The release manifest itself must be signed for a production Testnet release. An unsigned dry-run manifest must be labelled development-only and cannot satisfy Master-TZ §23.
+The release manifest and package artifacts must be covered by the GitHub/Sigstore keyless provenance attestation required by Master-TZ v0.2.8. Development manifests remain development-only even when provenance-attested and cannot satisfy §23 until the release-candidate version and remaining acceptance gates are frozen/green.
 
 ## 7. Minimum OS planning baseline
 
@@ -122,27 +123,29 @@ Stage 13 must explicitly select and test a Wails WebView2 installer strategy rat
 
 Whichever strategy is selected must be recorded in the installer evidence and tested on a clean Windows environment where WebView2 availability is known.
 
-## 9. Signing identities not yet available in repository
+## 9. Release provenance identity
 
-No signing credentials or public release-signing identity are stored in the repository, which is correct.
+Master-TZ v0.2.8 removes inaccessible Microsoft/Apple identities from mandatory Testnet acceptance.
 
-Before Stage 13 can satisfy the signed-release gate, the project still needs:
+The mandatory release identity is now the public repository/workflow identity:
 
-- Windows code-signing identity/certificate custody;
-- Apple Developer ID/notarization credentials;
-- release-manifest signing key/identity and published verification material.
+- repository: `Sheff1981/valdr-core`;
+- workflow: `.github/workflows/valdr-v02-ci.yml` for development provenance until a dedicated frozen release workflow is introduced;
+- exact source commit SHA;
+- GitHub Actions OIDC identity;
+- Sigstore public-good short-lived signing certificate/transparency record.
 
-These are external release prerequisites, not code defects. They must never be replaced with fake/test secrets in production release metadata.
+No long-lived private signing key is required for this keyless path. Windows Authenticode and Apple Developer ID/notarization remain optional future hardening only and must never be faked or borrowed.
 
 ## 10. Current implementation gate
 
-Master-TZ v0.2.7 authorizes CI-safe Stage 13 development plumbing while Stage 12 manual Windows QA remains pending.
+Master-TZ v0.2.8 authorizes CI-safe Stage 13 development plumbing and keyless provenance attestation while Stage 12 manual Windows QA remains pending.
 
 Until Stage 12 is accepted:
 
 - keep `config.Version = "0.2.0-dev"`;
 - do not create a public Testnet release tag;
-- do not claim production signing/notarization;
+- do not claim Microsoft Authenticode or Apple Developer ID/notarization unless those platform identities are actually present;
 - do not publish release assets as an accepted Testnet release;
 - do not start Stage 14.
 
@@ -154,4 +157,4 @@ The repository provides `cmd/valdr-release-manifest` as the canonical manifest/c
 
 It derives application version from `config.Version`, Testnet identity from the compiled `testnet` network profile, computes artifact byte sizes and SHA-256 hashes from the actual files, sorts artifacts deterministically, binds the exact git commit and explicit UTC release timestamp, rejects unsafe/duplicate/missing artifacts, and labels current dry-runs as development-only.
 
-The detached production signature remains a later isolated release step and is not fabricated by the generator.
+The manifest declares `provenance_method = github-sigstore-keyless` and `provenance_required = true`. The CI release-assembly job generates the actual attestation after the manifest/checksums exist, then a separate clean job verifies that attestation against the expected repository, workflow, ref and source commit.

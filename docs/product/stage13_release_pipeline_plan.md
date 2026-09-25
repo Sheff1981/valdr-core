@@ -1,11 +1,11 @@
 # VALDR Stage 13 release/installer design plan
 
 **Status:** IN PROGRESS — development-only release plumbing; public release blocked.  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.7.md` §§19 and 23.  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.8.md` §§19 and 23.  
 **Branch:** `valdr-v0.2`  
 **Stage 12 state:** implementation/automated acceptance green; Windows manual GUI acceptance is still pending.
 
-Master-TZ v0.2.7 authorizes CI-safe Stage 13 implementation before Stage 12 manual acceptance closes. Public release tags, production signing/notarization claims, accepted release publication and Stage 14 remain blocked until Stage 12 is green.
+Master-TZ v0.2.8 authorizes CI-safe Stage 13 implementation and keyless release provenance before Stage 12 manual acceptance closes. Public release tags and accepted release publication remain blocked until Stage 12 is green. Microsoft/Apple vendor signatures are optional hardening, not release blockers.
 
 ## 1. Release invariants
 
@@ -14,13 +14,13 @@ Every published Desktop artifact must be traceable to one immutable git commit a
 A release must publish, at minimum:
 
 - Windows x64 installer;
-- macOS ARM64 signed/notarized package;
-- macOS Intel/AMD64 signed/notarized package, or a separately approved universal package;
+- macOS ARM64 package;
+- macOS Intel/AMD64 package, or a separately approved universal package;
 - Linux x64 AppImage;
 - Linux x64 .deb;
 - SHA-256 checksums;
 - machine-readable release manifest;
-- detached signature for the release/checksum manifest;
+- GitHub/Sigstore keyless provenance attestation covering the release artifacts, manifest and checksums;
 - release notes and source-code link.
 
 Mainnet must remain unavailable. During Testnet, release/download UX must not contain buy/sell/exchange calls to action.
@@ -48,13 +48,13 @@ Planned flow:
 1. build the Wails Desktop application;
 2. build/bundle `valdrd.exe` and `valdr-miner.exe`;
 3. create the Windows installer with the Wails/NSIS packaging path supported by the pinned Wails version;
-4. when an Authenticode identity is available, sign the application binaries and final installer;
-5. verify publisher identity;
+4. record `unsigned` truthfully when Authenticode is unavailable; if a legitimate Authenticode identity becomes available later, signing is additive hardening;
+5. generate/verify repository-bound provenance for the final artifact;
 6. install on a clean Windows runner/profile;
 7. launch Desktop without a terminal;
-8. verify uninstall removes program files while preserving user blockchain/wallet data unless the uninstaller explicitly asks otherwise.
+8. verify uninstall removes only VALDR-owned program files while preserving user blockchain/wallet data and unrelated files.
 
-Signing credentials must be injected only through protected CI secrets or an external signing service and must never be committed.
+No Windows signing credential is required for Testnet acceptance under v0.2.8. If one is introduced later, it must be injected only through protected CI/external signing and never committed.
 
 ## 4. macOS packaging design
 
@@ -64,15 +64,13 @@ Planned flow:
 
 1. build the Wails `.app`;
 2. bundle `valdrd` and `valdr-miner` inside the application bundle;
-3. sign nested executables first, then the application bundle with Developer ID;
-4. enable hardened runtime where compatible;
-5. package the signed application into a distributable macOS image/package;
-6. notarize with Apple's notarization service;
-7. staple notarization;
-8. verify with `codesign` and Gatekeeper tooling;
-9. perform a clean-install launch smoke on the matching architecture.
+3. apply the current ad-hoc bundle signature needed for development bundle integrity, while labelling it truthfully as not Developer ID;
+4. package the application into a distributable macOS image/package;
+5. generate/verify repository-bound provenance for the final artifact;
+6. perform a clean mount/launch smoke on the matching architecture;
+7. document the normal per-application macOS security override path required for an unsigned/unnotarized Testnet build without instructing users to disable Gatekeeper globally.
 
-The current ad-hoc CI signature is development evidence only; it does not satisfy Stage 13 Developer ID/notarization acceptance.
+Developer ID signing/notarization remains optional future hardening if legitimately obtainable and is not a Stage 13 blocker under v0.2.8.
 
 ## 5. Linux packaging design
 
@@ -108,26 +106,28 @@ The machine-readable manifest must contain at least:
 - architecture;
 - artifact SHA-256;
 - artifact byte size;
-- signing status;
-- notarization status where applicable;
+- truthful OS-vendor signing status;
+- truthful notarization status where applicable;
+- provenance method/requirement;
 - release UTC date;
 - minimum supported OS.
 
 The manifest generator must be deterministic over a fixed artifact directory. CI must fail if an artifact listed in the manifest is missing or if its size/hash differs.
 
-## 7. Signature/key handling
+## 7. Provenance/attestation handling
 
-The Master-TZ requires a signed release/checksum manifest but does not prescribe the signature technology.
+Master-TZ v0.2.8 fixes the mandatory Testnet release-authenticity mechanism as GitHub Artifact Attestations backed by Sigstore keyless OIDC signing for the public repository.
 
-Therefore Stage 13 implementation must:
+Stage 13 implementation must:
 
-- keep the signing backend isolated behind one release step;
-- publish the corresponding verification material/instructions;
-- never print private signing material to CI logs;
-- never store signing keys in the repository, Docker image, application bundle, installer, or ordinary artifacts;
-- support an unsigned development dry-run, but such a run must be explicitly marked non-release and must not satisfy §23.
+- attest the canonical package artifacts plus release manifest/checksums after they are assembled;
+- bind verification to the expected VALDR repository/workflow and exact source commit for a frozen release;
+- retain the generated Sigstore bundle with the release assembly when practical;
+- verify provenance in a separate clean job;
+- publish verification instructions;
+- keep development builds explicitly development-only even when attested.
 
-The concrete manifest-signature mechanism should be fixed when the release signing identity/key custody model is approved.
+The keyless path uses short-lived workflow identity and does not require a long-lived private signing key in repository secrets. OS-vendor code signing remains optional future hardening.
 
 ## 8. Clean-install acceptance matrix
 
@@ -136,7 +136,7 @@ The release pipeline must prove:
 | Platform | Required clean test |
 | --- | --- |
 | Windows x64 | install → launch → first-run visible → close → uninstall |
-| macOS ARM64 | install/mount → Gatekeeper verification → launch → first-run visible |
+| macOS ARM64 | mount/integrity check → launch smoke → provenance verification; unsigned/unnotarized state disclosed |
 | macOS Intel/AMD64 | same on Intel runner |
 | Linux AppImage x64 | executable launch on clean runner/image |
 | Linux .deb x64 | install with package manager → launch → uninstall |
@@ -157,7 +157,7 @@ Required UX from the Master-TZ:
 - architecture and file size;
 - release notes;
 - SHA-256;
-- signed manifest;
+- SHA-256 plus GitHub/Sigstore provenance verification;
 - source-code link;
 - verification instructions;
 - Testnet status;
@@ -169,7 +169,7 @@ No placeholder public domain or unofficial mirror should be introduced.
 
 The pre-implementation metadata contract is defined in `docs/product/stage13_release_identity_contract.md`.
 
-A concrete release candidate must not use the current development string `0.2.0-dev`. The application version, package metadata, artifact names and release manifest must agree before any signed release is published. Master-spec revision `v0.2.7` remains separate from the application version.
+A concrete release candidate must not use the current development string `0.2.0-dev`. The application version, package metadata, artifact names and release manifest must agree before any public Testnet release is published. Master-spec revision `v0.2.8` remains separate from the application version.
 
 ## 11. Stage 13 execution order
 
@@ -178,11 +178,11 @@ A concrete release candidate must not use the current development string `0.2.0-
 3. deterministic manifest/checksum generator — implementation introduced, CI acceptance required;
 4. Windows installer + clean install/uninstall test;
 5. Linux AppImage + .deb + clean tests;
-6. macOS Developer ID/notarization pipeline;
-7. signing backend for manifest/checksums;
+6. GitHub/Sigstore keyless provenance attestation for the canonical release assembly;
+7. clean provenance verification bound to repository/workflow/commit;
 8. release workflow mapping every asset to the exact git commit;
 9. official download-page integration after its authoritative repository/deployment target is identified;
-10. second-clean-environment verification;
+10. second-clean-environment verification of the frozen public release candidate;
 11. close §23 evidence matrix.
 
 Each step must leave the repository buildable/testable. No public Testnet release and no Stage 14 rollout begins until the required Stage 12 and Stage 13 gates are both closed.
