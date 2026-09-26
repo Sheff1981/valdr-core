@@ -149,6 +149,10 @@ jobs:
           npm install --no-audit --no-fund
           npm run build
 
+      - name: Audit Desktop frontend dependencies
+        working-directory: apps/valdr-desktop/frontend
+        run: npm audit --audit-level=high
+
       - name: Verify Desktop module lock
         working-directory: apps/valdr-desktop
         run: |
