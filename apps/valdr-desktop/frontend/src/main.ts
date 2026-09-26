@@ -1370,7 +1370,7 @@ const filteredHistory = (items: TransactionHistoryItem[]): TransactionHistoryIte
 };
 
 const escapeCSV = (input: string): string =>
-  `"${input.replaceAll('"', '""')}"`;
+  `"${input.split('"').join('""')}"`;
 
 const exportVisibleHistoryCSV = (): void => {
   const header = ["timestamp","status","type","direction","amount_vdr","fee_vdr","confirmations","block_height","txid","addresses"];
