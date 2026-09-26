@@ -48,9 +48,15 @@ func TestTestnet2OversizeFrameDisconnectsPeerBeforePayloadRead(t *testing.T) {
 	waitPeerDropped(t, node)
 
 	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	var one [1]byte
-	if _, err := conn.Read(one[:]); err == nil {
-		t.Fatal("oversize peer connection remained readable after rejection")
+	buf := make([]byte, 256)
+	for {
+		_, err := conn.Read(buf)
+		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				t.Fatal("oversize peer connection was not closed after rejection")
+			}
+			break
+		}
 	}
 }
 
