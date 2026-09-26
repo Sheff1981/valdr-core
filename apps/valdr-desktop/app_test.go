@@ -873,3 +873,42 @@ func TestDesktopFrontendStage12B4AddressBookContract(t *testing.T) {
 		}
 	}
 }
+
+
+func TestDesktopFrontendStage12B5PrivacyMaskingContract(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, marker := range []string{
+		`id="toggle-amount-privacy"`,
+		"let amountPrivacyEnabled = false",
+		"const privacyAmount",
+		"••••••••",
+		"balance.spendable_vdr",
+		"balance.pending_vdr",
+		"balance.total_vdr",
+		"item.amount_vdr",
+		"item.fee_vdr",
+		"lastPreviewSummary.amount",
+		"lastPreviewSummary.fee",
+		"lastPreviewSummary.total",
+	} {
+		if !strings.Contains(source, marker) {
+			t.Fatalf("Stage 12B.5 privacy masking missing %q", marker)
+		}
+	}
+	csvStart := strings.Index(source, "const exportVisibleHistoryCSV")
+	if csvStart < 0 {
+		t.Fatal("Stage 12B.5 could not locate CSV export contract")
+	}
+	csvEndRel := strings.Index(source[csvStart:], "const applyHistoryFilters")
+	if csvEndRel <= 0 {
+		t.Fatal("Stage 12B.5 could not locate CSV export end")
+	}
+	csv := source[csvStart : csvStart+csvEndRel]
+	if strings.Contains(csv, "privacyAmount") {
+		t.Fatal("privacy masking must remain presentation-only and must not alter CSV data")
+	}
+}

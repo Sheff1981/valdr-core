@@ -359,6 +359,7 @@ root.innerHTML = `
           <p class="view-label" id="view-title">Dashboard</p>
         </div>
         <div class="top-actions">
+          <button class="secondary" id="toggle-amount-privacy" type="button" aria-pressed="false">Hide amounts</button>
           <label class="wallet-select-label">
             Active wallet
             <select id="wallet-selector" aria-label="Active wallet"></select>
@@ -997,10 +998,12 @@ const closeSendConfirmation = (): void => {
 };
 
 const closeTransactionDetail = (): void => {
+  currentTransactionDetail = null;
   document.getElementById("transaction-detail-dialog")?.classList.add("hidden");
 };
 
 const openTransactionDetail = (item: TransactionHistoryItem): void => {
+  currentTransactionDetail = item;
   const direction =
     item.direction === "received"
       ? "Received"
@@ -1012,8 +1015,11 @@ const openTransactionDetail = (item: TransactionHistoryItem): void => {
   text("transaction-detail-status", item.status);
   text("transaction-detail-direction", direction);
   text("transaction-detail-time", new Date(item.timestamp * 1000).toLocaleString());
-  text("transaction-detail-amount", `${prefix}${item.amount_vdr} VDR`);
-  text("transaction-detail-fee", item.fee_val > 0 ? `${item.fee_vdr} VDR` : "—");
+  text("transaction-detail-amount", privacyAmount(`${prefix}${item.amount_vdr}`, " VDR"));
+  text(
+    "transaction-detail-fee",
+    item.fee_val > 0 ? privacyAmount(item.fee_vdr, " VDR") : "—",
+  );
   text(
     "transaction-detail-confirmations",
     item.status === "pending" ? "0" : String(item.confirmations),
@@ -1043,6 +1049,8 @@ let renderedReceiveQRAddress = "";
 let currentHistoryItems: TransactionHistoryItem[] = [];
 let visibleHistoryItems: TransactionHistoryItem[] = [];
 let addressBookContacts: AddressBookContact[] = [];
+let amountPrivacyEnabled = false;
+let currentTransactionDetail: TransactionHistoryItem | null = null;
 let lastPreviewInput: {
   selector: string;
   recipient: string;
@@ -1054,6 +1062,29 @@ let lastPreviewSummary: {
   fee: string;
   total: string;
 } | null = null;
+
+const privacyAmount = (value: string, suffix = ""): string =>
+  amountPrivacyEnabled ? `••••••••${suffix}` : `${value}${suffix}`;
+
+const refreshPrivacyPresentation = (): void => {
+  const button = document.getElementById("toggle-amount-privacy");
+  if (button) {
+    button.textContent = amountPrivacyEnabled ? "Show amounts" : "Hide amounts";
+    button.setAttribute("aria-pressed", amountPrivacyEnabled ? "true" : "false");
+  }
+  void refreshWalletPresentation();
+  applyHistoryFilters();
+  if (currentView === "overview") void refreshOverviewLatestTransaction();
+  if (lastPreviewSummary) {
+    text("preview-amount", privacyAmount(lastPreviewSummary.amount));
+    text("preview-fee", privacyAmount(lastPreviewSummary.fee));
+    text("preview-total", privacyAmount(lastPreviewSummary.total));
+    text("confirm-amount", privacyAmount(lastPreviewSummary.amount));
+    text("confirm-fee", privacyAmount(lastPreviewSummary.fee));
+    text("confirm-total", privacyAmount(lastPreviewSummary.total));
+  }
+  if (currentTransactionDetail) openTransactionDetail(currentTransactionDetail);
+};
 
 const activeWallet = (): WalletMetadata | undefined =>
   currentState?.wallets.find((wallet) => wallet.address === activeWalletAddress);
@@ -1455,9 +1486,9 @@ const refreshWalletPresentation = async (): Promise<void> => {
 
   try {
     const balance = await api().GetWalletBalance(wallet.address);
-    text("overview-balance", balance.spendable_vdr);
-    text("overview-pending", balance.pending_vdr + " VDR");
-    text("overview-total", balance.total_vdr + " VDR");
+    text("overview-balance", privacyAmount(balance.spendable_vdr));
+    text("overview-pending", privacyAmount(balance.pending_vdr, " VDR"));
+    text("overview-total", privacyAmount(balance.total_vdr, " VDR"));
   } catch {
     text("overview-balance", "—");
     text("overview-pending", "—");
@@ -1584,7 +1615,7 @@ const renderHistory = (items: TransactionHistoryItem[]): void => {
     const amount = document.createElement("strong");
     amount.className = "history-amount";
     const prefix = item.direction === "received" ? "+" : item.direction === "sent" ? "−" : "";
-    amount.textContent = `${prefix}${item.amount_vdr} VDR`;
+    amount.textContent = privacyAmount(`${prefix}${item.amount_vdr}`, " VDR");
     head.append(identity, amount);
 
     const meta = document.createElement("dl");
@@ -1606,7 +1637,7 @@ const renderHistory = (items: TransactionHistoryItem[]): void => {
       "Confirmations",
       item.status === "pending" ? "0" : String(item.confirmations),
     );
-    if (item.fee_val > 0) addDetail("Network fee", item.fee_vdr + " VDR");
+    if (item.fee_val > 0) addDetail("Network fee", privacyAmount(item.fee_vdr, " VDR"));
     if (item.block_height) addDetail("Block", String(item.block_height));
     addDetail("Transaction ID", item.transaction_id);
 
@@ -1655,7 +1686,7 @@ const refreshOverviewLatestTransaction = async (): Promise<void> => {
           : "Self transfer";
     const prefix = item.direction === "received" ? "+" : item.direction === "sent" ? "−" : "";
     text("overview-latest-direction", direction);
-    text("overview-latest-amount", `${prefix}${item.amount_vdr} VDR`);
+    text("overview-latest-amount", privacyAmount(`${prefix}${item.amount_vdr}`, " VDR"));
     text(
       "overview-latest-meta",
       `${item.status} · ${new Date(item.timestamp * 1000).toLocaleString()} · ${item.transaction_id.slice(0, 16)}…`,
@@ -2138,6 +2169,11 @@ document.getElementById("export-diagnostics")?.addEventListener("click", async (
   }
 });
 
+document.getElementById("toggle-amount-privacy")?.addEventListener("click", () => {
+  amountPrivacyEnabled = !amountPrivacyEnabled;
+  refreshPrivacyPresentation();
+});
+
 document.getElementById("desktop-settings-form")?.addEventListener("submit", (event) => {
   event.preventDefault();
   void saveDesktopSettings();
@@ -2528,9 +2564,9 @@ document.getElementById("send-form")?.addEventListener("submit", async (event) =
       fee: preview.fee_vdr,
       total: preview.total_vdr,
     };
-    text("preview-amount", preview.amount_vdr);
-    text("preview-fee", preview.fee_vdr);
-    text("preview-total", preview.total_vdr);
+    text("preview-amount", privacyAmount(preview.amount_vdr));
+    text("preview-fee", privacyAmount(preview.fee_vdr));
+    text("preview-total", privacyAmount(preview.total_vdr));
     document.getElementById("send-preview-empty")?.classList.add("hidden");
     document.getElementById("send-preview")?.classList.remove("hidden");
   } catch (error) {
@@ -2567,9 +2603,9 @@ document.getElementById("confirm-send")?.addEventListener("click", () => {
   }
 
   text("confirm-recipient", input.recipient);
-  text("confirm-amount", summary.amount);
-  text("confirm-fee", summary.fee);
-  text("confirm-total", summary.total);
+  text("confirm-amount", privacyAmount(summary.amount));
+  text("confirm-fee", privacyAmount(summary.fee));
+  text("confirm-total", privacyAmount(summary.total));
   document.getElementById("send-confirm-dialog")?.classList.remove("hidden");
 });
 
