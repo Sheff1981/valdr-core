@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 	"sync"
@@ -49,11 +50,26 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handleRPC(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		_ = json.NewEncoder(w).Encode(Response{
 			Error: &RPCError{Code: -32600, Message: "POST required"},
 		})
+		return
+	}
+
+	// Privileged RPC is not a browser API. Reject browser-originated requests
+	// and require application/json so a cross-origin page cannot use a CORS-
+	// safelisted content type to trigger state-changing localhost methods.
+	if strings.TrimSpace(r.Header.Get("Origin")) != "" {
+		s.writeError(w, http.StatusForbidden, -32600, errors.New("browser-origin RPC requests are not allowed"))
+		return
+	}
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || !strings.EqualFold(mediaType, "application/json") {
+		s.writeError(w, http.StatusUnsupportedMediaType, -32600, errors.New("application/json required"))
 		return
 	}
 
