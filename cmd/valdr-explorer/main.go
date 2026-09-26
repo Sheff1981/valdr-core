@@ -18,7 +18,7 @@ import (
 
 func main() {
 	listen := flag.String("listen", "127.0.0.1:8080", "Explorer HTTP listen address")
-	node := flag.String("node", "http://127.0.0.1:7332", "VALDR read-only RPC endpoint")
+	node := flag.String("node", "http://127.0.0.1:17332", "VALDR read-only RPC endpoint")
 	indexFile := flag.String("index-file", defaultIndexFile(), "persistent Explorer index file")
 	version := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
