@@ -17,6 +17,15 @@ This file records Stage 12 evidence under the cumulative Master-TZ v0.2.11. It d
 
 **Stage 12A automated exit gate: PASS on the Testnet2 CI commit above.** The required cross-platform runtime jobs, first-run, send/receive/history, restart persistence and crash recovery have automated evidence. Stage 12B usability work and Stage 12C human-visible Windows acceptance remain open. The Windows checklist now points to the Testnet2 artifact from this exact run; its former Testnet1 candidate must not be reused.
 
+## Testnet2 P2P v2 relay / reorg runtime gate
+
+- P2P relay defect fixed in commit `5acae7e9f1604050f2559483b74a512914b71295`: transactions received from a peer are now forwarded to other peers using the active P2P v2 frame instead of the legacy transaction frame.
+- CI gate commit: `d30acd3bc1bede1c29ff486e9ce96e210da40c6b`.
+- [VALDR v0.2 CI run #378](https://github.com/Sheff1981/valdr-core/actions/runs/36227344833): **SUCCESS** on 2026-09-26.
+- The mandatory Testnet2 runtime gate covers three-node multi-hop transaction relay, block propagation, greatest-chainwork reorganization, side-branch retention, persistent Badger state and restart recovery.
+- Docker Compose Testnet2 smoke, Linux service smoke and three-node runtime smoke also passed in the same full CI run.
+- This remains controlled CI/runtime evidence; it is not Stage 14A independent-computer soak evidence.
+
 ## Additional Testnet2 Core runtime verification
 
 - Exact source commit: `1b250679e39df2c291dcd54eb8588d5d189e6fa1`.
