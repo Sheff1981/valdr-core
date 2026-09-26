@@ -242,7 +242,7 @@ func TestRPCBackedCLIStatusBalanceSendAndQueries(t *testing.T) {
 	}
 }
 
-func TestTestnetCLISendPaysRelayFee(t *testing.T) {
+func TestTestnet2CLISendPaysRelayFee(t *testing.T) {
 	dir := t.TempDir()
 	store := wallet.NewStore(dir)
 	password := "testnet-cli-passphrase"
@@ -255,7 +255,7 @@ func TestTestnetCLISendPaysRelayFee(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +301,7 @@ func TestTestnetCLISendPaysRelayFee(t *testing.T) {
 			"--wallet-dir", dir,
 			"--from", "alice-testnet",
 			"--to", bob.Address,
-			"--amount", "10",
+			"--amount", "0.5",
 			"--password-fd", testPasswordFD(t, password),
 		},
 		&out,
