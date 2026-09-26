@@ -237,3 +237,24 @@ func TestDesktopNodePublicModeCanBeReconfiguredForNextStart(t *testing.T) {
 		t.Fatalf("unexpected public-node config: %+v", manager.config)
 	}
 }
+
+
+func TestDesktopNodeRejectsDuplicateManagedStart(t *testing.T) {
+	manager, err := NewNodeManager(NodeProcessConfig{
+		BinaryPath: "/tmp/valdrd",
+		Network:    config.NetworkTestnetV029,
+		DataDir:    "/tmp/valdr-desktop-duplicate-node",
+		NodeID:     "desktop-duplicate-node",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A non-nil managed command means this Desktop instance already owns a
+	// child valdrd lifecycle. Start must fail closed instead of launching a
+	// second managed child against the same RPC/data contract.
+	manager.command = &exec.Cmd{}
+	if err := manager.Start(); !errors.Is(err, ErrNodeAlreadyRunning) {
+		t.Fatalf("duplicate Start error=%v want ErrNodeAlreadyRunning", err)
+	}
+}

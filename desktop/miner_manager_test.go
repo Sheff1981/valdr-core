@@ -146,3 +146,31 @@ func TestDesktopMinerConsumesHashrateTelemetry(t *testing.T) {
 		t.Fatalf("average hashrate=%v want=5000", got)
 	}
 }
+
+
+func TestDesktopMinerRejectsDuplicateManagedStart(t *testing.T) {
+	rewardWallet, err := wallet.New("desktop-duplicate-miner-reward")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager, err := NewMinerManager(MinerProcessConfig{
+		BinaryPath:   "/tmp/valdr-miner",
+		NodeEndpoint: "http://127.0.0.1:17332",
+		PIDFile:      "/tmp/valdr-desktop-duplicate-miner.pid",
+		Interval:     time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager.command = &exec.Cmd{}
+	if err := manager.Start(rewardWallet.Address); !errors.Is(
+		err,
+		ErrDesktopMinerAlreadyRunning,
+	) {
+		t.Fatalf(
+			"duplicate miner Start error=%v want ErrDesktopMinerAlreadyRunning",
+			err,
+		)
+	}
+}

@@ -27,6 +27,20 @@ jobs:
       - name: Build
         run: go build ./...
 
+      - name: Deterministic Core binary build analysis
+        shell: bash
+        run: |
+          set -euo pipefail
+          A="$RUNNER_TEMP/deterministic-a"
+          B="$RUNNER_TEMP/deterministic-b"
+          mkdir -p "$A" "$B"
+          for cmd in valdrd valdr-miner; do
+            go build -trimpath -buildvcs=false -o "$A/$cmd" "./cmd/$cmd"
+            go build -trimpath -buildvcs=false -o "$B/$cmd" "./cmd/$cmd"
+            cmp "$A/$cmd" "$B/$cmd"
+            sha256sum "$A/$cmd" "$B/$cmd"
+          done
+
       - name: Test
         run: go test ./...
 
@@ -48,6 +62,9 @@ jobs:
 
       - name: Dependency vulnerability audit
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+      - name: Stage 18 Desktop lifecycle and duplicate-child gate
+        run: go test ./desktop ./apps/valdr-desktop -run "TestDesktop(NodeRejectsDuplicateManagedStart|MinerRejectsDuplicateManagedStart|NodeSurfacesUnexpectedExitButNotIntentionalStop|NodeStartClearsPreviousCrashState|AppCreatesEncryptedWalletOnly)$" -count=1
 
       - name: Storage v2 and migration gate
         run: go test ./storage ./core/blockchain ./cmd/valdrd
@@ -425,6 +442,15 @@ jobs:
           test ! -e /usr/lib/valdr-desktop
           test ! -e /usr/bin/valdr-desktop
           test -f "$XDG_DATA_HOME/valdr/stage13-uninstall-preserve.marker"
+
+      - name: Stage 18 Linux release upgrade and rollback gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/valdr-stage13-linux"
+          DEB="$(find "$DIST" -maxdepth 1 -name '*.deb' -print -quit)"
+          test -n "$DEB"
+          bash scripts/stage18-release-upgrade-rollback.sh --deb "$DEB"
 
       - name: Upload Stage 13 Linux development packages
         uses: actions/upload-artifact@v4
