@@ -52,7 +52,7 @@ func assignHistoryRPC(target, value any) error {
 }
 
 func TestHistoryServicePendingThenConfirmed(t *testing.T) {
-	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestHistoryServicePendingThenConfirmed(t *testing.T) {
 		profile.ChainID,
 		1,
 		source.Address,
-		config.InitialMiningReward,
+		profile.InitialSubsidyVDR*config.AtomicUnitsPerVDR,
 		profile.GenesisTimestamp+60,
 	)
 	if err != nil {
