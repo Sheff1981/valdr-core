@@ -144,8 +144,10 @@ import json, sys
 expected = int(sys.argv[1])
 nodes = [json.loads(raw) for raw in sys.argv[2:]]
 ok = all(n["network"] == "testnet2" and n["chain_id"] == "valdr-testnet-2"
-         and n["height"] == expected and n["tip_hash"] for n in nodes)
-raise SystemExit(0 if ok and len({n["tip_hash"] for n in nodes}) == 1 else 1)
+         and n["height"] == expected and n["tip_hash"] and n["chainwork"] for n in nodes)
+same_tip = len({n["tip_hash"] for n in nodes}) == 1
+same_work = len({n["chainwork"] for n in nodes}) == 1
+raise SystemExit(0 if ok and same_tip and same_work else 1)
 PY
     then
       return 0
@@ -290,19 +292,54 @@ assert result["utxos"], result
 assert result["history"], result
 PY
 
-# Verify the stopped follower database, restart it, and require persisted
-# Testnet2 state to converge without deleting or repairing the database.
+# Cross the active Testnet2 retarget boundary with two independent miners.
+# Heights 3..9 retain the normal target; height 10 must apply the 10-block
+# retarget using the frozen Testnet2 clamp and PoW limit.
+for height in $(seq 3 10); do
+  if (( height % 2 == 0 )); then
+    miner_service=node2
+    miner_address="$miner2_address"
+  else
+    miner_service=node1
+    miner_address="$reward_address"
+  fi
+  "${compose[@]}" exec -T "$miner_service" valdr-miner start \
+    --node http://127.0.0.1:17332 \
+    --reward-address "$miner_address" \
+    --blocks 1 --interval 0 >/dev/null
+  wait_same_tip "$height"
+done
+
+block9=$("${compose[@]}" exec -T node1 valdr-cli block get \
+  --node http://127.0.0.1:17332 9)
+block10=$("${compose[@]}" exec -T node1 valdr-cli block get \
+  --node http://127.0.0.1:17332 10)
+python3 - "$block9" "$block10" <<'PY'
+import json, sys
+block9=json.loads(sys.argv[1])
+block10=json.loads(sys.argv[2])
+initial="0000031b5d43afe99ee43470e1337c3642e9d9254926038fdf6d1a2e57aaa21f"
+pow_limit="000003ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+assert block9["height"] == 9 and block9["chain_id"] == "valdr-testnet-2", block9
+assert block10["height"] == 10 and block10["chain_id"] == "valdr-testnet-2", block10
+assert block9["target"] == initial, block9
+assert block10["target"] == pow_limit, block10
+assert block10["target"] != block9["target"], (block9, block10)
+PY
+
+# Verify the stopped follower database after the retarget, restart it, and
+# require persisted Testnet2 state to converge without DB deletion or repair.
 "${compose[@]}" stop node3
 verified=$("${compose[@]}" run --rm --no-deps node3 verify-db \
   --data /var/lib/valdr --network testnet2)
 python3 - "$verified" <<'PY'
 import json, sys
 result = json.loads(sys.argv[1])
-assert result["valid"] is True and result["height"] == 2, result
+assert result["valid"] is True and result["height"] == 10, result
 PY
 "${compose[@]}" start node3
 wait_healthy node3
-wait_same_tip 2
+wait_same_tip 10
 
 restart_balance=$("${compose[@]}" exec -T node3 valdr-cli balance \
   --node http://127.0.0.1:17332 "$recipient_address")
@@ -318,8 +355,8 @@ import json, sys
 status=json.loads(sys.argv[1])
 assert status["status"]["chain_id"] == "valdr-testnet-2", status
 assert status["status"]["network"] == "testnet2", status
-assert status["status"]["height"] == 2, status
-assert status["index_height"] == 2, status
+assert status["status"]["height"] == 10, status
+assert status["index_height"] == 10, status
 PY
 
 echo "VALDR Docker Testnet2 Core smoke: PASS"
