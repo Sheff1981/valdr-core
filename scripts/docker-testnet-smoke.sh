@@ -372,13 +372,30 @@ PY
   --blocks 1 --interval 0 >/dev/null
 wait_same_tip 12
 
-# Stage 14A preflight: remove the original bootstrap node after peer exchange.
-# The already-connected node2/node3 pair must continue consensus propagation
-# without node1, then node1 must catch up from persisted state after restart.
+# Stage 14A preflight: prove node3 learned node2 before removing bootstrap.
+peers3=$("${compose[@]}" exec -T node3 valdr-cli peers --node http://127.0.0.1:17332)
+python3 - "$peers3" <<'PY'
+import json, sys
+peers=json.loads(sys.argv[1])
+assert any(p.get("node_id") == "testnet-node-2" for p in peers), peers
+PY
+
+# Remove the original bootstrap node. Restart node3 while node1 remains down;
+# node3 must reconnect using its persisted learned-peer cache and continue with
+# node2. This is the local preflight for Stage 14A peer-cache/bootstrap-loss.
 "${compose[@]}" stop node1
+"${compose[@]}" restart node3
+wait_healthy node3
 
 wait_peer_count node2
 wait_peer_count node3
+
+peers3_after=$("${compose[@]}" exec -T node3 valdr-cli peers --node http://127.0.0.1:17332)
+python3 - "$peers3_after" <<'PY'
+import json, sys
+peers=json.loads(sys.argv[1])
+assert any(p.get("node_id") == "testnet-node-2" for p in peers), peers
+PY
 
 "${compose[@]}" exec -T node2 valdr-miner start \
   --node http://127.0.0.1:17332 \
