@@ -94,12 +94,43 @@ mkdir -p "$stage_dir"
 ditto "$app_path" "$stage_dir/VALDR Desktop.app"
 ln -s /Applications "$stage_dir/Applications"
 
-hdiutil create \
-  -volname "VALDR Desktop" \
-  -srcfolder "$stage_dir" \
-  -ov \
-  -format UDZO \
-  "$dmg_out" >/dev/null
+create_dmg() {
+  local attempt=1
+  local max_attempts=3
+  local log_file="$work_dir/hdiutil-create.log"
+
+  while (( attempt <= max_attempts )); do
+    rm -f "$dmg_out"
+    : >"$log_file"
+
+    if hdiutil create \
+      -volname "VALDR Desktop" \
+      -srcfolder "$stage_dir" \
+      -ov \
+      -format UDZO \
+      "$dmg_out" >"$log_file" 2>&1; then
+      return 0
+    fi
+
+    cat "$log_file" >&2
+    rm -f "$dmg_out"
+
+    if ! grep -q "Resource busy" "$log_file"; then
+      echo "hdiutil create failed with a non-retryable error" >&2
+      return 1
+    fi
+
+    if (( attempt == max_attempts )); then
+      echo "hdiutil create remained resource-busy after $max_attempts attempts" >&2
+      return 1
+    fi
+
+    sleep $(( attempt * 3 ))
+    attempt=$(( attempt + 1 ))
+  done
+}
+
+create_dmg
 
 test -s "$dmg_out"
 hdiutil verify "$dmg_out" >/dev/null
