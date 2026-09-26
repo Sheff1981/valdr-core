@@ -160,7 +160,8 @@ func (s *WalletService) buildTransaction(
 	if err != nil {
 		return nil, 0, err
 	}
-	if profile.Name != config.NetworkTestnetV02 &&
+	if profile.Name != config.NetworkTestnetV029 &&
+		profile.Name != config.NetworkTestnetV02 &&
 		profile.Name != config.NetworkDevnetV02 {
 		return nil, 0, ErrDesktopMainnet
 	}

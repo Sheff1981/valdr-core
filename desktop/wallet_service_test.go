@@ -55,7 +55,7 @@ func assignDesktopRPC(target, value any) error {
 }
 
 func TestWalletServiceSendsNetworkBoundTestnetTransaction(t *testing.T) {
-	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
