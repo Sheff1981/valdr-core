@@ -116,10 +116,12 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 		profile := s.chain.Profile()
 		tipHash := ""
 		target := ""
+		lastBlockTime := int64(0)
 		blockVersion := profile.BlockVersion
 		if tip != nil {
 			tipHash = tip.BlockHash
 			target = tip.Target
+			lastBlockTime = tip.Timestamp
 			blockVersion = tip.Version
 		}
 		height := s.chain.Height()
@@ -143,6 +145,7 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			PeerCount:              s.node.PeerCount(),
 			MempoolCount:           s.node.MempoolLen(),
 			TargetBlockTimeSeconds: profile.TargetBlockTimeSeconds,
+			LastBlockTime:          lastBlockTime,
 		}, nil
 
 	case MethodGetBlock:
