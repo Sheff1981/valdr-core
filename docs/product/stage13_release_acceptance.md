@@ -1,11 +1,11 @@
 # VALDR Stage 13 release acceptance evidence
 
-**Status:** IN PROGRESS — Testnet1 development packaging/provenance evidence is historical; Testnet2 packaging/provenance must be regenerated and verified before public release acceptance.  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.9.md` §23  
-**Current evidence commit:** `ea74320f9950dad733e4f95c0d24e9b008e2d221`  
-**CI evidence:** VALDR v0.2 CI run `36183171614` (#356) — SUCCESS on 2026-09-25.
+**Status:** IN PROGRESS — Testnet2 development packaging/provenance is regenerated and CI-verified; this is not a public release acceptance.  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.11.md`  
+**Current evidence commit:** `ed9b1425847f4e391a678cca3cf87d3acf0d866c`  
+**CI evidence:** VALDR v0.2 CI run `36217224372` (#367) — SUCCESS on 2026-09-26.
 
-This document records evidence only. CI #356 proves the superseded Testnet1 development pipeline. Master-TZ v0.2.9 resets the active chain to Testnet2, so those artifacts cannot satisfy current public-release acceptance and do not authorize Stage 14.
+This document records evidence only. CI #367 proves the active Testnet2 development pipeline on one exact source commit, including cross-platform runtime, packaging, clean verification and non-public provenance handoff. It does not satisfy the remaining manual/public-release gates and does not authorize a Mainnet launch.
 
 ## 1. Current evidence matrix
 
@@ -19,12 +19,12 @@ This document records evidence only. CI #356 proves the superseded Testnet1 deve
 | macOS Intel/AMD64 package | versioned DMG is built on native Intel runner, ad-hoc signed for bundle integrity, verified, mounted read-only and launched | automated development gate green |
 | SHA-256 / artifact size | canonical manifest recomputes SHA-256 and byte size from real artifacts; `SHA256SUMS` verifies | automated development gate green |
 | Exact commit binding | manifest binds exact 40-character git commit plus deterministic Testnet identity | automated development gate green |
-| Testnet identity | manifest binds network `testnet`, Chain ID `valdr-testnet-1`, protocol 2/2 | automated development gate green |
+| Testnet identity | manifest binds active network `testnet2`, Chain ID `valdr-testnet-2`, protocol 2/2 | automated development gate green |
 | Canonical cross-platform assembly | one CI bundle contains Windows installer/portable, Linux AppImage/deb, macOS ARM64/Intel DMGs, canonical manifest, `SHA256SUMS` and provenance bundle | automated development gate green |
 | GitHub/Sigstore keyless provenance | `actions/attest@v4` creates signed provenance using GitHub Actions OIDC/Sigstore for the assembled release subjects | automated development gate green |
 | Provenance bundle retention | assembly contains `VALDR-Desktop-<version>-provenance.sigstore.json` | automated development gate green |
 | Clean provenance verification | separate clean runner verifies artifacts with `gh attestation verify` constrained to `Sheff1981/valdr-core`, expected workflow, source ref and exact commit | automated development gate green |
-| Exact CI-run → release handoff | `valdr-v02-release.yml` is called as a same-commit reusable workflow after clean release verification; run `36183171614` (#356) completed `stage13-release-handoff-development / verify-development-release-handoff` successfully on exact commit `ea74320f9950dad733e4f95c0d24e9b008e2d221`; the handoff re-verifies manifest/checksums/provenance and emits a non-public record only | automated development gate green |
+| Exact CI-run → release handoff | `valdr-v02-release.yml` is called as a same-commit reusable workflow after clean release verification; CI #367 completed `stage13-release-handoff-development / verify-development-release-handoff` successfully on exact commit `ed9b1425847f4e391a678cca3cf87d3acf0d866c`; the handoff re-verifies manifest/checksums/provenance and emits a non-public record only | automated development gate green |
 | Production fail-closed gate | current `0.2.0-dev` cannot generate a production Testnet manifest; development signing/notarization claims remain invalid in production metadata; mandatory package set is enforced | automated safety gate green |
 | Windows Authenticode | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful `unsigned` metadata when absent | not a Testnet release blocker |
 | Apple Developer ID / notarization | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful ad-hoc / not-notarized metadata when absent | not a Testnet release blocker |
@@ -36,7 +36,7 @@ This document records evidence only. CI #356 proves the superseded Testnet1 deve
 
 ## 2. Development artifacts proven by CI
 
-Run `36165082888` (#350) proves the current Stage 13 development pipeline and final non-public handoff execute successfully. The packaging/provenance artifacts remain development artifacts:
+Run `36217224372` (#367) proves the current Testnet2 Stage 13 development pipeline and final non-public handoff execute successfully on exact commit `ed9b1425847f4e391a678cca3cf87d3acf0d866c`. The packaging/provenance artifacts remain development artifacts:
 
 - Windows x64 installer and portable ZIP;
 - Linux x64 AppImage and amd64 `.deb`;
@@ -50,7 +50,7 @@ Current application version remains `0.2.0-dev`. Provenance proves where these d
 
 ## 3. OS-vendor signing boundary
 
-Windows Authenticode and Apple Developer ID/notarization are not available to the current project owner and are no longer mandatory Testnet gates under Master-TZ v0.2.8.
+Windows Authenticode and Apple Developer ID/notarization are not available to the current project owner and are no longer mandatory Testnet gates under Master-TZ v0.2.11.
 
 Windows packages must therefore state `unsigned` when Authenticode is absent. macOS packages may use the existing ad-hoc signature for bundle integrity but must state that they are not Developer ID signed and not notarized. Neither state may be described as Microsoft/Apple certification.
 
@@ -70,6 +70,6 @@ No fake, borrowed or misleading Microsoft/Apple identity may be introduced to sa
 
 ## 5. Next implementation step
 
-Continue Stage 13 only. Do not start Stage 14.
+The Testnet2 development authenticity path, clean verification and exact-run non-public handoff are implemented and CI-green on run `36217224372` (#367). Website CI and Stage 12 manual Windows acceptance remain unresolved public-release gates.
 
-The software-only authenticity path, clean verification and exact-run non-public handoff are implemented and CI-green on run `36183171614` (#356). Website CI remains an infrastructure-only zero-step runner failure, so the website is still not CI-verified. The next safe work is the manual Windows Stage 12 acceptance package/checklist; no public RC freeze or Stage 14 begins before Stage 12 closes.
+Per the project owner's explicit current priority, no further Desktop/site UX expansion is taken as the next engineering task. The next engineering work after R0 evidence fixation is full Testnet2 Core/runtime verification, followed by independent mining/nodes and distributed-network soak. This operational ordering does not mark Stage 12 complete and does not authorize a public release or Mainnet.

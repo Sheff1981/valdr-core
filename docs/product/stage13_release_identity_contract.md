@@ -1,8 +1,8 @@
 # VALDR Stage 13 release identity and version contract
 
 **Status:** ACTIVE / STAGE 13 IN PROGRESS — development-only release plumbing  
-**Date:** 2026-09-25  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.8.md`  
+**Date:** 2026-09-26  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.11.md`  
 **Branch:** `valdr-v0.2`
 
 This document defines the release metadata rules used by the active Stage 13 implementation. Stage 12 remains incomplete until its outstanding manual acceptance is closed; public release remains blocked.
@@ -10,12 +10,12 @@ This document defines the release metadata rules used by the active Stage 13 imp
 ## 1. Current repository facts
 
 - application/core version constant: `config.Version = "0.2.0-dev"`;
-- active Testnet profile: `testnet`;
-- active Testnet Chain ID: `valdr-testnet-1`;
+- active Testnet profile: `testnet2`;
+- active Testnet Chain ID: `valdr-testnet-2`;
 - Testnet protocol range: min 2 / max 2;
 - current Stage 12 Desktop framework: Wails v2.12.0;
 - there are currently no git tags in the repository;
-- Master-TZ version `v0.2.8` is the specification revision, not automatically the application release version.
+- Master-TZ version `v0.2.11` is the specification revision, not automatically the application release version.
 
 Therefore the release pipeline must never derive the application version from the master-spec filename.
 
@@ -41,10 +41,10 @@ A release job must fail if package/manifest versions disagree with the binary-re
 
 The following are separate identities:
 
-- Master-TZ revision: currently `v0.2.8`;
+- Master-TZ revision: currently `v0.2.11`;
 - product/application version: currently development value `0.2.0-dev`;
 - P2P protocol version: Testnet protocol 2;
-- Chain ID: `valdr-testnet-1`;
+- Chain ID: `valdr-testnet-2`;
 - git commit SHA: exact source snapshot.
 
 No release UI or manifest may collapse these into one ambiguous "version" field.
@@ -87,8 +87,8 @@ Every manifest must bind:
 
 - product version;
 - exact 40-character git commit;
-- network = `testnet`;
-- Chain ID = `valdr-testnet-1`;
+- network = `testnet2`;
+- Chain ID = `valdr-testnet-2`;
 - protocol min/max = 2/2;
 - release UTC timestamp;
 - artifact filename;
@@ -100,7 +100,7 @@ Every manifest must bind:
 - provenance method and requirement;
 - minimum supported OS.
 
-The release manifest and package artifacts must be covered by the GitHub/Sigstore keyless provenance attestation required by Master-TZ v0.2.8. Development manifests remain development-only even when provenance-attested and cannot satisfy §23 until the release-candidate version and remaining acceptance gates are frozen/green.
+The release manifest and package artifacts must be covered by the GitHub/Sigstore keyless provenance attestation required by Master-TZ v0.2.11. Development manifests remain development-only even when provenance-attested and cannot satisfy §23 until the release-candidate version and remaining acceptance gates are frozen/green.
 
 ## 7. Minimum OS planning baseline
 
@@ -125,7 +125,7 @@ Whichever strategy is selected must be recorded in the installer evidence and te
 
 ## 9. Release provenance identity
 
-Master-TZ v0.2.8 removes inaccessible Microsoft/Apple identities from mandatory Testnet acceptance.
+Master-TZ v0.2.11 removes inaccessible Microsoft/Apple identities from mandatory Testnet acceptance.
 
 The mandatory release identity is now the public repository/workflow identity:
 
@@ -139,7 +139,7 @@ No long-lived private signing key is required for this keyless path. Windows Aut
 
 ## 10. Current implementation gate
 
-Master-TZ v0.2.8 authorizes CI-safe Stage 13 development plumbing and keyless provenance attestation while Stage 12 manual Windows QA remains pending.
+Master-TZ v0.2.11 authorizes CI-safe Stage 13 development plumbing and keyless provenance attestation while Stage 12 manual Windows QA remains pending.
 
 Until Stage 12 is accepted:
 
@@ -155,6 +155,13 @@ The deterministic manifest/checksum generator must therefore require an explicit
 
 The repository provides `cmd/valdr-release-manifest` as the canonical manifest/checksum generator.
 
-It derives application version from `config.Version`, Testnet identity from the compiled `testnet` network profile, computes artifact byte sizes and SHA-256 hashes from the actual files, sorts artifacts deterministically, binds the exact git commit and explicit UTC release timestamp, rejects unsafe/duplicate/missing artifacts, and labels current dry-runs as development-only.
+It derives application version from `config.Version`, Testnet identity from the compiled `testnet2` network profile, computes artifact byte sizes and SHA-256 hashes from the actual files, sorts artifacts deterministically, binds the exact git commit and explicit UTC release timestamp, rejects unsafe/duplicate/missing artifacts, and labels current dry-runs as development-only.
 
 The manifest declares `provenance_method = github-sigstore-keyless` and `provenance_required = true`. The CI release-assembly job generates the actual attestation after the manifest/checksums exist, then a separate clean job verifies that attestation against the expected repository, workflow, ref and source commit.
+
+
+## 12. Current Testnet2 R0 evidence
+
+The active development identity above is CI-verified on exact source commit `ed9b1425847f4e391a678cca3cf87d3acf0d866c` by VALDR v0.2 CI run `36217224372` (#367), completed successfully on 2026-09-26. The same run assembled the cross-platform development artifacts, verified SHA-256/manifest consistency and GitHub/Sigstore provenance from a clean environment, and completed the non-public same-commit handoff.
+
+This is development evidence only. Application version remains `0.2.0-dev`; no public Testnet RC or Mainnet release is implied.
