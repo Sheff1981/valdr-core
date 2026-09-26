@@ -105,6 +105,12 @@ type WalletBalance = {
   address: string;
   balance_val: number;
   balance_vdr: string;
+  spendable_val: number;
+  spendable_vdr: string;
+  pending_val: number;
+  pending_vdr: string;
+  total_val: number;
+  total_vdr: string;
 };
 
 type SendPreview = {
@@ -363,7 +369,7 @@ root.innerHTML = `
       <section class="view active" id="view-overview">
         <div class="hero valdr-hero reference-hero">
           <div class="hero-main">
-            <p class="eyebrow">TOTAL SPENDABLE BALANCE</p>
+            <p class="eyebrow">SPENDABLE BALANCE</p>
             <div class="balance"><span id="overview-balance">—</span> <span>VDR</span></div>
             <p class="subtle" id="overview-wallet-label">Create or select an encrypted wallet.</p>
             <div class="hero-actions">
@@ -380,6 +386,14 @@ root.innerHTML = `
         </div>
 
         <div class="grid stats">
+          <article class="card">
+            <span>Pending</span>
+            <strong id="overview-pending">—</strong>
+          </article>
+          <article class="card">
+            <span>Total</span>
+            <strong id="overview-total">—</strong>
+          </article>
           <article class="card">
             <span>Local / best height</span>
             <strong id="height">—</strong>
@@ -1260,14 +1274,20 @@ const refreshWalletPresentation = async (): Promise<void> => {
 
   if (!wallet || !currentState?.node_status) {
     text("overview-balance", "—");
+    text("overview-pending", "—");
+    text("overview-total", "—");
     return;
   }
 
   try {
     const balance = await api().GetWalletBalance(wallet.address);
-    text("overview-balance", balance.balance_vdr);
+    text("overview-balance", balance.spendable_vdr);
+    text("overview-pending", balance.pending_vdr + " VDR");
+    text("overview-total", balance.total_vdr + " VDR");
   } catch {
     text("overview-balance", "—");
+    text("overview-pending", "—");
+    text("overview-total", "—");
   }
   if (currentView === "overview") {
     void refreshOverviewLatestTransaction();

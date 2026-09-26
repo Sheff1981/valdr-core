@@ -13,7 +13,10 @@ import (
 	"github.com/Sheff1981/valdr-core/wallet"
 )
 
-var ErrWalletServiceConfig = errors.New("invalid Desktop wallet service configuration")
+var (
+	ErrWalletServiceConfig   = errors.New("invalid Desktop wallet service configuration")
+	ErrWalletBalanceOverflow = errors.New("wallet balance overflow")
+)
 
 type RPCClient interface {
 	Call(context.Context, string, any, any) error
@@ -25,9 +28,15 @@ type WalletService struct {
 }
 
 type WalletBalance struct {
-	Address    string `json:"address"`
-	BalanceVal uint64 `json:"balance_val"`
-	BalanceVDR string `json:"balance_vdr"`
+	Address      string `json:"address"`
+	BalanceVal   uint64 `json:"balance_val"`
+	BalanceVDR   string `json:"balance_vdr"`
+	SpendableVal uint64 `json:"spendable_val"`
+	SpendableVDR string `json:"spendable_vdr"`
+	PendingVal   uint64 `json:"pending_val"`
+	PendingVDR   string `json:"pending_vdr"`
+	TotalVal     uint64 `json:"total_val"`
+	TotalVDR     string `json:"total_vdr"`
 }
 
 type SendPreview struct {
@@ -58,19 +67,87 @@ func (s *WalletService) Balance(
 	ctx context.Context,
 	address string,
 ) (WalletBalance, error) {
-	var result rpc.BalanceResult
+	var available []utxo.UTXO
 	if err := s.client.Call(
 		ctx,
-		rpc.MethodGetBalance,
+		rpc.MethodGetUTXOs,
 		rpc.AddressParams{Address: address},
-		&result,
+		&available,
 	); err != nil {
 		return WalletBalance{}, err
 	}
+
+	type outpoint struct {
+		transactionID string
+		outputIndex   uint32
+	}
+	owned := make(map[outpoint]uint64, len(available))
+	var spendable uint64
+	for _, item := range available {
+		if math.MaxUint64-spendable < item.Amount {
+			return WalletBalance{}, ErrWalletBalanceOverflow
+		}
+		spendable += item.Amount
+		owned[outpoint{item.TransactionID, item.OutputIndex}] = item.Amount
+	}
+
+	var mempool []*transaction.Transaction
+	if err := s.client.Call(
+		ctx,
+		rpc.MethodGetMempool,
+		nil,
+		&mempool,
+	); err != nil {
+		return WalletBalance{}, err
+	}
+
+	spent := make(map[outpoint]struct{})
+	var pending uint64
+	for _, tx := range mempool {
+		if tx == nil || tx.IsCoinbase() {
+			continue
+		}
+		for _, input := range tx.Inputs {
+			key := outpoint{input.PreviousTransactionID, input.OutputIndex}
+			amount, ok := owned[key]
+			if !ok {
+				continue
+			}
+			if _, alreadyReserved := spent[key]; alreadyReserved {
+				continue
+			}
+			if amount > spendable {
+				return WalletBalance{}, ErrWalletBalanceOverflow
+			}
+			spendable -= amount
+			spent[key] = struct{}{}
+		}
+		for _, output := range tx.Outputs {
+			if output.Recipient != address {
+				continue
+			}
+			if math.MaxUint64-pending < output.Amount {
+				return WalletBalance{}, ErrWalletBalanceOverflow
+			}
+			pending += output.Amount
+		}
+	}
+	if math.MaxUint64-spendable < pending {
+		return WalletBalance{}, ErrWalletBalanceOverflow
+	}
+	total := spendable + pending
+
+	// balance_val/balance_vdr remain compatibility aliases for spendable.
 	return WalletBalance{
-		Address:    result.Address,
-		BalanceVal: result.BalanceVal,
-		BalanceVDR: FormatVDR(result.BalanceVal),
+		Address:      address,
+		BalanceVal:   spendable,
+		BalanceVDR:   FormatVDR(spendable),
+		SpendableVal: spendable,
+		SpendableVDR: FormatVDR(spendable),
+		PendingVal:   pending,
+		PendingVDR:   FormatVDR(pending),
+		TotalVal:     total,
+		TotalVDR:     FormatVDR(total),
 	}, nil
 }
 

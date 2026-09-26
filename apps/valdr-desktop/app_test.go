@@ -784,3 +784,27 @@ func TestDesktopFrontendStage12B1SyncDetailContract(t *testing.T) {
 		}
 	}
 }
+
+
+func TestDesktopFrontendStage12B2BalanceSemanticsContract(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, marker := range []string{
+		"SPENDABLE BALANCE",
+		`id="overview-pending"`,
+		`id="overview-total"`,
+		"balance.spendable_vdr",
+		"balance.pending_vdr",
+		"balance.total_vdr",
+	} {
+		if !strings.Contains(source, marker) {
+			t.Fatalf("Stage 12B.2 balance semantics missing %q", marker)
+		}
+	}
+	if strings.Contains(source, "Immature mining reward") {
+		t.Fatal("Stage 12B.2 must not expose immature balance before a maturity rule exists")
+	}
+}

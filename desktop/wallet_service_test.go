@@ -16,10 +16,11 @@ import (
 )
 
 type walletServiceRPCMock struct {
-	status rpc.StatusResult
-	utxos  []utxo.UTXO
+	status  rpc.StatusResult
+	utxos   []utxo.UTXO
+	mempool []*transaction.Transaction
 	balance rpc.BalanceResult
-	sent   *transaction.Transaction
+	sent    *transaction.Transaction
 }
 
 func (m *walletServiceRPCMock) Call(
@@ -35,6 +36,8 @@ func (m *walletServiceRPCMock) Call(
 		return assignDesktopRPC(result, m.utxos)
 	case rpc.MethodGetBalance:
 		return assignDesktopRPC(result, m.balance)
+	case rpc.MethodGetMempool:
+		return assignDesktopRPC(result, m.mempool)
 	case rpc.MethodSendTransaction:
 		p := params.(rpc.SendTransactionParams)
 		m.sent = p.Transaction
@@ -96,7 +99,13 @@ func TestWalletServiceSendsNetworkBoundTestnetTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	if balance.BalanceVal != 2_000_000 ||
-		balance.BalanceVDR != "0.02000000" {
+		balance.BalanceVDR != "0.02000000" ||
+		balance.SpendableVal != 2_000_000 ||
+		balance.SpendableVDR != "0.02000000" ||
+		balance.PendingVal != 0 ||
+		balance.PendingVDR != "0.00000000" ||
+		balance.TotalVal != 2_000_000 ||
+		balance.TotalVDR != "0.02000000" {
 		t.Fatalf("unexpected balance: %+v", balance)
 	}
 
@@ -152,6 +161,69 @@ func TestWalletServiceSendsNetworkBoundTestnetTransaction(t *testing.T) {
 	}
 	if result.TotalVal != result.AmountVal+result.FeeVal {
 		t.Fatalf("total mismatch: %+v", result)
+	}
+}
+
+func TestWalletServiceBalanceAccountsForMempoolReservationsAndPendingOutputs(t *testing.T) {
+	store := wallet.NewStore(filepath.Join(t.TempDir(), "wallets"))
+	source, err := store.CreateEncrypted(
+		"balance-source",
+		[]byte("balance-source-passphrase"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipient, err := wallet.New("balance-recipient")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const confirmedTxID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	mock := &walletServiceRPCMock{
+		utxos: []utxo.UTXO{{
+			TransactionID: confirmedTxID,
+			OutputIndex:   0,
+			Amount:        2_000_000,
+			Recipient:     source.Address,
+		}},
+		mempool: []*transaction.Transaction{
+			{
+				Inputs: []transaction.Input{{
+					PreviousTransactionID: confirmedTxID,
+					OutputIndex:           0,
+				}},
+				Outputs: []transaction.Output{
+					{Amount: 600_000, Recipient: recipient.Address},
+					{Amount: 1_300_000, Recipient: source.Address},
+				},
+			},
+			{
+				Outputs: []transaction.Output{
+					{Amount: 200_000, Recipient: source.Address},
+				},
+			},
+		},
+	}
+	service, err := NewWalletService(store, mock)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	balance, err := service.Balance(context.Background(), source.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if balance.SpendableVal != 0 {
+		t.Fatalf("spendable=%d want=0", balance.SpendableVal)
+	}
+	if balance.PendingVal != 1_500_000 {
+		t.Fatalf("pending=%d want=1500000", balance.PendingVal)
+	}
+	if balance.TotalVal != 1_500_000 {
+		t.Fatalf("total=%d want=1500000", balance.TotalVal)
+	}
+	if balance.BalanceVal != balance.SpendableVal {
+		t.Fatalf("compatibility balance=%d spendable=%d", balance.BalanceVal, balance.SpendableVal)
 	}
 }
 
