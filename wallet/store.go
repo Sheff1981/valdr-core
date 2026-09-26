@@ -317,8 +317,8 @@ func readWalletRecord(path string) (*walletRecord, error) {
 	}
 
 	var object map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &object); err != nil {
-		return nil, err
+	if err := decodeJSONStrict(raw, &object, false); err != nil {
+		return nil, ErrUnsupportedWalletFile
 	}
 	if versionRaw, exists := object["version"]; exists {
 		var version int
@@ -408,8 +408,14 @@ func decodeWalletV2Strict(raw []byte, target *WalletFileV2) error {
 	if target == nil {
 		return ErrUnsupportedWalletFile
 	}
+	return decodeJSONStrict(raw, target, true)
+}
+
+func decodeJSONStrict(raw []byte, target any, disallowUnknown bool) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
+	if disallowUnknown {
+		decoder.DisallowUnknownFields()
+	}
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}
