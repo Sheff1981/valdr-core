@@ -11,13 +11,15 @@ LOG_DIR="$DEVNET_DIR/logs"
 DATA_DIR="$DEVNET_DIR/data"
 
 HOST="${VALDR_DEVNET_HOST:-127.0.0.1}"
+NETWORK="${VALDR_NETWORK:-testnet2}"
+EXPECTED_CHAIN_ID="${VALDR_EXPECTED_CHAIN_ID:-valdr-testnet-2}"
 
-NODE_A_P2P="${VALDR_NODE_A_P2P_PORT:-7333}"
-NODE_A_RPC="${VALDR_NODE_A_RPC_PORT:-7332}"
-NODE_B_P2P="${VALDR_NODE_B_P2P_PORT:-7433}"
-NODE_B_RPC="${VALDR_NODE_B_RPC_PORT:-7432}"
-NODE_C_P2P="${VALDR_NODE_C_P2P_PORT:-7533}"
-NODE_C_RPC="${VALDR_NODE_C_RPC_PORT:-7532}"
+NODE_A_P2P="${VALDR_NODE_A_P2P_PORT:-17333}"
+NODE_A_RPC="${VALDR_NODE_A_RPC_PORT:-17332}"
+NODE_B_P2P="${VALDR_NODE_B_P2P_PORT:-17433}"
+NODE_B_RPC="${VALDR_NODE_B_RPC_PORT:-17432}"
+NODE_C_P2P="${VALDR_NODE_C_P2P_PORT:-17533}"
+NODE_C_RPC="${VALDR_NODE_C_RPC_PORT:-17532}"
 
 START_TIMEOUT_SECONDS="${VALDR_DEVNET_START_TIMEOUT:-20}"
 
@@ -68,7 +70,7 @@ build_binaries() {
 
 init_node() {
   local node="$1"
-  "$VALDRD" init --data "$DATA_DIR/$node" >/dev/null
+  "$VALDRD" init --data "$DATA_DIR/$node" --network "$NETWORK" >/dev/null
 }
 
 start_node() {
@@ -85,6 +87,7 @@ start_node() {
 
   nohup "$VALDRD" start \
     --data "$DATA_DIR/$node" \
+    --network "$NETWORK" \
     --node-id "$node" \
     --p2p-host "$HOST" \
     --p2p-port "$p2p_port" \
@@ -175,7 +178,7 @@ verify_topology() {
   chain_b="$(status_field "$NODE_B_RPC" chain_id)"
   chain_c="$(status_field "$NODE_C_RPC" chain_id)"
 
-  if [[ "$chain_a" != "valdr-devnet-1" ||
+  if [[ "$chain_a" != "$EXPECTED_CHAIN_ID" ||
         "$chain_b" != "$chain_a" ||
         "$chain_c" != "$chain_a" ]]; then
     log "chain ID mismatch: A=$chain_a B=$chain_b C=$chain_c"
@@ -200,7 +203,7 @@ verify_topology() {
     return 1
   fi
 
-  log "devnet healthy: chain_id=$chain_a height=$height_a tip=$tip_a"
+  log "local network healthy: network=$NETWORK chain_id=$chain_a height=$height_a tip=$tip_a"
 }
 
 start_devnet() {
