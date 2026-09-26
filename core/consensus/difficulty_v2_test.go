@@ -261,8 +261,10 @@ func TestTestnetV029BootstrapCalibrationAndRetarget(t *testing.T) {
 		two256,
 		new(big.Int).Add(initial, big.NewInt(1)),
 	)
-	if expectedHashes.Uint64() != 5_400_000 {
-		t.Fatalf("bootstrap expected hashes=%s want=5400000", expectedHashes)
+	// The frozen Testnet2 target was calibrated around 5.4M trials. Under the
+	// consensus work formula's integer floor, its exact work is 5,399,999.
+	if expectedHashes.Uint64() != 5_399_999 {
+		t.Fatalf("bootstrap expected hashes=%s want=5399999", expectedHashes)
 	}
 
 	history := make([]V2DifficultyHeader, 10)

@@ -30,7 +30,7 @@ Initial target:
 
 `0000031b5d43afe99ee43470e1337c3642e9d9254926038fdf6d1a2e57aaa21f`
 
-This target has 5,400,000 expected SHA-256 trials by the integer work approximation `floor(2^256/(target+1))`. At 360 kH/s that is about 15 seconds expected bootstrap time.
+This target is calibrated at approximately 5.4 million SHA-256 trials. The exact integer work value for the frozen target under `floor(2^256/(target+1))` is 5,399,999. At 360 kH/s that is about 15 seconds expected bootstrap time.
 
 If the first window arrives at approximately 15 s/block, the first retarget clamps to one quarter of the target:
 

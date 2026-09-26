@@ -10,7 +10,7 @@ import (
 )
 
 func TestDesktopOutboundOnlyV2ConnectsWithoutListener(t *testing.T) {
-	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestDesktopOutboundOnlyV2ConnectsWithoutListener(t *testing.T) {
 }
 
 func TestDesktopOutboundOnlyEndpointIsNotGossiped(t *testing.T) {
-	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestDesktopOutboundOnlyEndpointIsNotGossiped(t *testing.T) {
 }
 
 func TestDesktopOutboundOnlyRejectsAdvertisedAddress(t *testing.T) {
-	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -406,7 +406,8 @@ func TestDesktopDiagnosticsRequireAdvancedAndExcludeSecrets(t *testing.T) {
 		strings.Contains(text, "passphrase") {
 		t.Fatalf("diagnostics schema unexpectedly includes wallet secret fields: %s", text)
 	}
-	if !strings.Contains(text, `"network": "testnet"`) ||
+	if !strings.Contains(text, `"network": "testnet2"`) ||
+		!strings.Contains(text, `"chain_id": "valdr-testnet-2"`) ||
 		!strings.Contains(text, `"mainnet_enabled": false`) {
 		t.Fatalf("diagnostics missing Testnet identity: %s", text)
 	}
