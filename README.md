@@ -93,14 +93,14 @@ The Explorer keeps its own persistent index with active block hashes, confirmed 
 
 **Stage 11 — Testnet + Docker + Linux deployment: implemented and CI-verified.**
 
-The Testnet runtime is active under profile `testnet` / Chain ID `valdr-testnet-1`, protocol v2, P2P port 17333 and RPC port 17332. `valdrd init/start/verify-db --network testnet` bind storage identity to the frozen Testnet Genesis and reject databases from another network.
+The active Testnet runtime is profile `testnet2` / Chain ID `valdr-testnet-2`, protocol v2, P2P port 17333 and RPC port 17332. `valdrd init/start/verify-db --network testnet2` binds storage identity to the frozen Testnet2 Genesis and rejects databases from another network. Historical profile `testnet` / `valdr-testnet-1` remains preserved for compatibility but is not the active product network.
 
-The frozen Testnet Genesis is:
-- timestamp: `1790208000` (2026-09-24 00:00:00 UTC);
-- target: `000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff`;
-- nonce: `12480`;
-- message: `VALDR genesis block | valdr-testnet-1 | 2026-09-24`;
-- hash: `0009d956448a8caefcd798af1a7957840d0aa7b72f8350362909f241ea100122`.
+The frozen Testnet2 Genesis is:
+- timestamp: `1790380800` (2026-09-26 00:00:00 UTC);
+- target: `0000031b5d43afe99ee43470e1337c3642e9d9254926038fdf6d1a2e57aaa21f`;
+- nonce: `22759786`;
+- message: `VALDR genesis block | valdr-testnet-2 | 2026-09-26`;
+- hash: `000000a065ed224c03ff3107b2d3a073906415b347600f2e83a8874371f15485`.
 
 The root multi-stage Docker image builds `valdrd`, `valdr-cli`, `valdr-miner` and `valdr-explorer`, then runs as the unprivileged `valdr` user with persistent state under `/var/lib/valdr` and operator configuration under `/etc/valdr`. The Testnet Compose topology starts three v2 nodes plus Explorer, publishes P2P only for the first node, does not publish node RPC to the host, and binds the Explorer host port to localhost.
 
@@ -110,14 +110,14 @@ The Linux reference deployment targets Ubuntu Server 24.04 LTS x86_64 with a ded
 
 CI verifies Testnet Genesis/runtime identity, Docker image construction, a three-node container Testnet that maintains P2P connectivity and synchronizes a newly mined block, Explorer visibility of that chain, Linux restart with the same BadgerDB plus `verify-db`, and the frozen legacy three-node smoke.
 
-**Stage 12 — VALDR Desktop: in progress.** The current slice includes the Wails v2 shell, Testnet-only first-run encrypted-wallet setup, managed outbound-only local node lifecycle, sync progress, balance/send/receive, reorg-safe transaction history, encrypted backup/restore, explicit surfacing/restart recovery for an unexpectedly exited managed node, local wallet lock/unlock with configurable inactivity auto-lock, locally generated Receive QR codes with no web/API dependency, explicit high-risk private-key export requiring an unlocked wallet plus typed confirmation, the required latest-transaction summary on Overview, a dedicated irreversible-transaction confirmation dialog before signing/broadcast, an explicit transaction detail view for wallet history, Network/Node sync, height, runtime state and read-only connected-peer diagnostics, passphrase-verified backup restore that refuses wrong credentials before importing and unlocks successful restores locally, a strict local-only frontend Content Security Policy with no unsafe inline/eval or remote runtime content, a Settings foundation with persisted managed-node startup behavior and default-off Advanced mode, persisted wallet inactivity auto-lock, fixed language/theme/network choices for the current build rather than unsupported switches, and explicit Advanced/Testnet mining control through a managed local `valdr-miner` child process with reward-address selection, accepted-block count, and no automatic mining. Stage 12 is not complete until the full Desktop acceptance gate in Master-TZ v0.2.11 is green across the mandatory OS matrix and the required Testnet2 manual Windows QA is recorded. Distributed Testnet rollout remains behind completed Stages 12 and 13.
+**Stage 12 — VALDR Desktop: in progress.** The current slice includes the Wails v2 shell, Testnet-only first-run encrypted-wallet setup, managed outbound-only local node lifecycle, sync progress, balance/send/receive, reorg-safe transaction history, encrypted backup/restore, explicit surfacing/restart recovery for an unexpectedly exited managed node, local wallet lock/unlock with configurable inactivity auto-lock, locally generated Receive QR codes with no web/API dependency, explicit high-risk private-key export requiring an unlocked wallet plus typed confirmation, the required latest-transaction summary on Overview, a dedicated irreversible-transaction confirmation dialog before signing/broadcast, an explicit transaction detail view for wallet history, Network/Node sync, height, runtime state and read-only connected-peer diagnostics, passphrase-verified backup restore that refuses wrong credentials before importing and unlocks successful restores locally, a strict local-only frontend Content Security Policy with no unsafe inline/eval or remote runtime content, a Settings foundation with persisted managed-node startup behavior and default-off Advanced mode, persisted wallet inactivity auto-lock, fixed language/theme/network choices for the current build rather than unsupported switches, and explicit Advanced/Testnet mining control through a managed local `valdr-miner` child process with reward-address selection, accepted-block count, and no automatic mining. Stage 12 is not complete until the full Desktop acceptance gate in Master-TZ v0.2.12 is green across the mandatory OS matrix and the required Testnet2 manual Windows QA is recorded. Distributed Testnet rollout remains behind completed Stages 12 and 13.
 
 ## Stage 11 Testnet/Docker/Linux gate
 
 Stage 11 implements and tests:
 
-- frozen `valdr-testnet-1` Genesis and golden PoW verification;
-- `valdrd --network testnet` runtime selection with network-specific storage identity;
+- frozen active `valdr-testnet-2` Genesis and golden PoW verification, while preserving historical Testnet1 vectors;
+- `valdrd --network testnet2` runtime selection with network-specific storage identity;
 - Testnet P2P v2 on 17333 and RPC on 17332;
 - explicit routable P2P advertise-address distinct from the bind address;
 - multi-stage Docker build containing node, CLI, miner and Explorer binaries;
@@ -340,6 +340,7 @@ Network profiles:
 | `legacy-v0.1` | `valdr-devnet-1` | v1 | 7333 | 7332 |
 | `devnet2` | `valdr-devnet-2` | v2 | 7333 | 7332 |
 | `testnet` | `valdr-testnet-1` | v2 | 17333 | 17332 |
+| `testnet2` **(active)** | `valdr-testnet-2` | v2 | 17333 | 17332 |
 
 P2P v2 frame:
 
