@@ -15,6 +15,8 @@ This file records Stage 12 evidence under the cumulative Master-TZ v0.2.11. It d
 - Live Desktop wallet send/receive/history, clean-launch/restart, managed node/miner bundling and Testnet2 identity checks passed.
 - This is automated evidence only. The separate Windows owner GUI checklist remains manually unverified.
 
+**Stage 12A automated exit gate: PASS on the Testnet2 CI commit above.** The required cross-platform runtime jobs, first-run, send/receive/history, restart persistence and crash recovery have automated evidence. Stage 12B usability work and Stage 12C human-visible Windows acceptance remain open. The Windows checklist now points to the Testnet2 artifact from this exact run; its former Testnet1 candidate must not be reused.
+
 
 | §22 acceptance requirement | Automated evidence | Status |
 | --- | --- | --- |
