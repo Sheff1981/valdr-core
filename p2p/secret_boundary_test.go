@@ -63,7 +63,7 @@ func TestP2PWireAndTransactionLogsExcludeWalletSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
