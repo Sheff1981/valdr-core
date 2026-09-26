@@ -105,6 +105,53 @@ wait_height node1
 wait_height node2
 wait_height node3
 
+wait_same_tip() {
+  local expected_height="$1"
+  local statuses
+  for _ in $(seq 1 60); do
+    statuses=()
+    for service in node1 node2 node3; do
+      statuses+=("$("${compose[@]}" exec -T "$service" valdrd status --node http://127.0.0.1:17332)")
+    done
+    if python3 - "$expected_height" "${statuses[@]}" <<'PY'
+import json, sys
+expected = int(sys.argv[1])
+nodes = [json.loads(raw) for raw in sys.argv[2:]]
+ok = all(n["network"] == "testnet2" and n["chain_id"] == "valdr-testnet-2"
+         and n["height"] == expected and n["tip_hash"] for n in nodes)
+raise SystemExit(0 if ok and len({n["tip_hash"] for n in nodes}) == 1 else 1)
+PY
+    then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Testnet2 three-node tip convergence failed at height $expected_height" >&2
+  "${compose[@]}" logs node1 node2 node3 >&2
+  return 1
+}
+
+wait_same_tip 1
+
+# Mine on a different node, then require all three independent Badger stores
+# to agree on the new block before restarting a follower.
+"${compose[@]}" exec -T node2 valdr-miner start \
+  --node http://127.0.0.1:17332 --reward-address "$reward_address" \
+  --blocks 1 --interval 0 >/dev/null
+wait_same_tip 2
+
+"${compose[@]}" stop node3
+verified=$("${compose[@]}" run --rm --no-deps node3 verify-db \
+  --data /var/lib/valdr --network testnet2)
+python3 - "$verified" <<'PY'
+import json, sys
+result = json.loads(sys.argv[1])
+assert result["valid"] is True and result["height"] == 2, result
+PY
+"${compose[@]}" start node3
+wait_healthy node3
+wait_same_tip 2
+
 explorer_status=$(curl --fail --silent --show-error http://127.0.0.1:8080/api/v1/status)
 python3 - "$explorer_status" <<'PY'
 import json, sys
