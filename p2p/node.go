@@ -1423,6 +1423,26 @@ func (n *Node) handleBlockV2(peerID string, payload V2BlockPayload) error {
 		candidate.BlockHash,
 		peerID,
 	)
+
+	// Relay a newly activated tip to other peers. Inventory stays headers-first:
+	// downstream peers must fetch and validate headers before requesting bodies.
+	if update.Activated {
+		if err := n.broadcastV2Except(peerID, V2MessageInv, V2InvPayload{
+			Items: []V2InventoryItem{{
+				Kind: V2InventoryBlock,
+				Hash: candidate.BlockHash,
+			}},
+		}); err != nil {
+			logging.Printf(
+				logging.CategoryError,
+				"v2 block relay failed height=%d hash=%s source_peer=%s error=%v",
+				candidate.Height,
+				candidate.BlockHash,
+				peerID,
+				err,
+			)
+		}
+	}
 	return n.requestNextBodiesV2(peerID)
 }
 
