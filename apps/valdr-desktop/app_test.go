@@ -808,3 +808,41 @@ func TestDesktopFrontendStage12B2BalanceSemanticsContract(t *testing.T) {
 		t.Fatal("Stage 12B.2 must not expose immature balance before a maturity rule exists")
 	}
 }
+
+
+func TestDesktopFrontendStage12B3TransactionUsabilityContract(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, marker := range []string{
+		`id="history-search"`,
+		`id="history-direction"`,
+		`id="history-status"`,
+		`id="history-type"`,
+		`id="history-time"`,
+		`id="history-from"`,
+		`id="history-to"`,
+		`id="export-history-csv"`,
+		"item.transaction_id",
+		"item.addresses",
+		`item.type === "mined"`,
+		"visibleHistoryItems",
+		"text/csv;charset=utf-8",
+	} {
+		if !strings.Contains(source, marker) {
+			t.Fatalf("Stage 12B.3 transaction usability missing %q", marker)
+		}
+	}
+	for _, forbidden := range []string{
+		"private_key",
+		"passphrase",
+	} {
+		csvStart := strings.Index(source, "const exportVisibleHistoryCSV")
+		csvEnd := strings.Index(source[csvStart:], "const applyHistoryFilters")
+		if csvStart >= 0 && csvEnd > 0 && strings.Contains(source[csvStart:csvStart+csvEnd], forbidden) {
+			t.Fatalf("Stage 12B.3 CSV export leaks forbidden field %q", forbidden)
+		}
+	}
+}

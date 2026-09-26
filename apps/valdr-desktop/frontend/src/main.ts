@@ -129,6 +129,8 @@ type SendResult = SendPreview & {
 type TransactionHistoryItem = {
   status: "pending" | "confirmed";
   direction: "received" | "sent" | "self";
+  type: "transfer" | "mined";
+  addresses?: string[];
   transaction_id: string;
   timestamp: number;
   amount_val: number;
@@ -528,6 +530,36 @@ root.innerHTML = `
           </div>
           <button class="secondary" id="refresh-history">Refresh</button>
         </div>
+        <div class="card history-filters">
+          <input id="history-search" autocomplete="off" spellcheck="false" placeholder="Search txid or address">
+          <select id="history-direction" aria-label="Direction">
+            <option value="all">All directions</option>
+            <option value="received">Received</option>
+            <option value="sent">Sent</option>
+            <option value="self">Self</option>
+          </select>
+          <select id="history-status" aria-label="Status">
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+          </select>
+          <select id="history-type" aria-label="Type">
+            <option value="all">All types</option>
+            <option value="transfer">Transfers</option>
+            <option value="mined">Mined</option>
+          </select>
+          <select id="history-time" aria-label="Time range">
+            <option value="all">All time</option>
+            <option value="24h">Last 24 hours</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="custom">Custom range</option>
+          </select>
+          <input id="history-from" class="hidden" type="date" aria-label="From date">
+          <input id="history-to" class="hidden" type="date" aria-label="To date">
+          <button class="secondary" id="export-history-csv" type="button">Export visible CSV</button>
+        </div>
+        <p id="history-filter-summary" class="subtle"></p>
         <div id="history-empty" class="card subtle">Select a wallet to view transactions.</div>
         <div id="history-list" class="history-list"></div>
         <div id="history-error" class="error-box hidden" role="alert"></div>
@@ -970,6 +1002,8 @@ let currentView = "overview";
 let activeWalletAddress = "";
 let activeWalletName = "";
 let renderedReceiveQRAddress = "";
+let currentHistoryItems: TransactionHistoryItem[] = [];
+let visibleHistoryItems: TransactionHistoryItem[] = [];
 let lastPreviewInput: {
   selector: string;
   recipient: string;
@@ -1294,6 +1328,83 @@ const refreshWalletPresentation = async (): Promise<void> => {
   }
 };
 
+const historyDateBound = (id: string, endOfDay: boolean): number | null => {
+  const raw = value(id).trim();
+  if (!raw) return null;
+  const date = new Date(raw + (endOfDay ? "T23:59:59.999" : "T00:00:00.000"));
+  const milliseconds = date.getTime();
+  return Number.isFinite(milliseconds) ? Math.floor(milliseconds / 1000) : null;
+};
+
+const filteredHistory = (items: TransactionHistoryItem[]): TransactionHistoryItem[] => {
+  const query = value("history-search").trim().toLowerCase();
+  const direction = (document.getElementById("history-direction") as HTMLSelectElement | null)?.value ?? "all";
+  const status = (document.getElementById("history-status") as HTMLSelectElement | null)?.value ?? "all";
+  const type = (document.getElementById("history-type") as HTMLSelectElement | null)?.value ?? "all";
+  const timeRange = (document.getElementById("history-time") as HTMLSelectElement | null)?.value ?? "all";
+  const now = Math.floor(Date.now() / 1000);
+  let from: number | null = null;
+  let to: number | null = null;
+  if (timeRange === "24h") from = now - 24 * 60 * 60;
+  if (timeRange === "7d") from = now - 7 * 24 * 60 * 60;
+  if (timeRange === "30d") from = now - 30 * 24 * 60 * 60;
+  if (timeRange === "custom") {
+    from = historyDateBound("history-from", false);
+    to = historyDateBound("history-to", true);
+  }
+
+  return items.filter((item) => {
+    if (direction !== "all" && item.direction !== direction) return false;
+    if (status !== "all" && item.status !== status) return false;
+    if (type !== "all" && item.type !== type) return false;
+    if (from !== null && item.timestamp < from) return false;
+    if (to !== null && item.timestamp > to) return false;
+    if (query) {
+      const searchable = [item.transaction_id, ...(item.addresses ?? [])]
+        .join(" ")
+        .toLowerCase();
+      if (!searchable.includes(query)) return false;
+    }
+    return true;
+  });
+};
+
+const escapeCSV = (input: string): string =>
+  `"${input.replaceAll('"', '""')}"`;
+
+const exportVisibleHistoryCSV = (): void => {
+  const header = ["timestamp","status","type","direction","amount_vdr","fee_vdr","confirmations","block_height","txid","addresses"];
+  const rows = visibleHistoryItems.map((item) => [
+    new Date(item.timestamp * 1000).toISOString(),
+    item.status,
+    item.type,
+    item.direction,
+    item.amount_vdr,
+    item.fee_vdr,
+    String(item.confirmations),
+    item.block_height === undefined ? "" : String(item.block_height),
+    item.transaction_id,
+    (item.addresses ?? []).join(" "),
+  ]);
+  const csv = [header, ...rows].map((row) => row.map(escapeCSV).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `VALDR-transactions-${new Date().toISOString().slice(0,10)}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
+const applyHistoryFilters = (): void => {
+  visibleHistoryItems = filteredHistory(currentHistoryItems);
+  text(
+    "history-filter-summary",
+    `Showing ${visibleHistoryItems.length} of ${currentHistoryItems.length} transaction(s).`,
+  );
+  renderHistory(visibleHistoryItems);
+};
+
 const renderHistory = (items: TransactionHistoryItem[]): void => {
   const list = document.getElementById("history-list");
   const empty = document.getElementById("history-empty");
@@ -1319,11 +1430,13 @@ const renderHistory = (items: TransactionHistoryItem[]): void => {
     const direction = document.createElement("strong");
     direction.className = "history-direction " + item.direction;
     direction.textContent =
-      item.direction === "received"
-        ? "Received"
-        : item.direction === "sent"
-          ? "Sent"
-          : "Self transfer";
+      item.type === "mined"
+        ? "Mined"
+        : item.direction === "received"
+          ? "Received"
+          : item.direction === "sent"
+            ? "Sent"
+            : "Self transfer";
     const when = document.createElement("small");
     when.textContent = new Date(item.timestamp * 1000).toLocaleString();
     identity.append(direction, when);
@@ -1348,6 +1461,7 @@ const renderHistory = (items: TransactionHistoryItem[]): void => {
     };
 
     addDetail("Status", item.status);
+    addDetail("Type", item.type === "mined" ? "Mined" : "Transfer");
     addDetail(
       "Confirmations",
       item.status === "pending" ? "0" : String(item.confirmations),
@@ -1602,12 +1716,16 @@ const refreshTransactionHistory = async (): Promise<void> => {
   errorBox?.classList.add("hidden");
   const wallet = activeWallet();
   if (!wallet || !currentState?.node_status) {
+    currentHistoryItems = [];
+    visibleHistoryItems = [];
     renderHistory([]);
+    text("history-filter-summary", "");
     return;
   }
   try {
     const items = await api().GetTransactionHistory(wallet.address);
-    renderHistory(items);
+    currentHistoryItems = items;
+    applyHistoryFilters();
   } catch (error) {
     if (errorBox) {
       errorBox.textContent = error instanceof Error ? error.message : String(error);
@@ -2363,6 +2481,17 @@ document.addEventListener("visibilitychange", () => {
 document.getElementById("refresh-history")?.addEventListener("click", async () => {
   await refreshTransactionHistory();
 });
+
+["history-search", "history-direction", "history-status", "history-type", "history-from", "history-to"].forEach((id) => {
+  document.getElementById(id)?.addEventListener(id === "history-search" ? "input" : "change", applyHistoryFilters);
+});
+document.getElementById("history-time")?.addEventListener("change", (event) => {
+  const custom = (event.currentTarget as HTMLSelectElement).value === "custom";
+  document.getElementById("history-from")?.classList.toggle("hidden", !custom);
+  document.getElementById("history-to")?.classList.toggle("hidden", !custom);
+  applyHistoryFilters();
+});
+document.getElementById("export-history-csv")?.addEventListener("click", exportVisibleHistoryCSV);
 
 document.getElementById("public-node-enabled")?.addEventListener("change", (event) => {
   const enabled = (event.currentTarget as HTMLInputElement).checked;

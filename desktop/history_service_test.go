@@ -36,6 +36,21 @@ func (m *historyRPCMock) Call(
 		return assignHistoryRPC(result, m.blocks[p.Height])
 	case rpc.MethodGetMempool:
 		return assignHistoryRPC(result, m.mempool)
+	case rpc.MethodGetTransaction:
+		p := params.(rpc.TransactionParams)
+		for _, candidate := range m.blocks {
+			for _, tx := range candidate.Transactions {
+				if tx != nil && tx.TransactionID == p.TransactionID {
+					return assignHistoryRPC(result, rpc.TransactionResult{
+						Transaction: tx,
+						Confirmed:   true,
+						BlockHeight: candidate.Height,
+						BlockHash:   candidate.BlockHash,
+					})
+				}
+			}
+		}
+		return rpc.ErrNotFound
 	case rpc.MethodGetUTXOs:
 		return assignHistoryRPC(result, m.utxos)
 	default:
@@ -154,6 +169,7 @@ func TestHistoryServicePendingThenConfirmed(t *testing.T) {
 	}
 	if history[1].Status != "confirmed" ||
 		history[1].Direction != "received" ||
+		history[1].Type != "mined" ||
 		history[1].TransactionID != coinbase.TransactionID ||
 		history[1].Confirmations != 1 {
 		t.Fatalf("unexpected confirmed receive: %+v", history[1])

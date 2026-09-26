@@ -22,17 +22,19 @@ const (
 var ErrInvalidHistoryAddress = errors.New("invalid history address")
 
 type TransactionHistoryItem struct {
-	Status        string `json:"status"`
-	Direction     string `json:"direction"`
-	TransactionID string `json:"transaction_id"`
-	Timestamp     int64  `json:"timestamp"`
-	AmountVal     uint64 `json:"amount_val"`
-	AmountVDR     string `json:"amount_vdr"`
-	FeeVal        uint64 `json:"fee_val"`
-	FeeVDR        string `json:"fee_vdr"`
-	BlockHeight   uint64 `json:"block_height,omitempty"`
-	BlockHash     string `json:"block_hash,omitempty"`
-	Confirmations uint64 `json:"confirmations"`
+	Status        string   `json:"status"`
+	Direction     string   `json:"direction"`
+	Type          string   `json:"type"`
+	Addresses     []string `json:"addresses,omitempty"`
+	TransactionID string   `json:"transaction_id"`
+	Timestamp     int64    `json:"timestamp"`
+	AmountVal     uint64   `json:"amount_val"`
+	AmountVDR     string   `json:"amount_vdr"`
+	FeeVal        uint64   `json:"fee_val"`
+	FeeVDR        string   `json:"fee_vdr"`
+	BlockHeight   uint64   `json:"block_height,omitempty"`
+	BlockHash     string   `json:"block_hash,omitempty"`
+	Confirmations uint64   `json:"confirmations"`
 }
 
 type HistoryService struct {
@@ -86,10 +88,14 @@ func (s *HistoryService) History(
 		return nil, err
 	}
 
-	confirmed := s.confirmedHistory(
+	confirmed, err := s.confirmedHistory(
+		ctx,
 		address,
 		status.Height,
 	)
+	if err != nil {
+		return nil, err
+	}
 	pending, err := s.pendingHistory(ctx, address)
 	if err != nil {
 		return nil, err
@@ -112,12 +118,27 @@ func (s *HistoryService) History(
 }
 
 func (s *HistoryService) confirmedHistory(
+	ctx context.Context,
 	address string,
 	tipHeight uint64,
-) []TransactionHistoryItem {
+) ([]TransactionHistoryItem, error) {
 	activities := s.index.Activities(address)
 	result := make([]TransactionHistoryItem, 0, len(activities))
 	for _, activity := range activities {
+		var transactionResult rpc.TransactionResult
+		if err := s.client.Call(
+			ctx,
+			rpc.MethodGetTransaction,
+			rpc.TransactionParams{TransactionID: activity.TransactionID},
+			&transactionResult,
+		); err != nil {
+			return nil, err
+		}
+		itemType := "transfer"
+		addresses := transactionAddresses(transactionResult.Transaction)
+		if transactionResult.Transaction != nil && transactionResult.Transaction.IsCoinbase() {
+			itemType = "mined"
+		}
 		direction := "received"
 		amount := activity.ReceivedVal
 		fee := uint64(0)
@@ -144,6 +165,8 @@ func (s *HistoryService) confirmedHistory(
 		result = append(result, TransactionHistoryItem{
 			Status:        "confirmed",
 			Direction:     direction,
+			Type:          itemType,
+			Addresses:     addresses,
 			TransactionID: activity.TransactionID,
 			Timestamp:     activity.Timestamp,
 			AmountVal:     amount,
@@ -155,7 +178,7 @@ func (s *HistoryService) confirmedHistory(
 			Confirmations: confirmations,
 		})
 	}
-	return result
+	return result, nil
 }
 
 func (s *HistoryService) pendingHistory(
@@ -260,6 +283,8 @@ func pendingHistoryItem(
 	return TransactionHistoryItem{
 		Status:        "pending",
 		Direction:     direction,
+		Type:          "transfer",
+		Addresses:     transactionAddresses(tx),
 		TransactionID: tx.TransactionID,
 		Timestamp:     tx.Timestamp,
 		AmountVal:     amount,
@@ -268,6 +293,32 @@ func pendingHistoryItem(
 		FeeVDR:        FormatVDR(fee),
 		Confirmations: 0,
 	}, true
+}
+
+func transactionAddresses(tx *transaction.Transaction) []string {
+	if tx == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	addresses := make([]string, 0, len(tx.Outputs)+1)
+	add := func(address string) {
+		if address == "" {
+			return
+		}
+		if _, exists := seen[address]; exists {
+			return
+		}
+		seen[address] = struct{}{}
+		addresses = append(addresses, address)
+	}
+	if !tx.IsCoinbase() {
+		add(transactionSenderAddress(tx))
+	}
+	for _, output := range tx.Outputs {
+		add(output.Recipient)
+	}
+	sort.Strings(addresses)
+	return addresses
 }
 
 func transactionSenderAddress(
