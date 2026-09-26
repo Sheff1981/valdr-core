@@ -10,7 +10,7 @@ import (
 
 func TestV2TransactionIsBoundToExpectedChain(t *testing.T) {
 	signer, recipient := testSignerAndRecipient(t)
-	testnet, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	testnet, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,14 +50,14 @@ func TestV2TransactionIsBoundToExpectedChain(t *testing.T) {
 
 func TestV2CoinbaseIsBoundToExpectedChain(t *testing.T) {
 	_, recipient := testSignerAndRecipient(t)
-	testnet, _ := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	testnet, _ := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	devnet2, _ := config.ResolveNetworkProfile(config.NetworkDevnetV02)
 
 	coinbase, err := NewCoinbaseForChain(
 		testnet.ChainID,
 		1,
 		recipient,
-		config.InitialMiningReward,
+		testnet.InitialSubsidyVDR*config.AtomicUnitsPerVDR,
 		testnet.GenesisTimestamp+60,
 	)
 	if err != nil {
@@ -69,14 +69,14 @@ func TestV2CoinbaseIsBoundToExpectedChain(t *testing.T) {
 	}
 	if err := coinbase.ValidateCoinbaseForChain(
 		1,
-		config.InitialMiningReward,
+		testnet.InitialSubsidyVDR*config.AtomicUnitsPerVDR,
 		testnet.ChainID,
 	); err != nil {
 		t.Fatal(err)
 	}
 	if err := coinbase.ValidateCoinbaseForChain(
 		1,
-		config.InitialMiningReward,
+		testnet.InitialSubsidyVDR*config.AtomicUnitsPerVDR,
 		devnet2.ChainID,
 	); err == nil {
 		t.Fatal("Testnet coinbase accepted on Devnet2")
