@@ -28,8 +28,8 @@ This document records evidence only. CI #457 proves the active Testnet2 developm
 | Production fail-closed gate | current `0.2.0-dev` cannot generate a production Testnet manifest; development signing/notarization claims remain invalid in production metadata; mandatory package set is enforced | automated safety gate green |
 | Windows Authenticode | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful `unsigned` metadata when absent | not a Testnet release blocker |
 | Apple Developer ID / notarization | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful ad-hoc / not-notarized metadata when absent | not a Testnet release blocker |
-| Official download page | authoritative source identified as `Sheff1981/valdr-site`; fail-closed metadata-driven artifact rendering is implemented; commit `571a3fcaa23e3bd1b7a84cc927c0054a1a44a745` adds OS auto-suggestion without hiding alternatives plus the local-node disk/network warning | implementation present; final RC links pending |
-| Official website CI | latest observed site run `36170935148` (#47) completed with an empty step list; no validation step executed, consistent with the existing runner-allocation infrastructure block | infrastructure blocked / no GitHub CI test evidence |
+| Official download page | authoritative source `Sheff1981/valdr-site`; exact Stage 13B integration commit `c72ea74f38d11be27e73d147c42d58cf94ea0c0f` binds Testnet2 / `valdr-testnet-2`, current Core CI evidence, OS suggestion without hiding alternatives, SHA-256/provenance instructions, disk/network warning and fail-closed download behavior | Stage 13B implementation + CI verified; final RC links intentionally pending |
+| Official website CI | `Sheff1981/valdr-site` run `36259870463` (#52), attempt 3, completed **SUCCESS** on exact site commit `c72ea74f38d11be27e73d147c42d58cf94ea0c0f`; PHP/static validation, JavaScript syntax, HTTP route/asset/language/header smoke, fake-download guard and private-specification guard all executed and passed | Stage 13B CI gate green |
 | Final Testnet release-candidate version | repository still uses `config.Version = "0.2.0-dev"` | pending deliberate freeze |
 | Final release clean verification | development path is proven; frozen non-development RC must repeat checksum + provenance verification | pending release candidate |
 | Stage 12B automated usability gate | final Stage 12B commit `61f6941cee00a19cd187929de2879cf54e43cb6e`; full cross-platform CI #457 green | automated gate green |
@@ -57,13 +57,26 @@ Windows packages must therefore state `unsigned` when Authenticode is absent. ma
 
 If legitimate OS-vendor signing becomes obtainable later, it may be added as hardening without replacing the mandatory SHA-256 + repository/workflow/commit provenance checks.
 
+## Stage 13B website integration evidence
+
+- Site repository: `Sheff1981/valdr-site`.
+- Exact site commit: `c72ea74f38d11be27e73d147c42d58cf94ea0c0f`.
+- Website CI run: `36259870463` (#52), attempt 3 — **SUCCESS** on 2026-09-26.
+- The CI job executed real validation steps; it was not a zero-step runner failure.
+- Active release surfaces identify Testnet2 / `valdr-testnet-2`.
+- Static validation rejects stale Testnet1 identity on active download/verify/release surfaces.
+- Fake executable links remain blocked while `current_release=null` and `public_release_ready=false`.
+- Download/verification pages expose the release-verification method and remain fail-closed until verified public RC metadata exists.
+
+**Stage 13B exit gate: PASS.**
+
 ## 4. Remaining public-release blockers
 
 The remaining mandatory blockers are:
 
 1. close Stage 12 manual Windows GUI acceptance;
 2. deliberately freeze a non-development Testnet release-candidate version instead of `0.2.0-dev`;
-3. restore an executing website CI runner and validate the implemented fail-closed download/verification integration; PHP syntax has been checked independently, but full site CI remains required; final RC artifact links stay intentionally disabled until freeze;
+3. Stage 13B website CI is now green on the exact integrated site commit; final RC artifact links remain intentionally disabled until freeze;
 4. run the final RC packaging, SHA-256, GitHub/Sigstore provenance and independent clean verification gates;
 5. publish only after the accepted artifacts map to the exact frozen commit.
 
