@@ -1621,7 +1621,9 @@ const renderState = (state: DesktopState): void => {
   const blocksRemaining = status
     ? Math.max(0, status.best_known_height - status.height)
     : 0;
-  const syncComplete = Boolean(status) && blocksRemaining === 0 && status.sync_progress >= 1;
+  const syncComplete = status
+    ? blocksRemaining === 0 && status.sync_progress >= 1
+    : false;
   const syncLabel = !status
     ? "—"
     : syncComplete
