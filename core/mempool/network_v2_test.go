@@ -11,7 +11,7 @@ import (
 )
 
 func TestMempoolRejectsTransactionFromAnotherV2Network(t *testing.T) {
-	testnet, _ := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	testnet, _ := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	devnet2, _ := config.ResolveNetworkProfile(config.NetworkDevnetV02)
 
 	signer, err := valdrcrypto.GenerateKeyPair()
