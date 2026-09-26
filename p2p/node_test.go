@@ -228,7 +228,7 @@ func TestV2RejectsWrongNetworkMagic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testnet, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	testnet, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
