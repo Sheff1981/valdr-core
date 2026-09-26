@@ -292,3 +292,106 @@ func TestTestnetV029BootstrapCalibrationAndRetarget(t *testing.T) {
 		"000000c6d750ebfa67b90d1c384cdf0d90ba7649524980e3f7db468b95eaa887",
 	)
 }
+
+
+func TestTestnetV029MinDifficultyEscapeAndRecovery(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	normal := mustTargetHex(t, config.TestnetV029GenesisTarget)
+	powLimit, err := PowLimitForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	history := []V2DifficultyHeader{
+		{
+			Height:    0,
+			Timestamp: profile.GenesisTimestamp,
+			Target:    new(big.Int).Set(normal),
+		},
+		{
+			Height:    1,
+			Timestamp: profile.GenesisTimestamp + profile.TargetBlockTimeSeconds,
+			Target:    new(big.Int).Set(normal),
+		},
+	}
+	escapeTimestamp := history[1].Timestamp + profile.MinDifficultyAfterSeconds + 1
+	escaped, special, err := NextTargetV2(history, escapeTimestamp, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !special {
+		t.Fatal("active Testnet2 minimum-difficulty escape was not marked special")
+	}
+	if escaped.Cmp(powLimit) != 0 {
+		t.Fatalf("active Testnet2 escape target=%064x want pow limit=%064x", escaped, powLimit)
+	}
+
+	history = append(history, V2DifficultyHeader{
+		Height:               2,
+		Timestamp:            escapeTimestamp,
+		Target:               new(big.Int).Set(escaped),
+		SpecialMinDifficulty: true,
+	})
+	recoveryTimestamp := escapeTimestamp + profile.TargetBlockTimeSeconds
+	recovered, special, err := NextTargetV2(history, recoveryTimestamp, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if special {
+		t.Fatal("active Testnet2 recovery unexpectedly remained special-min-difficulty")
+	}
+	if recovered.Cmp(normal) != 0 {
+		t.Fatalf("active Testnet2 recovery target=%064x want normal=%064x", recovered, normal)
+	}
+}
+
+func TestTestnetV029RetargetBoundaryIgnoresSpecialMinDifficultyTarget(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	normal := mustTargetHex(t, config.TestnetV029GenesisTarget)
+	powLimit, err := PowLimitForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	history := make([]V2DifficultyHeader, profile.RetargetInterval)
+	for i := range history {
+		history[i] = V2DifficultyHeader{
+			Height:    uint64(i),
+			Timestamp: profile.GenesisTimestamp + int64(i)*profile.TargetBlockTimeSeconds,
+			Target:    new(big.Int).Set(normal),
+		}
+	}
+	last := len(history) - 1
+	history[last].Target = new(big.Int).Set(powLimit)
+	history[last].SpecialMinDifficulty = true
+
+	next, special, err := NextTargetV2(
+		history,
+		history[last].Timestamp+profile.TargetBlockTimeSeconds,
+		profile,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if special {
+		t.Fatal("active Testnet2 retarget boundary cannot be special-min-difficulty")
+	}
+
+	expected, err := RetargetV2(
+		normal,
+		history[last].Timestamp-history[0].Timestamp,
+		profile,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.Cmp(expected) != 0 {
+		t.Fatalf("active Testnet2 retarget target=%064x want=%064x", next, expected)
+	}
+}
