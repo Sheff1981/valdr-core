@@ -1202,7 +1202,7 @@ Add before public Testnet:
 
 - frozen v0.1 remains unchanged;
 - v0.2 work remains on `valdr-v0.2`;
-- v0.2.9 is the active master specification after its commit;
+- v0.2.10 is the active master specification after its commit;
 - previous master specs remain preserved;
 - stage flow remains:
   `spec -> implementation -> build -> tests -> runtime verification -> commit -> next stage`;
