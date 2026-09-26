@@ -36,6 +36,19 @@ jobs:
       - name: Race test
         run: go test -race ./...
 
+      - name: Static analysis
+        run: go vet ./...
+
+      - name: Parser and decoder fuzz gate
+        run: |
+          go test ./p2p -run=^$ -fuzz=^FuzzReadV2Frame$ -fuzztime=5s
+          go test ./p2p -run=^$ -fuzz=^FuzzDecodeV2HelloPayload$ -fuzztime=5s
+          go test ./rpc -run=^$ -fuzz=^FuzzRPCRequestDecoder$ -fuzztime=5s
+          go test ./wallet -run=^$ -fuzz=^FuzzWalletV2StrictDecoder$ -fuzztime=5s
+
+      - name: Dependency vulnerability audit
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
       - name: Storage v2 and migration gate
         run: go test ./storage ./core/blockchain ./cmd/valdrd
 
