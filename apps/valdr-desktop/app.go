@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -81,6 +82,18 @@ type explorerHealthResponse struct {
 	ChainID string `json:"chain_id"`
 	Height  uint64 `json:"height"`
 	TipHash string `json:"tip_hash"`
+}
+
+type DesktopBuildIdentity struct {
+	DesktopVersion           string `json:"desktop_version"`
+	CoreVersion              string `json:"core_version"`
+	Network                  string `json:"network"`
+	ChainID                  string `json:"chain_id"`
+	SourceCommit             string `json:"source_commit,omitempty"`
+	OfficialWebsite          string `json:"official_website,omitempty"`
+	SourceRepository         string `json:"source_repository"`
+	License                  string `json:"license"`
+	VerificationInstructions string `json:"verification_instructions"`
 }
 
 type DesktopDiagnosticsPreferences struct {
@@ -639,6 +652,34 @@ func (a *App) GetWalletBalance(
 	)
 	defer cancel()
 	return a.walletService.Balance(ctx, strings.TrimSpace(address))
+}
+
+func (a *App) GetBuildIdentity() DesktopBuildIdentity {
+	profile, _ := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	return DesktopBuildIdentity{
+		DesktopVersion:           config.Version,
+		CoreVersion:              config.Version,
+		Network:                  profile.Name,
+		ChainID:                  profile.ChainID,
+		SourceCommit:             desktopSourceCommit(),
+		OfficialWebsite:          "",
+		SourceRepository:         "https://github.com/Sheff1981/valdr-core",
+		License:                  "MIT",
+		VerificationInstructions: "Verify SHA-256 against SHA256SUMS/release-manifest.json and verify the GitHub/Sigstore artifact attestation; see docs/product/release_verification.md.",
+	}
+}
+
+func desktopSourceCommit() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	for _, setting := range info.Settings {
+		if setting.Key == "vcs.revision" {
+			return strings.TrimSpace(setting.Value)
+		}
+	}
+	return ""
 }
 
 func (a *App) GetNodeLogs() (string, error) {

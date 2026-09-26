@@ -63,6 +63,18 @@ type DesktopState = {
   preferences: DesktopPreferences;
 };
 
+type DesktopBuildIdentity = {
+  desktop_version: string;
+  core_version: string;
+  network: string;
+  chain_id: string;
+  source_commit?: string;
+  official_website?: string;
+  source_repository: string;
+  license: string;
+  verification_instructions: string;
+};
+
 type ExplorerStatus = {
   available: boolean;
   url: string;
@@ -154,6 +166,7 @@ type TransactionHistoryItem = {
 
 type AppAPI = {
   GetState(): Promise<DesktopState>;
+  GetBuildIdentity(): Promise<DesktopBuildIdentity>;
   CreateWallet(name: string, passphrase: string): Promise<WalletMetadata>;
   UnlockWallet(selector: string, passphrase: string): Promise<WalletMetadata>;
   LockWallet(selector: string): Promise<void>;
@@ -911,6 +924,22 @@ root.innerHTML = `
               <div><dt>Logs</dt><dd><code id="settings-logs">—</code></dd></div>
             </dl>
             <p class="subtle" id="settings-data-note">Node data can be chosen during first run. After wallet creation, changing it remains disabled until a safe managed-node migration flow is implemented.</p>
+          </article>
+
+          <article class="card">
+            <h3>About / Build identity</h3>
+            <dl class="details">
+              <div><dt>Desktop version</dt><dd id="about-desktop-version">—</dd></div>
+              <div><dt>Core version</dt><dd id="about-core-version">—</dd></div>
+              <div><dt>Network / profile</dt><dd id="about-network">—</dd></div>
+              <div><dt>Chain ID</dt><dd id="about-chain-id">—</dd></div>
+              <div><dt>Exact source commit</dt><dd><code id="about-source-commit">—</code></dd></div>
+              <div><dt>Official website</dt><dd id="about-official-website">Not published</dd></div>
+              <div><dt>Source repository</dt><dd><code id="about-source-repository">—</code></dd></div>
+              <div><dt>License</dt><dd id="about-license">—</dd></div>
+            </dl>
+            <h4>Release verification</h4>
+            <p id="about-verification" class="subtle">—</p>
           </article>
 
           <article class="card advanced-only hidden">
@@ -1799,6 +1828,23 @@ const formatBytes = (value: number): string => {
   return `${amount >= 100 ? amount.toFixed(0) : amount >= 10 ? amount.toFixed(1) : amount.toFixed(2)} ${unit}`;
 };
 
+const refreshBuildIdentity = async (): Promise<void> => {
+  try {
+    const identity = await api().GetBuildIdentity();
+    text("about-desktop-version", identity.desktop_version || "—");
+    text("about-core-version", identity.core_version || "—");
+    text("about-network", identity.network || "—");
+    text("about-chain-id", identity.chain_id || "—");
+    text("about-source-commit", identity.source_commit || "Unavailable in this build");
+    text("about-official-website", identity.official_website || "Not published");
+    text("about-source-repository", identity.source_repository || "—");
+    text("about-license", identity.license || "—");
+    text("about-verification", identity.verification_instructions || "—");
+  } catch {
+    text("about-source-commit", "Unavailable");
+  }
+};
+
 const refreshStorageDiagnostics = async (): Promise<void> => {
   if (!currentState?.preferences.advanced) return;
   text("storage-diagnostics-status", "Inspecting local node data…");
@@ -1954,6 +2000,7 @@ const renderState = (state: DesktopState): void => {
   text("settings-logs", state.paths.logs);
   text("first-run-data-path", state.paths.node_data);
   renderDesktopPreferences();
+  void refreshBuildIdentity();
 
   text(
     "height",

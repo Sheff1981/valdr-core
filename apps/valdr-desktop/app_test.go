@@ -942,3 +942,30 @@ func TestDesktopFrontendStage12B6AdvancedDiagnosticsContract(t *testing.T) {
 		}
 	}
 }
+
+
+func TestDesktopFrontendStage12B7BuildIdentityContract(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, marker := range []string{
+		"About / Build identity",
+		`id="about-desktop-version"`,
+		`id="about-core-version"`,
+		`id="about-network"`,
+		`id="about-chain-id"`,
+		`id="about-source-commit"`,
+		`id="about-official-website"`,
+		`id="about-source-repository"`,
+		`id="about-license"`,
+		`id="about-verification"`,
+		"GetBuildIdentity",
+		"Not published",
+	} {
+		if !strings.Contains(source, marker) {
+			t.Fatalf("Stage 12B.7 build identity missing %q", marker)
+		}
+	}
+}
