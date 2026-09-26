@@ -3,7 +3,7 @@ set -euo pipefail
 
 node="http://127.0.0.1:17332"
 data_dir="./data"
-duration_seconds=86400
+duration_seconds=10800
 interval_seconds=60
 output="stage14a-soak.jsonl"
 
@@ -14,7 +14,7 @@ usage: stage14a-soak-observe.sh [options]
 Options:
   --node URL              localhost VALDR RPC endpoint (default http://127.0.0.1:17332)
   --data PATH             local node data directory (default ./data)
-  --duration-seconds N    observation duration; 0 = one snapshot (default 86400)
+  --duration-seconds N    observation duration; 0 = one snapshot (default 10800)
   --interval-seconds N    delay between snapshots (default 60)
   --output PATH           JSONL evidence file (default stage14a-soak.jsonl)
 EOF
