@@ -491,3 +491,15 @@ func TestParseAndFormatVDR(t *testing.T) {
 		t.Fatalf("formatVDR = %q, want 1.25", got)
 	}
 }
+
+
+func TestDefaultRPCEndpointTargetsTestnet2(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "http://127.0.0.1:" + strconv.Itoa(int(profile.RPCPort))
+	if defaultRPCEndpoint != want {
+		t.Fatalf("defaultRPCEndpoint=%q want=%q", defaultRPCEndpoint, want)
+	}
+}
