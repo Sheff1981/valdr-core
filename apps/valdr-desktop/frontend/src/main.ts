@@ -17,6 +17,8 @@ type NodeStatus = {
   chainwork: string;
   peer_count: number;
   mempool_count: number;
+  target_block_time_seconds: number;
+  last_block_time: number;
 };
 
 type DesktopPreferences = {
@@ -356,6 +358,8 @@ root.innerHTML = `
         </div>
       </header>
 
+      <div id="sync-warning" class="warning hidden" role="status">Synchronization is incomplete. Balance, transaction history and confirmations may be incomplete until the local node catches up.</div>
+
       <section class="view active" id="view-overview">
         <div class="hero valdr-hero reference-hero">
           <div class="hero-main">
@@ -628,6 +632,9 @@ root.innerHTML = `
             <div><dt>Node state</dt><dd id="detail-node-state">—</dd></div>
             <div><dt>Synchronization</dt><dd id="detail-sync">—</dd></div>
             <div><dt>Local / best height</dt><dd id="detail-height">—</dd></div>
+            <div><dt>Blocks remaining</dt><dd id="detail-blocks-remaining">—</dd></div>
+            <div><dt>Last accepted block</dt><dd id="detail-last-block-time">—</dd></div>
+            <div><dt>Sync ETA</dt><dd id="detail-sync-eta">—</dd></div>
             <div><dt>Connected peers</dt><dd id="detail-peer-count">—</dd></div>
             <div><dt>Tip</dt><dd><code id="detail-tip">—</code></dd></div>
             <div><dt>Chainwork</dt><dd><code id="detail-chainwork">—</code></dd></div>
@@ -1611,11 +1618,17 @@ const renderState = (state: DesktopState): void => {
     "height",
     status ? `${status.height} / ${status.best_known_height}` : "—",
   );
+  const blocksRemaining = status
+    ? Math.max(0, status.best_known_height - status.height)
+    : 0;
+  const syncComplete = Boolean(status) && blocksRemaining === 0 && status.sync_progress >= 1;
   const syncLabel = !status
     ? "—"
-    : status.peer_count === 0
-      ? "Waiting"
-      : `${Math.round(status.sync_progress * 100)}%`;
+    : syncComplete
+      ? "Synced · 100%"
+      : status.peer_count === 0
+        ? "Waiting for peers"
+        : `Syncing · ${Math.round(status.sync_progress * 100)}%`;
   text("sync-progress", syncLabel);
   text("peers", status ? String(status.peer_count) : "—");
   text("mempool", status ? String(status.mempool_count) : "—");
@@ -1629,6 +1642,19 @@ const renderState = (state: DesktopState): void => {
     status ? `${status.height} / ${status.best_known_height}` : "—",
   );
   text("detail-sync", syncLabel);
+  text("detail-blocks-remaining", status ? String(blocksRemaining) : "—");
+  text(
+    "detail-last-block-time",
+    status?.last_block_time ? new Date(status.last_block_time * 1000).toLocaleString() : "—",
+  );
+  text(
+    "detail-sync-eta",
+    !status ? "—" : syncComplete ? "Synced" : status.peer_count === 0 ? "Unknown" : "Calculating…",
+  );
+  document.getElementById("sync-warning")?.classList.toggle(
+    "hidden",
+    !status || syncComplete,
+  );
 
   const healthy = state.node_running && Boolean(status);
   text(
