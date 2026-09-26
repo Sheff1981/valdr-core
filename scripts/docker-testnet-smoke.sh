@@ -372,6 +372,50 @@ PY
   --blocks 1 --interval 0 >/dev/null
 wait_same_tip 12
 
+# Stage 14A preflight: remove the original bootstrap node after peer exchange.
+# The already-connected node2/node3 pair must continue consensus propagation
+# without node1, then node1 must catch up from persisted state after restart.
+"${compose[@]}" stop node1
+
+wait_peer_count node2
+wait_peer_count node3
+
+"${compose[@]}" exec -T node2 valdr-miner start \
+  --node http://127.0.0.1:17332 \
+  --reward-address "$miner2_address" \
+  --blocks 1 --interval 0 >/dev/null
+
+wait_pair_tip() {
+  local expected_height="$1"
+  local status2 status3
+  for _ in $(seq 1 60); do
+    status2=$("${compose[@]}" exec -T node2 valdrd status --node http://127.0.0.1:17332)
+    status3=$("${compose[@]}" exec -T node3 valdrd status --node http://127.0.0.1:17332)
+    if python3 - "$expected_height" "$status2" "$status3" <<'PY'
+import json, sys
+expected=int(sys.argv[1])
+nodes=[json.loads(sys.argv[2]), json.loads(sys.argv[3])]
+ok=all(n["network"]=="testnet2" and n["chain_id"]=="valdr-testnet-2"
+       and n["height"]==expected and n["tip_hash"] and n["chainwork"] for n in nodes)
+same_tip=len({n["tip_hash"] for n in nodes})==1
+same_work=len({n["chainwork"] for n in nodes})==1
+raise SystemExit(0 if ok and same_tip and same_work else 1)
+PY
+    then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "node2/node3 failed to converge without bootstrap node1 at height $expected_height" >&2
+  "${compose[@]}" logs node2 node3 >&2
+  return 1
+}
+
+wait_pair_tip 13
+"${compose[@]}" start node1
+wait_healthy node1
+wait_same_tip 13
+
 # Verify the stopped follower database after the retarget, restart it, and
 # require persisted Testnet2 state to converge without DB deletion or repair.
 "${compose[@]}" stop node3
@@ -380,11 +424,11 @@ verified=$("${compose[@]}" run --rm --no-deps node3 verify-db \
 python3 - "$verified" <<'PY'
 import json, sys
 result = json.loads(sys.argv[1])
-assert result["valid"] is True and result["height"] == 12, result
+assert result["valid"] is True and result["height"] == 13, result
 PY
 "${compose[@]}" start node3
 wait_healthy node3
-wait_same_tip 12
+wait_same_tip 13
 
 restart_balance=$("${compose[@]}" exec -T node3 valdr-cli balance \
   --node http://127.0.0.1:17332 "$recipient_address")
@@ -400,8 +444,8 @@ import json, sys
 status=json.loads(sys.argv[1])
 assert status["status"]["chain_id"] == "valdr-testnet-2", status
 assert status["status"]["network"] == "testnet2", status
-assert status["status"]["height"] == 12, status
-assert status["index_height"] == 12, status
+assert status["status"]["height"] == 13, status
+assert status["index_height"] == 13, status
 PY
 
 echo "VALDR Docker Testnet2 Core smoke: PASS"
