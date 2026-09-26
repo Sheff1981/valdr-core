@@ -239,6 +239,9 @@ jobs:
             exit 1
           fi
 
+          import -display "$DISPLAY" -window root "$RUNNER_TEMP/valdr-desktop-current.png"
+          test -s "$RUNNER_TEMP/valdr-desktop-current.png"
+
           stop_process "$DESKTOP_PID"
           stop_process "$XVFB_PID"
           trap - EXIT
@@ -399,6 +402,13 @@ jobs:
         with:
           name: valdr-stage13-linux-development
           path: ${{ runner.temp }}/valdr-stage13-linux/**
+          if-no-files-found: error
+
+      - name: Upload current Desktop screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: valdr-desktop-screenshot-linux
+          path: ${{ runner.temp }}/valdr-desktop-current.png
           if-no-files-found: error
 
       - name: Upload Linux Desktop build
