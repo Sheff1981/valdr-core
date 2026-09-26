@@ -17,6 +17,13 @@ This file records Stage 12 evidence under the cumulative Master-TZ v0.2.11. It d
 
 **Stage 12A automated exit gate: PASS on the Testnet2 CI commit above.** The required cross-platform runtime jobs, first-run, send/receive/history, restart persistence and crash recovery have automated evidence. Stage 12B usability work and Stage 12C human-visible Windows acceptance remain open. The Windows checklist now points to the Testnet2 artifact from this exact run; its former Testnet1 candidate must not be reused.
 
+## Additional Testnet2 Core runtime verification
+
+- Exact source commit: `1b250679e39df2c291dcd54eb8588d5d189e6fa1`.
+- [VALDR v0.2 CI run #368](https://github.com/Sheff1981/valdr-core/actions/runs/36222702418): **SUCCESS** on 2026-09-26; all eight jobs passed.
+- Docker Testnet smoke now mines on node1, checks all three nodes agree on the same height-1 tip, mines on node2, checks the height-2 tip across all three, verifies node3's stopped Badger database, then restarts node3 and checks convergence again.
+- This is local three-container verification. It does not satisfy the later independent-operator or seven-day distributed Testnet gates.
+
 
 | §22 acceptance requirement | Automated evidence | Status |
 | --- | --- | --- |
