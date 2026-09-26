@@ -846,3 +846,30 @@ func TestDesktopFrontendStage12B3TransactionUsabilityContract(t *testing.T) {
 		}
 	}
 }
+
+
+func TestDesktopFrontendStage12B4AddressBookContract(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, marker := range []string{
+		"Local address book",
+		`id="contact-search"`,
+		`id="contact-form"`,
+		`id="contact-label"`,
+		`id="contact-address"`,
+		`id="contact-list"`,
+		"GetAddressBookContacts",
+		"CreateAddressBookContact",
+		"UpdateAddressBookContact",
+		"DeleteAddressBookContact",
+		"CopyAddressBookContact",
+		"Selected ${contact.label} for Send.",
+	} {
+		if !strings.Contains(source, marker) {
+			t.Fatalf("Stage 12B.4 address-book UI missing %q", marker)
+		}
+	}
+}

@@ -7,6 +7,11 @@ type WalletMetadata = {
   created_at: string;
 };
 
+type AddressBookContact = {
+  label: string;
+  address: string;
+};
+
 type NodeStatus = {
   network: string;
   chain_id: string;
@@ -153,6 +158,11 @@ type AppAPI = {
   CopyReceiveAddress(address: string): Promise<void>;
   ExportPrivateKey(selector: string, confirmation: string): Promise<string>;
   GetWalletBalance(address: string): Promise<WalletBalance>;
+  GetAddressBookContacts(): Promise<AddressBookContact[]>;
+  CreateAddressBookContact(label: string, address: string): Promise<AddressBookContact>;
+  UpdateAddressBookContact(originalAddress: string, label: string, address: string): Promise<AddressBookContact>;
+  DeleteAddressBookContact(address: string): Promise<void>;
+  CopyAddressBookContact(address: string): Promise<void>;
   GetPeers(): Promise<PeerInfo[]>;
   GetNodeLogs(): Promise<string>;
   GetStorageDiagnostics(): Promise<StorageDiagnostics>;
@@ -493,6 +503,34 @@ root.innerHTML = `
             <div id="send-error" class="error-box hidden" role="alert"></div>
           </article>
         </div>
+
+        <article class="card address-book-panel">
+          <div class="section-head">
+            <div>
+              <h3>Local address book</h3>
+              <p class="subtle">Contacts stay on this device. Only canonical VALDR addresses are accepted.</p>
+            </div>
+            <input id="contact-search" class="contact-search" autocomplete="off" spellcheck="false" placeholder="Search contacts">
+          </div>
+          <form id="contact-form" class="contact-form">
+            <input id="contact-original-address" type="hidden">
+            <label>
+              Label
+              <input id="contact-label" maxlength="128" autocomplete="off" placeholder="Contact name" required>
+            </label>
+            <label>
+              VALDR address
+              <input id="contact-address" autocomplete="off" spellcheck="false" placeholder="VDR1…" required>
+            </label>
+            <div class="actions">
+              <button class="primary" id="save-contact" type="submit">Save contact</button>
+              <button class="secondary hidden" id="cancel-contact-edit" type="button">Cancel edit</button>
+            </div>
+          </form>
+          <p id="contact-status" class="subtle"></p>
+          <div id="contact-list" class="contact-list"></div>
+          <p id="contact-empty" class="subtle">No contacts saved.</p>
+        </article>
       </section>
 
       <section class="view" id="view-receive">
@@ -1004,6 +1042,7 @@ let activeWalletName = "";
 let renderedReceiveQRAddress = "";
 let currentHistoryItems: TransactionHistoryItem[] = [];
 let visibleHistoryItems: TransactionHistoryItem[] = [];
+let addressBookContacts: AddressBookContact[] = [];
 let lastPreviewInput: {
   selector: string;
   recipient: string;
@@ -1261,6 +1300,107 @@ const renderWallets = (wallets: WalletMetadata[]): void => {
       renderWallets(wallets);
     });
     list.append(item);
+  }
+};
+
+const clearContactEditor = (): void => {
+  const original = document.getElementById("contact-original-address") as HTMLInputElement | null;
+  const label = document.getElementById("contact-label") as HTMLInputElement | null;
+  const address = document.getElementById("contact-address") as HTMLInputElement | null;
+  if (original) original.value = "";
+  if (label) label.value = "";
+  if (address) address.value = "";
+  document.getElementById("cancel-contact-edit")?.classList.add("hidden");
+  text("save-contact", "Save contact");
+};
+
+const renderAddressBook = (): void => {
+  const list = document.getElementById("contact-list");
+  const empty = document.getElementById("contact-empty");
+  if (!list || !empty) return;
+  list.replaceChildren();
+  const query = value("contact-search").trim().toLowerCase();
+  const contacts = addressBookContacts.filter((contact) =>
+    !query ||
+    contact.label.toLowerCase().includes(query) ||
+    contact.address.toLowerCase().includes(query),
+  );
+  empty.classList.toggle("hidden", contacts.length > 0);
+  for (const contact of contacts) {
+    const row = document.createElement("div");
+    row.className = "contact-item";
+    const identity = document.createElement("div");
+    const label = document.createElement("strong");
+    label.textContent = contact.label;
+    const address = document.createElement("code");
+    address.textContent = contact.address;
+    identity.append(label, address);
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const use = document.createElement("button");
+    use.type = "button";
+    use.className = "primary";
+    use.textContent = "Use";
+    use.addEventListener("click", () => {
+      const recipient = document.getElementById("send-recipient") as HTMLInputElement | null;
+      if (recipient) recipient.value = contact.address;
+      text("contact-status", `Selected ${contact.label} for Send.`);
+    });
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "secondary";
+    copy.textContent = "Copy";
+    copy.addEventListener("click", async () => {
+      try {
+        await api().CopyAddressBookContact(contact.address);
+        text("contact-status", `Copied ${contact.label} address.`);
+      } catch (error) {
+        text("contact-status", error instanceof Error ? error.message : String(error));
+      }
+    });
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "secondary";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => {
+      const original = document.getElementById("contact-original-address") as HTMLInputElement | null;
+      const labelInput = document.getElementById("contact-label") as HTMLInputElement | null;
+      const addressInput = document.getElementById("contact-address") as HTMLInputElement | null;
+      if (original) original.value = contact.address;
+      if (labelInput) labelInput.value = contact.label;
+      if (addressInput) addressInput.value = contact.address;
+      document.getElementById("cancel-contact-edit")?.classList.remove("hidden");
+      text("save-contact", "Update contact");
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "danger";
+    remove.textContent = "Delete";
+    remove.addEventListener("click", async () => {
+      try {
+        await api().DeleteAddressBookContact(contact.address);
+        await refreshAddressBook();
+        clearContactEditor();
+        text("contact-status", `Deleted ${contact.label}.`);
+      } catch (error) {
+        text("contact-status", error instanceof Error ? error.message : String(error));
+      }
+    });
+    actions.append(use, copy, edit, remove);
+    row.append(identity, actions);
+    list.append(row);
+  }
+};
+
+const refreshAddressBook = async (): Promise<void> => {
+  try {
+    addressBookContacts = await api().GetAddressBookContacts();
+    renderAddressBook();
+  } catch (error) {
+    addressBookContacts = [];
+    renderAddressBook();
+    text("contact-status", error instanceof Error ? error.message : String(error));
   }
 };
 
@@ -1909,6 +2049,8 @@ const navigateToView = (view: string): void => {
     void refreshExplorerStatus();
   } else if (view === "mining") {
     void refreshMining();
+  } else if (view === "send") {
+    void refreshAddressBook();
   }
 };
 
@@ -2315,6 +2457,37 @@ document.getElementById("wallet-auto-lock")?.addEventListener("change", async (e
       "wallet-security-status",
       error instanceof Error ? error.message : String(error),
     );
+  }
+});
+
+document.getElementById("contact-search")?.addEventListener("input", renderAddressBook);
+
+document.getElementById("cancel-contact-edit")?.addEventListener("click", () => {
+  clearContactEditor();
+  text("contact-status", "");
+});
+
+document.getElementById("contact-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const original = value("contact-original-address").trim();
+  const label = value("contact-label").trim();
+  const address = value("contact-address").trim();
+  if (!label || !address) {
+    text("contact-status", "Label and VALDR address are required.");
+    return;
+  }
+  try {
+    if (original) {
+      await api().UpdateAddressBookContact(original, label, address);
+      text("contact-status", "Contact updated.");
+    } else {
+      await api().CreateAddressBookContact(label, address);
+      text("contact-status", "Contact saved locally.");
+    }
+    clearContactEditor();
+    await refreshAddressBook();
+  } catch (error) {
+    text("contact-status", error instanceof Error ? error.message : String(error));
   }
 });
 

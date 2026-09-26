@@ -139,6 +139,7 @@ type App struct {
 	walletService   *desktopcore.WalletService
 	walletSessions  *desktopcore.WalletSessionManager
 	historyService  *desktopcore.HistoryService
+	addressBook     *desktopcore.AddressBookStore
 	preferenceStore *desktopcore.PreferenceStore
 	nodeLogs        *desktopcore.LogBuffer
 
@@ -224,6 +225,9 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	addressBook := desktopcore.NewAddressBookStore(
+		filepath.Join(paths.Root, "address-book.json"),
+	)
 
 	return &App{
 		paths:          paths,
@@ -233,6 +237,7 @@ func NewApp() (*App, error) {
 		walletService:  walletService,
 		walletSessions:  walletSessions,
 		historyService:  historyService,
+		addressBook:      addressBook,
 		preferenceStore: preferenceStore,
 		nodeLogs:        nodeLogs,
 		preferences:     preferences,
@@ -543,6 +548,52 @@ func (a *App) CopyReceiveAddress(address string) error {
 	address = strings.TrimSpace(address)
 	if !valdrcrypto.ValidateAddress(address) {
 		return ErrInvalidReceiveAddress
+	}
+	if a.ctx == nil {
+		return errors.New("VALDR Desktop is not started")
+	}
+	return wailsruntime.ClipboardSetText(a.ctx, address)
+}
+
+func (a *App) GetAddressBookContacts() ([]desktopcore.AddressBookContact, error) {
+	if a.addressBook == nil {
+		return nil, desktopcore.ErrAddressBookInvalid
+	}
+	return a.addressBook.List()
+}
+
+func (a *App) CreateAddressBookContact(
+	label string,
+	address string,
+) (desktopcore.AddressBookContact, error) {
+	if a.addressBook == nil {
+		return desktopcore.AddressBookContact{}, desktopcore.ErrAddressBookInvalid
+	}
+	return a.addressBook.Create(label, address)
+}
+
+func (a *App) UpdateAddressBookContact(
+	originalAddress string,
+	label string,
+	address string,
+) (desktopcore.AddressBookContact, error) {
+	if a.addressBook == nil {
+		return desktopcore.AddressBookContact{}, desktopcore.ErrAddressBookInvalid
+	}
+	return a.addressBook.Update(originalAddress, label, address)
+}
+
+func (a *App) DeleteAddressBookContact(address string) error {
+	if a.addressBook == nil {
+		return desktopcore.ErrAddressBookInvalid
+	}
+	return a.addressBook.Delete(address)
+}
+
+func (a *App) CopyAddressBookContact(address string) error {
+	address = strings.TrimSpace(address)
+	if !valdrcrypto.ValidateAddress(address) {
+		return desktopcore.ErrAddressBookInvalid
 	}
 	if a.ctx == nil {
 		return errors.New("VALDR Desktop is not started")
