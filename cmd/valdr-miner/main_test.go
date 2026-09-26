@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -100,5 +101,17 @@ func TestMinerStatus(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "\"running\": false") {
 		t.Fatalf("status output = %s", out.String())
+	}
+}
+
+
+func TestDefaultNodeEndpointTargetsTestnet2(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "http://127.0.0.1:" + strconv.Itoa(int(profile.RPCPort))
+	if defaultNodeEndpoint != want {
+		t.Fatalf("defaultNodeEndpoint=%q want=%q", defaultNodeEndpoint, want)
 	}
 }
