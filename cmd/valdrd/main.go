@@ -65,7 +65,7 @@ func initCommand(args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	dataDir := fs.String("data", "./data", "VALDR node data directory")
-	networkName := fs.String("network", config.NetworkLegacyV01, "VALDR network profile")
+	networkName := fs.String("network", config.NetworkTestnetV029, "VALDR network profile")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -136,7 +136,7 @@ func initCommand(args []string, out, errOut io.Writer) int {
 func statusCommand(args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	fs.SetOutput(errOut)
-	node := fs.String("node", "http://127.0.0.1:7332", "VALDR RPC endpoint")
+	node := fs.String("node", "http://127.0.0.1:17332", "VALDR RPC endpoint")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -160,7 +160,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	fs.SetOutput(errOut)
 
 	dataDir := fs.String("data", "./data", "VALDR node data directory")
-	networkName := fs.String("network", config.NetworkLegacyV01, "VALDR network profile")
+	networkName := fs.String("network", config.NetworkTestnetV029, "VALDR network profile")
 	nodeID := fs.String("node-id", "valdr-node", "P2P node id")
 	p2pHost := fs.String("p2p-host", "127.0.0.1", "P2P listen host")
 	advertiseAddress := fs.String("advertise-address", "", "P2P address advertised to peers; empty uses listen address")
@@ -440,7 +440,7 @@ func verifyDBCommand(args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("verify-db", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	dataDir := fs.String("data", "./data", "VALDR v0.2 data directory")
-	networkName := fs.String("network", config.NetworkLegacyV01, "VALDR network profile")
+	networkName := fs.String("network", config.NetworkTestnetV029, "VALDR network profile")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
