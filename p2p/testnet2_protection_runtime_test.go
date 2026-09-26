@@ -43,6 +43,7 @@ func TestTestnet2MalformedPeerIsBannedAndCanReconnectAfterExpiry(t *testing.T) {
 			profile,
 			"malformed-peer-"+string(rune('a'+attempt)),
 		)
+		waitForPeerCount(t, node, 1)
 
 		raw := malformedChecksumFrame(t, profile)
 		if _, err := conn.Write(raw); err != nil {
