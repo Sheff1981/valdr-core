@@ -21,7 +21,7 @@ type Client struct {
 func NewClient(endpoint string) *Client {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
-		endpoint = "http://127.0.0.1:7332"
+		endpoint = "http://127.0.0.1:17332"
 	}
 	if !strings.Contains(endpoint, "://") {
 		endpoint = "http://" + endpoint
