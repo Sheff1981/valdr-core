@@ -93,14 +93,14 @@ func TestHistoryServicePendingThenConfirmed(t *testing.T) {
 	available := []utxo.UTXO{{
 		TransactionID: coinbase.TransactionID,
 		OutputIndex:   0,
-		Amount:        config.InitialMiningReward,
+		Amount:        profile.InitialSubsidyVDR * config.AtomicUnitsPerVDR,
 		Recipient:     source.Address,
 	}}
 	spend, fee, err := source.CreateTransactionForChain(
 		profile.ChainID,
 		available,
 		recipient.Address,
-		config.AtomicUnitsPerVDR,
+		config.AtomicUnitsPerVDR/2,
 		profile.MinRelayFeePerByte,
 		profile.GenesisTimestamp+120,
 	)
@@ -148,7 +148,7 @@ func TestHistoryServicePendingThenConfirmed(t *testing.T) {
 	if history[0].Status != "pending" ||
 		history[0].Direction != "sent" ||
 		history[0].TransactionID != spend.TransactionID ||
-		history[0].AmountVal != config.AtomicUnitsPerVDR ||
+		history[0].AmountVal != config.AtomicUnitsPerVDR/2 ||
 		history[0].FeeVal != fee {
 		t.Fatalf("unexpected pending item: %+v", history[0])
 	}
