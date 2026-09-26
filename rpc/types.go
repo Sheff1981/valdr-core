@@ -69,8 +69,11 @@ type StatusResult struct {
 	Project                string `json:"project"`
 	Ticker                 string `json:"ticker"`
 	Version                string `json:"version"`
+	SourceCommit           string `json:"source_commit,omitempty"`
 	Network                string `json:"network"`
 	ChainID                string `json:"chain_id"`
+	ProtocolVersion        uint16 `json:"protocol_version"`
+	UptimeSeconds          uint64 `json:"uptime_seconds"`
 	Height                 uint64  `json:"height"`
 	BestKnownHeight        uint64  `json:"best_known_height"`
 	SyncProgress           float64 `json:"sync_progress"`
@@ -80,6 +83,7 @@ type StatusResult struct {
 	Target                 string `json:"target,omitempty"`
 	PeerCount              int    `json:"peer_count"`
 	MempoolCount           int    `json:"mempool_count"`
+	MempoolSizeBytes       uint64 `json:"mempool_size_bytes"`
 	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
 	LastBlockTime          int64  `json:"last_block_time"`
 }

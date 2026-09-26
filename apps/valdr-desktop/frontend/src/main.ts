@@ -15,6 +15,10 @@ type AddressBookContact = {
 type NodeStatus = {
   network: string;
   chain_id: string;
+  version: string;
+  source_commit?: string;
+  protocol_version: number;
+  uptime_seconds: number;
   height: number;
   best_known_height: number;
   sync_progress: number;
@@ -22,6 +26,7 @@ type NodeStatus = {
   chainwork: string;
   peer_count: number;
   mempool_count: number;
+  mempool_size_bytes: number;
   target_block_time_seconds: number;
   last_block_time: number;
 };
@@ -712,8 +717,13 @@ root.innerHTML = `
         <article class="card">
           <h2>Network diagnostics</h2>
           <dl class="details">
+            <div><dt>Desktop version</dt><dd id="detail-desktop-version">—</dd></div>
+            <div><dt>Core version</dt><dd id="detail-core-version">—</dd></div>
+            <div><dt>Source commit</dt><dd><code id="detail-source-commit">—</code></dd></div>
             <div><dt>Profile</dt><dd id="detail-network">testnet2</dd></div>
             <div><dt>Chain ID</dt><dd id="detail-chain">valdr-testnet-2</dd></div>
+            <div><dt>Protocol version</dt><dd id="detail-protocol-version">—</dd></div>
+            <div><dt>Node uptime</dt><dd id="detail-uptime">—</dd></div>
             <div><dt>Node state</dt><dd id="detail-node-state">—</dd></div>
             <div><dt>Synchronization</dt><dd id="detail-sync">—</dd></div>
             <div><dt>Local / best height</dt><dd id="detail-height">—</dd></div>
@@ -721,6 +731,8 @@ root.innerHTML = `
             <div><dt>Last accepted block</dt><dd id="detail-last-block-time">—</dd></div>
             <div><dt>Sync ETA</dt><dd id="detail-sync-eta">—</dd></div>
             <div><dt>Connected peers</dt><dd id="detail-peer-count">—</dd></div>
+            <div><dt>Mempool count</dt><dd id="detail-mempool-count">—</dd></div>
+            <div><dt>Mempool size</dt><dd id="detail-mempool-size">—</dd></div>
             <div><dt>Tip</dt><dd><code id="detail-tip">—</code></dd></div>
             <div><dt>Chainwork</dt><dd><code id="detail-chainwork">—</code></dd></div>
             <div><dt>Node data</dt><dd><code id="detail-data">—</code></dd></div>
@@ -1759,6 +1771,21 @@ const refreshNodeLogs = async (): Promise<void> => {
   }
 };
 
+const formatUptime = (seconds: number): string => {
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
+  const total = Math.floor(seconds);
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0 || days > 0) parts.push(`${hours}h`);
+  if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
+  parts.push(`${secs}s`);
+  return parts.join(" ");
+};
+
 const formatBytes = (value: number): string => {
   if (!Number.isFinite(value) || value < 0) return "—";
   if (value < 1024) return `${Math.round(value)} B`;
@@ -1913,6 +1940,11 @@ const renderState = (state: DesktopState): void => {
   text("wallet-count", String(state.wallets.length));
   text("detail-network", state.network);
   text("detail-chain", state.chain_id);
+  text("detail-desktop-version", "0.2.0-dev");
+  text("detail-core-version", status?.version || "—");
+  text("detail-source-commit", status?.source_commit || "—");
+  text("detail-protocol-version", status ? String(status.protocol_version) : "—");
+  text("detail-uptime", status ? formatUptime(status.uptime_seconds) : "—");
   text("detail-data", state.paths.node_data);
   text("detail-wallets", state.paths.wallets);
   text("detail-logs", state.paths.logs);
@@ -1948,6 +1980,8 @@ const renderState = (state: DesktopState): void => {
   text("detail-tip", status?.tip_hash || "—");
   text("detail-chainwork", status?.chainwork || "—");
   text("detail-peer-count", status ? String(status.peer_count) : "—");
+  text("detail-mempool-count", status ? String(status.mempool_count) : "—");
+  text("detail-mempool-size", status ? formatBytes(status.mempool_size_bytes) : "—");
   text(
     "detail-height",
     status ? `${status.height} / ${status.best_known_height}` : "—",

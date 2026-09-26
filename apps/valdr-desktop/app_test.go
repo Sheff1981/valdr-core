@@ -912,3 +912,33 @@ func TestDesktopFrontendStage12B5PrivacyMaskingContract(t *testing.T) {
 		t.Fatal("privacy masking must remain presentation-only and must not alter CSV data")
 	}
 }
+
+
+func TestDesktopFrontendStage12B6AdvancedDiagnosticsContract(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, marker := range []string{
+		`id="detail-desktop-version"`,
+		`id="detail-core-version"`,
+		`id="detail-source-commit"`,
+		`id="detail-protocol-version"`,
+		`id="detail-uptime"`,
+		`id="detail-mempool-count"`,
+		`id="detail-mempool-size"`,
+		`id="detail-peer-count"`,
+		`id="detail-last-block-time"`,
+		`id="detail-tip"`,
+		`id="detail-chainwork"`,
+		`id="detail-storage-size"`,
+		"status.mempool_size_bytes",
+		"status.uptime_seconds",
+		"status.source_commit",
+	} {
+		if !strings.Contains(source, marker) {
+			t.Fatalf("Stage 12B.6 advanced diagnostics missing %q", marker)
+		}
+	}
+}

@@ -69,7 +69,10 @@ func TestRPCReadSendConfirmFlow(t *testing.T) {
 	if status.Height != 1 || status.TipHash != block1.BlockHash {
 		t.Fatalf("status = %+v", status)
 	}
-	if status.ChainID != config.ChainID || status.MempoolCount != 0 {
+	if status.ChainID != config.ChainID ||
+		status.MempoolCount != 0 ||
+		status.MempoolSizeBytes != 0 ||
+		status.ProtocolVersion == 0 {
 		t.Fatalf("unexpected status = %+v", status)
 	}
 
@@ -159,6 +162,13 @@ func TestRPCReadSendConfirmFlow(t *testing.T) {
 	}
 	if pool.Len() != 1 {
 		t.Fatalf("mempool length = %d, want 1", pool.Len())
+	}
+	if err := client.Call(ctx, MethodGetStatus, nil, &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.MempoolCount != 1 ||
+		status.MempoolSizeBytes != uint64(payment.SerializedSize()) {
+		t.Fatalf("mempool diagnostics = %+v payment_size=%d", status, payment.SerializedSize())
 	}
 
 	var mempoolTxs []*transaction.Transaction

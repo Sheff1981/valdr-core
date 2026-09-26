@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -30,16 +31,17 @@ var (
 )
 
 type Server struct {
-	chain  *blockchain.Blockchain
-	node   *p2p.Node
-	mineMu sync.Mutex
+	chain     *blockchain.Blockchain
+	node      *p2p.Node
+	startedAt time.Time
+	mineMu    sync.Mutex
 }
 
 func NewServer(chain *blockchain.Blockchain, node *p2p.Node) (*Server, error) {
 	if chain == nil || node == nil {
 		return nil, ErrInvalidServerConfig
 	}
-	return &Server{chain: chain, node: node}, nil
+	return &Server{chain: chain, node: node, startedAt: time.Now().UTC()}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -129,12 +131,28 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			height,
 			s.node.Peers(),
 		)
+		var mempoolSizeBytes uint64
+		for _, tx := range s.node.MempoolTransactions() {
+			if tx != nil {
+				mempoolSizeBytes += uint64(tx.SerializedSize())
+			}
+		}
+		uptimeSeconds := uint64(0)
+		if !s.startedAt.IsZero() {
+			elapsed := time.Since(s.startedAt)
+			if elapsed > 0 {
+				uptimeSeconds = uint64(elapsed / time.Second)
+			}
+		}
 		return StatusResult{
 			Project:                config.ProjectName,
 			Ticker:                 config.Ticker,
 			Version:                config.Version,
+			SourceCommit:           buildSourceCommit(),
 			Network:                profile.Name,
 			ChainID:                profile.ChainID,
+			ProtocolVersion:        profile.ProtocolMax,
+			UptimeSeconds:          uptimeSeconds,
 			Height:                 height,
 			BestKnownHeight:        bestKnownHeight,
 			SyncProgress:           syncProgress,
@@ -144,6 +162,7 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			Target:                 target,
 			PeerCount:              s.node.PeerCount(),
 			MempoolCount:           s.node.MempoolLen(),
+			MempoolSizeBytes:       mempoolSizeBytes,
 			TargetBlockTimeSeconds: profile.TargetBlockTimeSeconds,
 			LastBlockTime:          lastBlockTime,
 		}, nil
@@ -356,6 +375,19 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 		MiningDurationMS: miningDurationMS,
 		HashrateHPS:      hashrateHPS,
 	}, nil
+}
+
+func buildSourceCommit() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	for _, setting := range info.Settings {
+		if setting.Key == "vcs.revision" {
+			return strings.TrimSpace(setting.Value)
+		}
+	}
+	return ""
 }
 
 func decodeParams(raw json.RawMessage, target any) error {
