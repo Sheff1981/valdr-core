@@ -30,6 +30,7 @@ func TestTestnet2OversizeFrameDisconnectsPeerBeforePayloadRead(t *testing.T) {
 		"oversize-peer",
 	)
 	defer conn.Close()
+	waitForPeerCount(t, node, 1)
 
 	header := make([]byte, v2FrameHeaderSize)
 	magic := profile.Magic()
@@ -89,6 +90,7 @@ func TestTestnet2FloodRateLimitDisconnectsAndBansPeer(t *testing.T) {
 		"flood-peer",
 	)
 	defer conn.Close()
+	waitForPeerCount(t, node, 1)
 
 	for i := uint64(1); i <= 3; i++ {
 		if err := WriteV2Frame(
