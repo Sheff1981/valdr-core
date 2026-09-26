@@ -22,7 +22,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: "1.26.8"
 
       - name: Build
         run: go build ./...
@@ -931,7 +931,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: "1.26.8"
 
       - name: Download Linux Stage 13 packages
         uses: actions/download-artifact@v4
