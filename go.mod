@@ -2,7 +2,7 @@ module github.com/Sheff1981/valdr-core
 
 go 1.23.0
 
-toolchain go1.23.12
+toolchain go1.26.8
 
 require (
 	github.com/dgraph-io/badger/v4 v4.9.4
