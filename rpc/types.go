@@ -81,6 +81,7 @@ type StatusResult struct {
 	PeerCount              int    `json:"peer_count"`
 	MempoolCount           int    `json:"mempool_count"`
 	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
+	LastBlockTime          int64  `json:"last_block_time"`
 }
 
 type BalanceResult struct {
