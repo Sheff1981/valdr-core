@@ -23,7 +23,7 @@ import (
 	"golang.org/x/term"
 )
 
-const defaultRPCEndpoint = "http://127.0.0.1:7332"
+const defaultRPCEndpoint = "http://127.0.0.1:17332"
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
