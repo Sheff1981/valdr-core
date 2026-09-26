@@ -701,6 +701,11 @@ func (n *Node) handleTransaction(peerID string, tx *transaction.Transaction) err
 	logging.Printf(logging.CategoryTX, "accepted txid=%s peer=%s", tx.TransactionID, peerID)
 	logging.Printf(logging.CategoryMempool, "size=%d", n.mempool.Len())
 
+	if n.enableV2 {
+		return n.broadcastV2Except(peerID, V2MessageTx, V2TxPayload{
+			Transaction: tx,
+		})
+	}
 	return n.broadcastExcept(peerID, transactionMessage{
 		Type:        messageTypeTransaction,
 		Transaction: tx,
