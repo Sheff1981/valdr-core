@@ -716,6 +716,9 @@ func TestDesktopFrontendStage12ScreenContract(t *testing.T) {
 		},
 		"network": {
 			`id="detail-sync"`,
+			`id="detail-blocks-remaining"`,
+			`id="detail-last-block-time"`,
+			`id="detail-sync-eta"`,
 			`id="detail-peer-count"`,
 			`id="detail-tip"`,
 			`id="detail-chainwork"`,
@@ -757,6 +760,27 @@ func TestDesktopFrontendStage12ScreenContract(t *testing.T) {
 	} {
 		if !strings.Contains(source, advancedNav) {
 			t.Fatalf("Advanced-only Desktop navigation contract missing %q", advancedNav)
+		}
+	}
+}
+
+func TestDesktopFrontendStage12B1SyncDetailContract(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, marker := range []string{
+		`id="sync-warning"`,
+		"Synchronization is incomplete.",
+		"best_known_height - status.height",
+		`text("detail-blocks-remaining"`,
+		`text("detail-last-block-time"`,
+		`text("detail-sync-eta"`,
+		`status.peer_count === 0 ? "Unknown" : "Calculating…"`,
+	} {
+		if !strings.Contains(source, marker) {
+			t.Fatalf("Stage 12B.1 sync detail missing %q", marker)
 		}
 	}
 }
