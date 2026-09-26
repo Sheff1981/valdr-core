@@ -126,7 +126,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: apps/valdr-desktop/go.mod
+          go-version: "1.26.8"
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -155,6 +155,14 @@ jobs:
           go mod tidy
           git diff -- go.mod go.sum
           git diff --exit-code -- go.mod go.sum
+
+      - name: Audit Desktop Go dependencies
+        working-directory: apps/valdr-desktop
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+      - name: Vet Desktop backend
+        working-directory: apps/valdr-desktop
+        run: go vet -tags webkit2_41 ./...
 
       - name: Test Wails Desktop backend
         working-directory: apps/valdr-desktop
@@ -428,7 +436,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: apps/valdr-desktop/go.mod
+          go-version: "1.26.8"
 
       - name: Set up Node
         uses: actions/setup-node@v4
