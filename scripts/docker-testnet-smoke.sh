@@ -327,6 +327,51 @@ assert block10["target"] == pow_limit, block10
 assert block10["target"] != block9["target"], (block9, block10)
 PY
 
+# Exercise two independent valdr-miner processes against two different
+# Testnet2 nodes at the same height. Equal-work siblings may temporarily leave
+# each node on its locally-found tip; one additional block must resolve the
+# fork by cumulative chainwork and converge all nodes without manual repair.
+miner1_out=$(mktemp)
+miner2_out=$(mktemp)
+"${compose[@]}" exec -T node1 valdr-miner start \
+  --node http://127.0.0.1:17332 \
+  --reward-address "$reward_address" \
+  --blocks 1 --interval 0 >"$miner1_out" &
+miner1_pid=$!
+"${compose[@]}" exec -T node2 valdr-miner start \
+  --node http://127.0.0.1:17332 \
+  --reward-address "$miner2_address" \
+  --blocks 1 --interval 0 >"$miner2_out" &
+miner2_pid=$!
+
+wait "$miner1_pid"
+wait "$miner2_pid"
+miner1_json=$(cat "$miner1_out")
+miner2_json=$(cat "$miner2_out")
+rm -f "$miner1_out" "$miner2_out"
+
+python3 - "$miner1_json" "$miner2_json" "$reward_address" "$miner2_address" <<'PY'
+import json, sys
+m1=json.loads(sys.argv[1])
+m2=json.loads(sys.argv[2])
+assert m1["height"] == 11, m1
+assert m2["height"] == 11, m2
+assert m1["reward_address"] == sys.argv[3], m1
+assert m2["reward_address"] == sys.argv[4], m2
+assert m1["block_hash"] and m2["block_hash"], (m1, m2)
+assert m1["block_hash"] != m2["block_hash"], (m1, m2)
+assert m1["hashes_tried"] > 0 and m2["hashes_tried"] > 0, (m1, m2)
+assert m1["hashrate_hps"] > 0 and m2["hashrate_hps"] > 0, (m1, m2)
+PY
+
+# Extend node1's active branch. Its greater cumulative chainwork must cause
+# node2/node3 to converge even if height 11 was a temporary equal-work split.
+"${compose[@]}" exec -T node1 valdr-miner start \
+  --node http://127.0.0.1:17332 \
+  --reward-address "$reward_address" \
+  --blocks 1 --interval 0 >/dev/null
+wait_same_tip 12
+
 # Verify the stopped follower database after the retarget, restart it, and
 # require persisted Testnet2 state to converge without DB deletion or repair.
 "${compose[@]}" stop node3
@@ -335,11 +380,11 @@ verified=$("${compose[@]}" run --rm --no-deps node3 verify-db \
 python3 - "$verified" <<'PY'
 import json, sys
 result = json.loads(sys.argv[1])
-assert result["valid"] is True and result["height"] == 10, result
+assert result["valid"] is True and result["height"] == 12, result
 PY
 "${compose[@]}" start node3
 wait_healthy node3
-wait_same_tip 10
+wait_same_tip 12
 
 restart_balance=$("${compose[@]}" exec -T node3 valdr-cli balance \
   --node http://127.0.0.1:17332 "$recipient_address")
@@ -355,8 +400,8 @@ import json, sys
 status=json.loads(sys.argv[1])
 assert status["status"]["chain_id"] == "valdr-testnet-2", status
 assert status["status"]["network"] == "testnet2", status
-assert status["status"]["height"] == 10, status
-assert status["index_height"] == 10, status
+assert status["status"]["height"] == 12, status
+assert status["index_height"] == 12, status
 PY
 
 echo "VALDR Docker Testnet2 Core smoke: PASS"
