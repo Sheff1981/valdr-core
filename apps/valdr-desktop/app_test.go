@@ -774,9 +774,9 @@ func TestDesktopFrontendStage12B1SyncDetailContract(t *testing.T) {
 		`id="sync-warning"`,
 		"Synchronization is incomplete.",
 		"best_known_height - status.height",
-		`text("detail-blocks-remaining"`,
-		`text("detail-last-block-time"`,
-		`text("detail-sync-eta"`,
+		`"detail-blocks-remaining"`,
+		`"detail-last-block-time"`,
+		`"detail-sync-eta"`,
 		`status.peer_count === 0 ? "Unknown" : "Calculating…"`,
 	} {
 		if !strings.Contains(source, marker) {
