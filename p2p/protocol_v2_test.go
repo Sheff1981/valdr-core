@@ -56,7 +56,7 @@ func TestV2FrameGoldenVector(t *testing.T) {
 
 func TestV2FrameRejectsWrongNetworkBeforePayloadDecode(t *testing.T) {
 	devnet, _ := config.ResolveNetworkProfile(config.NetworkDevnetV02)
-	testnet, _ := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	testnet, _ := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 
 	var buf bytes.Buffer
 	if err := WriteV2Frame(&buf, devnet, 2, V2MessagePing, map[string]any{"nonce": 1}); err != nil {
@@ -137,7 +137,7 @@ func TestV2HelloNegotiatesHighestMutualVersion(t *testing.T) {
 
 	hello.ProtocolMin = 2
 	hello.ProtocolMax = 2
-	hello.ChainID = "valdr-testnet-1"
+	hello.ChainID = "valdr-testnet-2"
 	if _, err := NegotiateV2Hello(profile, 2, 2, hello); !errors.Is(err, ErrWrongChainID) {
 		t.Fatalf("error=%v want ErrWrongChainID", err)
 	}
