@@ -97,4 +97,4 @@ Never downgrade or replace chain data across different Chain IDs or Genesis hash
 
 ## Private/public Testnet boundary
 
-This deployment material completes the Stage 11 packaging/service gate only. It does not constitute the Stage 12 public Testnet launch. Public Testnet still requires at least three stable public full nodes across at least two independent regions/providers, a 24-hour private soak and the seven-day public stability gate from the master specification.
+This deployment material is packaging/service evidence only and does not by itself complete final validation. Under Master-TZ v0.2.12, final distributed validation is session-based: at least three independently launched nodes/clients, at least one real reachable bootstrap route, and at least three separate sessions of approximately 2-3 hours covering restart, bootstrap-loss/recovery, mining, transactions, peer exchange, reorg observation and installer/Desktop use where applicable. There is no mandatory 24-hour or seven-day continuous powered-on gate for v0.2.
