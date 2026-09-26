@@ -9,8 +9,8 @@ import (
 	"github.com/Sheff1981/valdr-core/wallet"
 )
 
-func TestTestnetRejectsDevnet2TransactionReplay(t *testing.T) {
-	testnet, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+func TestTestnet2RejectsDevnet2TransactionReplay(t *testing.T) {
+	testnet, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestTestnetRejectsDevnet2TransactionReplay(t *testing.T) {
 		testnet.ChainID,
 		1,
 		source.Address,
-		config.InitialMiningReward,
+		testnet.InitialSubsidyVDR*config.AtomicUnitsPerVDR,
 		testnet.GenesisTimestamp+60,
 	)
 	if err != nil {
@@ -59,7 +59,7 @@ func TestTestnetRejectsDevnet2TransactionReplay(t *testing.T) {
 			OutputIndex:           0,
 		}},
 		[]transaction.Output{{
-			Amount:    config.InitialMiningReward - 1_000,
+			Amount:    testnet.InitialSubsidyVDR*config.AtomicUnitsPerVDR - 1_000,
 			Recipient: recipient.Address,
 		}},
 		testnet.GenesisTimestamp+120,
