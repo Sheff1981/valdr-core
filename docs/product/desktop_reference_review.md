@@ -641,3 +641,60 @@ Implementation in `Sheff1981/valdr-site` commit `571a3fcaa23e3bd1b7a84cc927c0054
 - keeps executable download buttons fail-closed until verified public release metadata exists.
 
 This adopts the already-reviewed Bitcoin Core/Monero/Litecoin download-selection and full-node education patterns without copying branding, layout or third-party code. No consensus, wallet, node, P2P, storage or Mainnet behavior changes.
+
+## 27. Bitcoin Core v31.1 full-screen UX audit
+
+**Date:** 2026-09-26  
+**Master decision:** `docs/VALDR_Master_TZ_v0.2.10.md`  
+**Reference:** Bitcoin Core v31.1 source, especially `src/qt`, `src/wallet`, `src/net*`, `doc/files.md` and release/download documentation.
+
+Reviewed screen groups:
+
+- first-run/data directory and synchronization;
+- wallet creation/encryption/passphrase flows;
+- Overview balances and recent transactions;
+- Send, fee controls and Coin Control;
+- Receive/payment-request UI;
+- transaction filters/details/export;
+- address book;
+- Sign/Verify Message;
+- PSBT operations;
+- Node Information, RPC Console, Network Traffic and Peers;
+- Options, privacy/mask-values and general Desktop behavior.
+
+Adopt into VALDR v0.2.10:
+
+- richer truthful sync detail;
+- semantically correct balance states where supported;
+- transaction search/filter/date range and CSV export;
+- local destination address book;
+- privacy amount masking;
+- richer Advanced node/peer diagnostics;
+- exact version/build/source identity.
+
+Explicitly defer:
+
+- RBF/abandon transaction;
+- Coin Control/custom change;
+- multiple-recipient send;
+- payment URI;
+- Sign/Verify Message;
+- PSBT;
+- hardware/external signer;
+- watch-only/blank wallets;
+- pruning;
+- Tor/I2P/CJDNS;
+- embedded RPC console;
+- peer bans;
+- automatic port mapping;
+- system tray;
+- network traffic graph.
+
+Reasoning:
+
+VALDR adopts mature product patterns that improve safety and diagnosability without expanding consensus or replacing the existing Go/Wails architecture. Bitcoin-specific features are deferred until VALDR has a concrete protocol/product need.
+
+Security implication:
+
+all new fields must come from real runtime/read models; no UI may fabricate chain state, balances, peer metrics, release identity or synchronization progress.
+
