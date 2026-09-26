@@ -1,8 +1,10 @@
 package wallet
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"fmt"
 	"io/fs"
 	"os"
@@ -327,8 +329,8 @@ func readWalletRecord(path string) (*walletRecord, error) {
 			return nil, ErrUnsupportedWalletFile
 		}
 		var file WalletFileV2
-		if err := json.Unmarshal(raw, &file); err != nil {
-			return nil, err
+		if err := decodeWalletV2Strict(raw, &file); err != nil {
+			return nil, ErrUnsupportedWalletFile
 		}
 		if err := validateWalletV2Parameters(&file); err != nil {
 			return nil, err
@@ -399,4 +401,24 @@ func writeWalletFile(path string, value any) error {
 		return err
 	}
 	return os.Chmod(path, 0o600)
+}
+
+
+func decodeWalletV2Strict(raw []byte, target *WalletFileV2) error {
+	if target == nil {
+		return ErrUnsupportedWalletFile
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return ErrUnsupportedWalletFile
+		}
+		return err
+	}
+	return nil
 }
