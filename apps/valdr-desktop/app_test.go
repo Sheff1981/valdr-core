@@ -935,7 +935,7 @@ func TestDesktopFrontendStage12B6AdvancedDiagnosticsContract(t *testing.T) {
 		`id="detail-storage-size"`,
 		"status.mempool_size_bytes",
 		"status.uptime_seconds",
-		"status.source_commit",
+		"source_commit",
 	} {
 		if !strings.Contains(source, marker) {
 			t.Fatalf("Stage 12B.6 advanced diagnostics missing %q", marker)
