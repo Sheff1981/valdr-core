@@ -285,3 +285,40 @@ func TestWalletSessionTimeoutIsConfigurable(t *testing.T) {
 		t.Fatalf("oversized timeout error=%v", err)
 	}
 }
+
+
+func TestWalletServiceRejectsHistoricalTestnet1ForSending(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := wallet.NewStore(filepath.Join(t.TempDir(), "wallets"))
+	passphrase := []byte("desktop-old-testnet-passphrase")
+	source, err := store.CreateEncrypted("source-old-testnet", passphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipient, err := wallet.New("recipient-old-testnet")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewWalletService(store, &walletServiceRPCMock{
+		status: rpc.StatusResult{
+			Network: profile.Name,
+			ChainID: profile.ChainID,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := service.PreviewSend(
+		context.Background(),
+		source.Address,
+		passphrase,
+		recipient.Address,
+		1,
+	); !errors.Is(err, ErrDesktopMainnet) {
+		t.Fatalf("historical Testnet1 send error=%v want ErrDesktopMainnet", err)
+	}
+}
