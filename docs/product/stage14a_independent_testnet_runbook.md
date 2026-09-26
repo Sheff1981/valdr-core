@@ -1,12 +1,12 @@
 # VALDR Stage 14A independent Testnet runbook
 
-**Master baseline:** `docs/VALDR_Master_TZ_v0.2.11.md`  
+**Master baseline:** `docs/VALDR_Master_TZ_v0.2.12.md`  
 **Network:** `testnet2` / `valdr-testnet-2`  
 **Status:** operational procedure only; Stage 14A is not complete until real independent-machine evidence exists.
 
 ## Purpose
 
-Run the first real distributed VALDR Testnet2 soak on at least three independently launched computers/clients for at least 24 hours.
+Run the final real distributed VALDR Testnet2 validation on at least three independently launched computers/clients after the technical implementation wave is complete.
 
 This procedure does not change consensus or network constants. It turns the automated/local preflight evidence into a reproducible real-network test.
 
@@ -108,7 +108,7 @@ On each system run:
 bash scripts/stage14a-soak-observe.sh \
   --node http://127.0.0.1:17332 \
   --data ./valdr-testnet2-a \
-  --duration-seconds 86400 \
+  --duration-seconds 10800 \
   --interval-seconds 60 \
   --output stage14a-node-a.jsonl
 ```
@@ -148,7 +148,7 @@ After peer exchange is confirmed:
 
 Record the approximate UTC times of each action.
 
-## What must be watched for >=24 hours
+## What must be watched during each 2-3 hour validation session
 
 Record any:
 
@@ -167,14 +167,14 @@ No issue should be hidden by deleting node data.
 
 ## Stage 14A exit evidence
 
-Stage 14A can be marked complete only when all of the following are true:
+Stage 14A can be marked complete only at the final validation phase when all of the following are true:
 
 - at least three independently launched nodes/clients participated;
 - at least one real cold-client bootstrap route was reachable;
 - peer exchange learned additional peers;
 - peer cache survived restart;
 - losing the original bootstrap route did not break connected consensus;
-- the soak ran for at least 24 hours;
+- at least three separate validation sessions were completed, each approximately 2-3 hours;
 - no consensus split occurred;
 - no manual database repair was required;
 - any blockers found were fixed;
