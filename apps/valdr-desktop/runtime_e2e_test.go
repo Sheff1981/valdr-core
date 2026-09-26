@@ -116,19 +116,30 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sourceBalance.BalanceVal < config.InitialMiningReward {
-		t.Fatalf("source balance=%d want at least one block reward=%d", sourceBalance.BalanceVal, config.InitialMiningReward)
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedRewardVal := profile.InitialSubsidyVDR * config.AtomicUnitsPerVDR
+	if sourceBalance.BalanceVal < expectedRewardVal {
+		t.Fatalf(
+			"source balance=%d want at least one Testnet2 block reward=%d",
+			sourceBalance.BalanceVal,
+			expectedRewardVal,
+		)
 	}
 
+	const transferAmountVDR = "0.50000000"
+	const transferAmountVal = config.AtomicUnitsPerVDR / 2
 	preview, err := app.PreviewSend(
 		source.Address,
 		recipient.Address,
-		"1.00000000",
+		transferAmountVDR,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if preview.AmountVal != config.AtomicUnitsPerVDR ||
+	if preview.AmountVal != transferAmountVal ||
 		preview.FeeVal == 0 ||
 		preview.TotalVal != preview.AmountVal+preview.FeeVal {
 		t.Fatalf("unexpected Desktop send preview: %+v", preview)
@@ -137,7 +148,7 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	sent, err := app.SendTransaction(
 		source.Address,
 		recipient.Address,
-		"1.00000000",
+		transferAmountVDR,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +176,7 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if pendingReceived == nil ||
 		pendingReceived.Status != "pending" ||
 		pendingReceived.Direction != "received" ||
-		pendingReceived.AmountVal != config.AtomicUnitsPerVDR {
+		pendingReceived.AmountVal != transferAmountVal {
 		t.Fatalf("recipient pending history missing receive transaction %s: %+v", sent.TransactionID, recipientPending)
 	}
 
@@ -197,7 +208,7 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if confirmedReceived == nil ||
 		confirmedReceived.Status != "confirmed" ||
 		confirmedReceived.Direction != "received" ||
-		confirmedReceived.AmountVal != config.AtomicUnitsPerVDR ||
+		confirmedReceived.AmountVal != transferAmountVal ||
 		confirmedReceived.Confirmations < 1 {
 		t.Fatalf("recipient confirmed history missing receive transaction %s: %+v", sent.TransactionID, recipientConfirmed)
 	}
@@ -206,8 +217,8 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if recipientBalance.BalanceVal != config.AtomicUnitsPerVDR ||
-		recipientBalance.BalanceVDR != "1.00000000" {
+	if recipientBalance.BalanceVal != transferAmountVal ||
+		recipientBalance.BalanceVDR != transferAmountVDR {
 		t.Fatalf("unexpected recipient balance after confirmation: %+v", recipientBalance)
 	}
 
