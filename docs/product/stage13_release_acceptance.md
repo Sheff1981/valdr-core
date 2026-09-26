@@ -2,8 +2,8 @@
 
 **Status:** DEVELOPMENT EVIDENCE COMPLETE — Testnet2 development packaging/provenance and clean verification are CI-verified; this is not a public release acceptance.  
 **Baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`  
-**Current evidence commit:** `61f6941cee00a19cd187929de2879cf54e43cb6e`  
-**CI evidence:** VALDR v0.2 CI run `36257506295` (#457) — SUCCESS on 2026-09-26.
+**Current evidence commit:** `71934ef8e36d03a74d01fdc81314678d381c3090`  
+**CI evidence:** VALDR v0.2 CI run `36265468602` (#463) — SUCCESS on 2026-09-26.
 
 This document records evidence only. CI #457 proves the active Testnet2 development pipeline on one exact source commit, including the completed Stage 12B cross-platform matrix, packaging, clean verification and non-public provenance handoff. It does not satisfy the remaining manual/public-release gates and does not authorize a Mainnet launch.
 
@@ -70,13 +70,27 @@ If legitimate OS-vendor signing becomes obtainable later, it may be added as har
 
 **Stage 13B exit gate: PASS.**
 
+## Stage 13C website content evidence
+
+- Site repository: `Sheff1981/valdr-site`.
+- Exact site commit: `805acb14df2680c13fc3488c3fc9ced1db9b9c95`.
+- Website CI run: `36266129459` (#59) — **SUCCESS**.
+- Required public routes are present, including Getting Started and Using VALDR.
+- English canonical content and Russian maintained localization are covered by static/HTTP CI checks.
+- Active content is pinned to Testnet2 / `valdr-testnet-2`; stale Devnet2/Testnet1 wording is rejected by the site validation contract.
+- Existing original diagrams cover wallet/node/P2P/transaction/mining/Explorer behavior.
+- The Home page now includes a real VALDR Desktop first-run screenshot captured from Core CI #463 on exact Core commit `71934ef8e36d03a74d01fdc81314678d381c3090`, rather than a fabricated product screenshot.
+- French remains deferred until canonical English/Russian content is stable, as required.
+
+**Stage 13C implementation/CI exit gate: PASS.** This does not satisfy Stage 12C manual Windows acceptance and does not freeze a public release candidate.
+
 ## 4. Remaining public-release blockers
 
 The remaining mandatory blockers are:
 
 1. close Stage 12 manual Windows GUI acceptance;
 2. deliberately freeze a non-development Testnet release-candidate version instead of `0.2.0-dev`;
-3. Stage 13B website CI is now green on the exact integrated site commit; final RC artifact links remain intentionally disabled until freeze;
+3. Stage 13B and Stage 13C website gates are green; final RC artifact links remain intentionally disabled until freeze;
 4. run the final RC packaging, SHA-256, GitHub/Sigstore provenance and independent clean verification gates;
 5. publish only after the accepted artifacts map to the exact frozen commit.
 
@@ -88,4 +102,4 @@ The Stage 13A Testnet2 development package matrix, clean install/launch/uninstal
 
 Therefore the **Stage 13A development evidence gate is PASS**. This does not create a public Testnet release: `config.Version` remains `0.2.0-dev`, Stage 12C manual Windows acceptance remains deferred final validation, and the website/public RC gates remain unresolved.
 
-The next technical work should follow Master-TZ v0.2.13 after this evidence fixation; no Mainnet or public-release claim is authorized by this document.
+Stage 13B-C website technical/content gates are CI-green. The next automatable hardening work follows Master-TZ v0.2.13; Stage 12C manual Windows acceptance remains a genuine external gate and no Mainnet or public-release claim is authorized by this document.
