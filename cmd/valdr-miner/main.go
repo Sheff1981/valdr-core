@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	defaultNodeEndpoint = "http://127.0.0.1:7332"
+	defaultNodeEndpoint = "http://127.0.0.1:17332"
 	mineBlockRPCTimeout = 5 * time.Minute
 )
 
