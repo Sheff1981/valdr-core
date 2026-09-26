@@ -1,11 +1,11 @@
 # VALDR Stage 13 release acceptance evidence
 
-**Status:** IN PROGRESS — Testnet2 development packaging/provenance is regenerated and CI-verified; this is not a public release acceptance.  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.11.md`  
-**Current evidence commit:** `ed9b1425847f4e391a678cca3cf87d3acf0d866c`  
-**CI evidence:** VALDR v0.2 CI run `36217224372` (#367) — SUCCESS on 2026-09-26.
+**Status:** DEVELOPMENT EVIDENCE COMPLETE — Testnet2 development packaging/provenance and clean verification are CI-verified; this is not a public release acceptance.  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`  
+**Current evidence commit:** `61f6941cee00a19cd187929de2879cf54e43cb6e`  
+**CI evidence:** VALDR v0.2 CI run `36257506295` (#457) — SUCCESS on 2026-09-26.
 
-This document records evidence only. CI #367 proves the active Testnet2 development pipeline on one exact source commit, including cross-platform runtime, packaging, clean verification and non-public provenance handoff. It does not satisfy the remaining manual/public-release gates and does not authorize a Mainnet launch.
+This document records evidence only. CI #457 proves the active Testnet2 development pipeline on one exact source commit, including the completed Stage 12B cross-platform matrix, packaging, clean verification and non-public provenance handoff. It does not satisfy the remaining manual/public-release gates and does not authorize a Mainnet launch.
 
 ## 1. Current evidence matrix
 
@@ -24,7 +24,7 @@ This document records evidence only. CI #367 proves the active Testnet2 developm
 | GitHub/Sigstore keyless provenance | `actions/attest@v4` creates signed provenance using GitHub Actions OIDC/Sigstore for the assembled release subjects | automated development gate green |
 | Provenance bundle retention | assembly contains `VALDR-Desktop-<version>-provenance.sigstore.json` | automated development gate green |
 | Clean provenance verification | separate clean runner verifies artifacts with `gh attestation verify` constrained to `Sheff1981/valdr-core`, expected workflow, source ref and exact commit | automated development gate green |
-| Exact CI-run → release handoff | `valdr-v02-release.yml` is called as a same-commit reusable workflow after clean release verification; CI #367 completed `stage13-release-handoff-development / verify-development-release-handoff` successfully on exact commit `ed9b1425847f4e391a678cca3cf87d3acf0d866c`; the handoff re-verifies manifest/checksums/provenance and emits a non-public record only | automated development gate green |
+| Exact CI-run → release handoff | `valdr-v02-release.yml` is called as a same-commit reusable workflow after clean release verification; CI #457 completed `stage13-release-handoff-development / verify-development-release-handoff` successfully on exact commit `61f6941cee00a19cd187929de2879cf54e43cb6e`; the handoff re-verifies manifest/checksums/provenance and emits a non-public record only | automated development gate green |
 | Production fail-closed gate | current `0.2.0-dev` cannot generate a production Testnet manifest; development signing/notarization claims remain invalid in production metadata; mandatory package set is enforced | automated safety gate green |
 | Windows Authenticode | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful `unsigned` metadata when absent | not a Testnet release blocker |
 | Apple Developer ID / notarization | unavailable for current project owner; v0.2.8 makes it optional future hardening and requires truthful ad-hoc / not-notarized metadata when absent | not a Testnet release blocker |
@@ -32,11 +32,12 @@ This document records evidence only. CI #367 proves the active Testnet2 developm
 | Official website CI | latest observed site run `36170935148` (#47) completed with an empty step list; no validation step executed, consistent with the existing runner-allocation infrastructure block | infrastructure blocked / no GitHub CI test evidence |
 | Final Testnet release-candidate version | repository still uses `config.Version = "0.2.0-dev"` | pending deliberate freeze |
 | Final release clean verification | development path is proven; frozen non-development RC must repeat checksum + provenance verification | pending release candidate |
-| Stage 12 manual Windows acceptance | automated acceptance is green, but outstanding Windows manual GUI acceptance is not recorded as closed | blocking public release |
+| Stage 12B automated usability gate | final Stage 12B commit `61f6941cee00a19cd187929de2879cf54e43cb6e`; full cross-platform CI #457 green | automated gate green |
+| Stage 12 manual Windows acceptance | Stage 12C remains deferred final validation; no manual GUI PASS is recorded yet | blocking public release |
 
 ## 2. Development artifacts proven by CI
 
-Run `36217224372` (#367) proves the current Testnet2 Stage 13 development pipeline and final non-public handoff execute successfully on exact commit `ed9b1425847f4e391a678cca3cf87d3acf0d866c`. The packaging/provenance artifacts remain development artifacts:
+Run `36217224372` (#367) proves the current Testnet2 Stage 13 development pipeline and final non-public handoff execute successfully on exact commit `61f6941cee00a19cd187929de2879cf54e43cb6e`. The packaging/provenance artifacts remain development artifacts:
 
 - Windows x64 installer and portable ZIP;
 - Linux x64 AppImage and amd64 `.deb`;
@@ -68,8 +69,10 @@ The remaining mandatory blockers are:
 
 No fake, borrowed or misleading Microsoft/Apple identity may be introduced to satisfy an obsolete checklist item.
 
-## 5. Next implementation step
+## 5. Current gate result and next step
 
-The Testnet2 development authenticity path, clean verification and exact-run non-public handoff are implemented and CI-green on run `36217224372` (#367). Website CI and Stage 12 manual Windows acceptance remain unresolved public-release gates.
+The Stage 13A Testnet2 development package matrix, clean install/launch/uninstall checks, manifest/checksum verification, GitHub/Sigstore provenance verification and exact-run non-public handoff are all CI-green on run `36257506295` (#457), exact commit `61f6941cee00a19cd187929de2879cf54e43cb6e`.
 
-Per the project owner's explicit current priority, no further Desktop/site UX expansion is taken as the next engineering task. The next engineering work after R0 evidence fixation is full Testnet2 Core/runtime verification, followed by independent mining/nodes and distributed-network soak. This operational ordering does not mark Stage 12 complete and does not authorize a public release or Mainnet.
+Therefore the **Stage 13A development evidence gate is PASS**. This does not create a public Testnet release: `config.Version` remains `0.2.0-dev`, Stage 12C manual Windows acceptance remains deferred final validation, and the website/public RC gates remain unresolved.
+
+The next technical work should follow Master-TZ v0.2.13 after this evidence fixation; no Mainnet or public-release claim is authorized by this document.

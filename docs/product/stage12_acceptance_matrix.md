@@ -1,10 +1,10 @@
 # VALDR Stage 12 Desktop acceptance matrix
 
 **Date:** 2026-09-26  
-**Master baseline:** `docs/VALDR_Master_TZ_v0.2.11.md`  
+**Master baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`  
 **Branch:** `valdr-v0.2`
 
-This file records Stage 12 evidence under the cumulative Master-TZ v0.2.11. It does not change consensus or release scope.
+This file records Stage 12 evidence under the active cumulative Master-TZ v0.2.13. It does not change consensus or release scope.
 
 ## Testnet2 R0 automated baseline
 
@@ -15,7 +15,23 @@ This file records Stage 12 evidence under the cumulative Master-TZ v0.2.11. It d
 - Live Desktop wallet send/receive/history, clean-launch/restart, managed node/miner bundling and Testnet2 identity checks passed.
 - This is automated evidence only. The separate Windows owner GUI checklist remains manually unverified.
 
-**Stage 12A automated exit gate: PASS on the Testnet2 CI commit above.** The required cross-platform runtime jobs, first-run, send/receive/history, restart persistence and crash recovery have automated evidence. Stage 12B usability work and Stage 12C human-visible Windows acceptance remain open. The Windows checklist now points to the Testnet2 artifact from this exact run; its former Testnet1 candidate must not be reused.
+**Stage 12A automated exit gate: PASS on the Testnet2 CI commit above.** The required cross-platform runtime jobs, first-run, send/receive/history, restart persistence and crash recovery have automated evidence. Stage 12B is now automated-PASS on CI #457; Stage 12C human-visible Windows acceptance remains open. The Windows checklist now points to the Testnet2 artifact from this exact run; its former Testnet1 candidate must not be reused.
+
+## Stage 12B usability-hardening closure evidence
+
+- Final Stage 12B source commit: `61f6941cee00a19cd187929de2879cf54e43cb6e`.
+- VALDR v0.2 CI run `36257506295` (#457): **SUCCESS** on 2026-09-26.
+- Final cross-platform matrix passed on Linux x64, Windows x64, macOS ARM64 and macOS AMD64.
+- Stage 12B.1 synchronization detail: implemented and CI-verified.
+- Stage 12B.2 balance semantics: implemented and CI-verified.
+- Stage 12B.3 transaction usability and safe filtered CSV export: implemented and CI-verified.
+- Stage 12B.4 local-only address book: implemented and CI-verified.
+- Stage 12B.5 presentation-only amount privacy masking: implemented and CI-verified.
+- Stage 12B.6 advanced diagnostics: implemented using only metrics actually exposed by the runtime; unavailable peer metrics are not fabricated.
+- Stage 12B.7 About / Build Identity: implemented and CI-verified. No official website URL is claimed because no canonical URL is currently recorded in the core repository.
+- Stage 12B.8 remains explicitly deferred by Master-TZ and is not part of the Stage 12B exit gate.
+
+**Stage 12B automated exit gate: PASS on CI #457.** Stage 12 itself is not frozen complete because Stage 12C manual Windows acceptance remains intentionally deferred to final validation.
 
 ## Testnet2 P2P v2 relay / reorg runtime gate
 
