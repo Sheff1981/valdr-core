@@ -249,7 +249,31 @@ jobs:
 
           WINDOW_ID=""
           for _ in $(seq 1 20); do
-            WINDOW_ID="$(xdotool search --name '^VALDR Desktop
+            WINDOW_ID="$(xdotool search --name 'VALDR Desktop' 2>/dev/null | head -n1 || true)"
+            if [ -n "$WINDOW_ID" ]; then
+              break
+            fi
+            sleep 0.5
+          done
+          if [ -z "$WINDOW_ID" ]; then
+            xwininfo -root -tree || true
+            cat "$LOG"
+            echo "VALDR Desktop window was not found for screenshot capture" >&2
+            exit 1
+          fi
+          import -display "$DISPLAY" -window "$WINDOW_ID" "$RUNNER_TEMP/valdr-desktop-current.png"
+          test -s "$RUNNER_TEMP/valdr-desktop-current.png"
+          COLORS="$(identify -format '%k' "$RUNNER_TEMP/valdr-desktop-current.png")"
+          if [ "$COLORS" -lt 32 ]; then
+            identify "$RUNNER_TEMP/valdr-desktop-current.png" || true
+            echo "Desktop screenshot appears blank or unrendered: colors=$COLORS" >&2
+            exit 1
+          fi
+
+          stop_process "$DESKTOP_PID"
+          stop_process "$OPENBOX_PID"
+          stop_process "$XVFB_PID"
+          trap - EXIT
 
       - name: Build Stage 13 Linux development packages
         shell: bash
