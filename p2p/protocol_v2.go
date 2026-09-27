@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/Sheff1981/valdr-core/config"
@@ -224,7 +225,8 @@ func NegotiateV2Hello(
 		return 0, ErrV2UnsupportedVersion
 	}
 
-	if remote.NodeID == "" || len(remote.NodeID) > maxNodeIDLength {
+	nodeID := strings.TrimSpace(remote.NodeID)
+	if nodeID == "" || nodeID != remote.NodeID || len(nodeID) > maxNodeIDLength {
 		return 0, ErrInvalidHello
 	}
 	if _, _, err := net.SplitHostPort(remote.ListenAddress); err != nil {
