@@ -1,0 +1,15 @@
+[submodule "references/bitcoin"]
+	path = references/bitcoin
+	url = https://github.com/bitcoin/bitcoin.git
+[submodule "references/litecoin"]
+	path = references/litecoin
+	url = https://github.com/litecoin-project/litecoin.git
+[submodule "references/dogecoin"]
+	path = references/dogecoin
+	url = https://github.com/dogecoin/dogecoin.git
+[submodule "references/rusty-kaspa"]
+	path = references/rusty-kaspa
+	url = https://github.com/kaspanet/rusty-kaspa.git
+[submodule "references/monero"]
+	path = references/monero
+	url = https://github.com/monero-project/monero.git
