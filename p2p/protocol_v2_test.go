@@ -183,3 +183,24 @@ func TestV2PerMessagePayloadLimits(t *testing.T) {
 		t.Fatalf("ReadV2Frame error=%v want ErrFrameTooLarge", err)
 	}
 }
+
+
+func TestV2HelloRejectsNonCanonicalNodeID(t *testing.T) {
+	profile, _ := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	hello := V2Hello{
+		ChainID:       profile.ChainID,
+		ProtocolMin:   profile.ProtocolMin,
+		ProtocolMax:   profile.ProtocolMax,
+		NodeID:        " node-b ",
+		ListenAddress: "127.0.0.1:17333",
+	}
+
+	if _, err := NegotiateV2Hello(
+		profile,
+		profile.ProtocolMin,
+		profile.ProtocolMax,
+		hello,
+	); !errors.Is(err, ErrInvalidHello) {
+		t.Fatalf("error=%v want ErrInvalidHello", err)
+	}
+}
