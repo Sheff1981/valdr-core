@@ -206,3 +206,76 @@ func TestBadgerCorruptUndoDetectedOnBranchLoad(t *testing.T) {
 		t.Fatalf("LoadAllBlocks error=%v want ErrStorageMetadataCorrupt", err)
 	}
 }
+
+
+func TestBadgerMissingSideBranchHeaderDetectedOnLoad(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	store, err := NewBadgerStore(dir, profile.ChainID, profile.GenesisHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	active, err := blockchain.NewPersistentForProfile(store, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	side, err := blockchain.NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activeKey, err := valdrcrypto.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	activeMiner, err := valdrcrypto.AddressFromPublicKey(&activeKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sideKey, err := valdrcrypto.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sideMiner, err := valdrcrypto.AddressFromPublicKey(&sideKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := mining.MineBlock(
+		active,
+		activeMiner,
+		profile.GenesisTimestamp+profile.TargetBlockTimeSeconds,
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	sideBlock, err := mining.MineBlock(
+		side,
+		sideMiner,
+		profile.GenesisTimestamp+profile.TargetBlockTimeSeconds,
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	update, err := active.AddBlockWithUpdate(sideBlock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if update.Activated {
+		t.Fatal("equal-work side branch unexpectedly activated")
+	}
+
+	if err := store.db.Update(func(txn *badger.Txn) error {
+		return txn.Delete(headerKey(sideBlock.BlockHash))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.LoadAllBlocks(); !errors.Is(err, ErrStorageMetadataCorrupt) {
+		t.Fatalf("LoadAllBlocks error=%v want ErrStorageMetadataCorrupt", err)
+	}
+}
