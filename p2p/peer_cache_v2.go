@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -25,19 +26,28 @@ type peerCacheV2File struct {
 // LoadPeerCacheV2 loads non-consensus peer addresses learned by a v2 node.
 // Missing cache files are normal on first start.
 func LoadPeerCacheV2(path string, public bool) ([]string, error) {
-	info, err := os.Stat(path)
+	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
 	if info.Size() > maxPeerCacheV2FileBytes {
 		return nil, fmt.Errorf("peer cache exceeds %d bytes", maxPeerCacheV2FileBytes)
 	}
-	data, err := os.ReadFile(path)
+	data, err := io.ReadAll(io.LimitReader(file, maxPeerCacheV2FileBytes+1))
 	if err != nil {
 		return nil, err
+	}
+	if len(data) > maxPeerCacheV2FileBytes {
+		return nil, fmt.Errorf("peer cache exceeds %d bytes", maxPeerCacheV2FileBytes)
 	}
 
 	var cache peerCacheV2File
