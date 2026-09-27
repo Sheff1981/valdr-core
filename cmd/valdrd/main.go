@@ -28,6 +28,8 @@ import (
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
+const privilegedRPCWriteTimeout = 6 * time.Minute
+
 type stringListFlag []string
 
 func (s *stringListFlag) String() string { return fmt.Sprint([]string(*s)) }
@@ -363,7 +365,11 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		Handler:           rpcServer.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		// mineBlock is intentionally a long-running local RPC. Keep the HTTP
+		// response lifetime bounded, but above valdr-miner's five-minute RPC
+		// deadline so a valid block is never committed after the HTTP server
+		// has already timed out the response.
+		WriteTimeout:      privilegedRPCWriteTimeout,
 		IdleTimeout:       60 * time.Second,
 	}
 
