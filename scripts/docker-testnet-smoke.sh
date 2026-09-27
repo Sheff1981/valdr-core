@@ -5,16 +5,17 @@ compose=(docker compose -f deploy/docker-compose.testnet.yml)
 cleanup() {
   "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 }
-dump_failure() {
+on_exit() {
   local code=$?
   if [[ "$code" -ne 0 ]]; then
     echo "Docker Testnet2 smoke failed; compose state/logs follow" >&2
     "${compose[@]}" ps >&2 || true
     "${compose[@]}" logs --tail=200 node1 node2 node3 explorer >&2 || true
   fi
-  return "$code"
+  cleanup
+  exit "$code"
 }
-trap 'dump_failure; cleanup' EXIT
+trap on_exit EXIT
 
 "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 "${compose[@]}" build
@@ -226,7 +227,10 @@ wait_mempool_tx() {
   local wanted_txid="$2"
   local raw
   for _ in $(seq 1 60); do
-    raw=$("${compose[@]}" exec -T "$service" valdr-cli mempool --node http://127.0.0.1:17332)
+    if ! raw=$("${compose[@]}" exec -T "$service" valdr-cli mempool --node http://127.0.0.1:17332 2>/dev/null); then
+      sleep 1
+      continue
+    fi
     if python3 - "$wanted_txid" "$raw" <<'PY'
 import json, sys
 wanted=sys.argv[1]
