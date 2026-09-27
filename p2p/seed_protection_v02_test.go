@@ -550,3 +550,39 @@ func TestInvalidPeerAdvertisementDoesNotPartiallyMutateDiscovery(t *testing.T) {
 		t.Fatalf("malformed peers payload partially mutated discovery: count=%d", got)
 	}
 }
+
+
+func TestDuplicatePeerAdvertisementsAreRejectedAtomically(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "duplicate-peer-gossip",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := [][]peerAdvertisement{
+		{
+			{NodeID: "peer-a", Address: "127.0.0.1:22001"},
+			{NodeID: "peer-a", Address: "127.0.0.1:22002"},
+		},
+		{
+			{NodeID: "peer-b", Address: "127.0.0.1:22003"},
+			{NodeID: "peer-c", Address: "127.0.0.1:22003"},
+		},
+	}
+	for _, peers := range tests {
+		if err := node.handlePeers(peers); !errors.Is(err, ErrInvalidPeerAddress) {
+			t.Fatalf("error=%v want ErrInvalidPeerAddress", err)
+		}
+		if got := len(node.DiscoveredPeers()); got != 0 {
+			t.Fatalf("duplicate peers payload partially mutated discovery: count=%d", got)
+		}
+	}
+}
