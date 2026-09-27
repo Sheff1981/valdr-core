@@ -159,6 +159,50 @@ func TestV2HandshakeRejectsMismatchedHelloAckWithoutRegisteringPeer(t *testing.T
 	}
 }
 
+
+func TestV2HandshakeTimesOutOnPartialFrameWithoutRegisteringPeer(t *testing.T) {
+	profile := mustTestnet2Profile(t)
+
+	addr, done := startV2HandshakeServer(t, profile, func(conn net.Conn) error {
+		if _, err := ReadV2Frame(conn, profile); err != nil {
+			return err
+		}
+		magic := profile.Magic()
+		if _, err := conn.Write(magic[:]); err != nil {
+			return err
+		}
+		time.Sleep(200 * time.Millisecond)
+		return nil
+	})
+
+	node := mustStartNode(t, NodeConfig{
+		NodeID:           "handshake-client-partial-frame",
+		OutboundOnly:     true,
+		NetworkProfile:   &profile,
+		EnableV2:         true,
+		HandshakeTimeout: 75 * time.Millisecond,
+	})
+	defer node.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	start := time.Now()
+	err := node.Connect(ctx, addr)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("partial handshake frame unexpectedly succeeded")
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("partial handshake exceeded timeout bound: %s", elapsed)
+	}
+	if node.PeerCount() != 0 {
+		t.Fatalf("peer count=%d after partial handshake timeout", node.PeerCount())
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("server: %v", err)
+	}
+}
+
 func mustTestnet2Profile(t *testing.T) config.NetworkProfile {
 	t.Helper()
 	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
