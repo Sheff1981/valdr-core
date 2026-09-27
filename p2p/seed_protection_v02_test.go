@@ -667,3 +667,97 @@ func TestDroppedInboundPeerIsNotForcedIntoReconnectCandidates(t *testing.T) {
 		t.Fatalf("inbound peer unexpectedly became reconnect candidate: count=%d", got)
 	}
 }
+
+
+func TestSimultaneousDuplicateConnectionUsesDeterministicDirection(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name             string
+		localNodeID      string
+		remoteNodeID     string
+		existingInbound  bool
+		replacingInbound bool
+	}{
+		{
+			name:             "lower-node-id-keeps-outbound",
+			localNodeID:      "node-a",
+			remoteNodeID:     "node-b",
+			existingInbound:  true,
+			replacingInbound: false,
+		},
+		{
+			name:             "higher-node-id-keeps-inbound",
+			localNodeID:      "node-b",
+			remoteNodeID:     "node-a",
+			existingInbound:  false,
+			replacingInbound: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			node, err := NewNode(NodeConfig{
+				NodeID:         tc.localNodeID,
+				ListenAddress:  "127.0.0.1:0",
+				NetworkProfile: &profile,
+				EnableV2:       true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			firstLocal, firstRemote := net.Pipe()
+			defer firstRemote.Close()
+			firstPeer := Peer{
+				NodeID:          tc.remoteNodeID,
+				Address:         "127.0.0.1:24001",
+				ProtocolVersion: uint32(profile.ProtocolMax),
+				Inbound:         tc.existingInbound,
+			}
+			firstPC, err := node.registerPeer(firstPeer, firstLocal)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			secondLocal, secondRemote := net.Pipe()
+			defer secondRemote.Close()
+			secondPeer := firstPeer
+			secondPeer.Inbound = tc.replacingInbound
+			secondPC, err := node.registerPeer(secondPeer, secondLocal)
+			if err != nil {
+				t.Fatalf("preferred duplicate direction rejected: %v", err)
+			}
+			if secondPC == firstPC {
+				t.Fatal("duplicate replacement reused old peer connection")
+			}
+
+			node.mu.RLock()
+			gotPeer := node.peers[tc.remoteNodeID]
+			gotPC := node.conns[tc.remoteNodeID]
+			node.mu.RUnlock()
+			if gotPC != secondPC || gotPeer.Inbound != tc.replacingInbound {
+				t.Fatalf(
+					"selected connection=%p inbound=%t want=%p/%t",
+					gotPC,
+					gotPeer.Inbound,
+					secondPC,
+					tc.replacingInbound,
+				)
+			}
+
+			thirdLocal, thirdRemote := net.Pipe()
+			defer thirdRemote.Close()
+			thirdPeer := firstPeer
+			thirdPeer.Inbound = !tc.replacingInbound
+			if _, err := node.registerPeer(thirdPeer, thirdLocal); !errors.Is(err, ErrDuplicatePeer) {
+				t.Fatalf("non-preferred duplicate error=%v want ErrDuplicatePeer", err)
+			}
+			_ = thirdLocal.Close()
+			_ = secondPC.conn.Close()
+		})
+	}
+}
