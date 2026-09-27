@@ -40,3 +40,32 @@ func TestInitCommandDefaultsToTestnet2(t *testing.T) {
 		t.Fatalf("v0.2 Badger directory missing: %v", err)
 	}
 }
+
+
+func TestStartRejectsNonLoopbackRPCBind(t *testing.T) {
+	var out, errOut bytes.Buffer
+	code := run([]string{
+		"start",
+		"--data", filepath.Join(t.TempDir(), "node"),
+		"--rpc-host", "0.0.0.0",
+	}, &out, &errOut)
+	if code != 2 {
+		t.Fatalf("start exit=%d want=2 stdout=%s stderr=%s", code, out.String(), errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "privileged RPC must bind to localhost/loopback") {
+		t.Fatalf("unexpected stderr: %s", errOut.String())
+	}
+}
+
+func TestLoopbackRPCHostValidation(t *testing.T) {
+	for _, host := range []string{"127.0.0.1", "::1", "localhost", " LOCALHOST "} {
+		if !isLoopbackRPCHost(host) {
+			t.Fatalf("loopback host %q rejected", host)
+		}
+	}
+	for _, host := range []string{"0.0.0.0", "::", "192.0.2.10", "example.org", ""} {
+		if isLoopbackRPCHost(host) {
+			t.Fatalf("non-loopback host %q accepted", host)
+		}
+	}
+}
