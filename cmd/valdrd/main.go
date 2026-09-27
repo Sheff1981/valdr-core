@@ -171,6 +171,11 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	p2pPort := fs.Uint("p2p-port", 0, "P2P listen port; 0 uses network default")
 	rpcHost := fs.String("rpc-host", "127.0.0.1", "RPC listen host")
 	rpcPort := fs.Uint("rpc-port", 0, "RPC listen port; 0 uses network default")
+	rpcAllowNonLoopback := fs.Bool(
+		"rpc-allow-non-loopback",
+		false,
+		"explicitly allow privileged RPC on a non-loopback interface",
+	)
 	var peers stringListFlag
 	var seeds stringListFlag
 	fs.Var(&peers, "peer", "P2P peer address; may be repeated")
@@ -183,8 +188,11 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "invalid valdrd start arguments")
 		return 2
 	}
-	if !isLoopbackRPCHost(*rpcHost) {
-		fmt.Fprintln(errOut, "privileged RPC must bind to localhost/loopback")
+	if !rpcBindAllowed(*rpcHost, *rpcAllowNonLoopback) {
+		fmt.Fprintln(
+			errOut,
+			"privileged RPC must bind to localhost/loopback unless --rpc-allow-non-loopback is explicitly set",
+		)
 		return 2
 	}
 	profile, err := config.ResolveNetworkProfile(*networkName)
@@ -538,4 +546,8 @@ func isLoopbackRPCHost(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+func rpcBindAllowed(host string, allowNonLoopback bool) bool {
+	return isLoopbackRPCHost(host) || allowNonLoopback
 }
