@@ -27,6 +27,7 @@ func (s *BadgerStore) LoadAllBlocks() ([]*block.Block, error) {
 		defer it.Close()
 
 		for it.Rewind(); it.Valid(); it.Next() {
+			key := it.Item().KeyCopy(nil)
 			raw, err := it.Item().ValueCopy(nil)
 			if err != nil {
 				return err
@@ -34,6 +35,33 @@ func (s *BadgerStore) LoadAllBlocks() ([]*block.Block, error) {
 			var candidate block.Block
 			if err := strictJSON(raw, &candidate); err != nil {
 				return fmt.Errorf("%w: branch block: %v", ErrStorageMetadataCorrupt, err)
+			}
+			if string(key) != string(blockKey(candidate.BlockHash)) {
+				return fmt.Errorf("%w: branch block key mismatch", ErrStorageMetadataCorrupt)
+			}
+
+			rawHeader, err := getBytes(txn, headerKey(candidate.BlockHash))
+			if err != nil {
+				return fmt.Errorf("%w: missing header %s: %v", ErrStorageMetadataCorrupt, candidate.BlockHash, err)
+			}
+			var header headerRecord
+			if err := strictJSON(rawHeader, &header); err != nil {
+				return fmt.Errorf("%w: header %s: %v", ErrStorageMetadataCorrupt, candidate.BlockHash, err)
+			}
+			if header.Parent != candidate.PreviousBlockHash ||
+				header.Height != candidate.Height {
+				return fmt.Errorf("%w: header/block mismatch %s", ErrStorageMetadataCorrupt, candidate.BlockHash)
+			}
+
+			if candidate.Height > 0 {
+				rawUndo, err := getBytes(txn, undoKey(candidate.BlockHash))
+				if err != nil {
+					return fmt.Errorf("%w: missing undo %s: %v", ErrStorageMetadataCorrupt, candidate.BlockHash, err)
+				}
+				var undo undoRecord
+				if err := strictJSON(rawUndo, &undo); err != nil {
+					return fmt.Errorf("%w: undo %s: %v", ErrStorageMetadataCorrupt, candidate.BlockHash, err)
+				}
 			}
 			blocks = append(blocks, &candidate)
 		}
