@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Sheff1981/valdr-core/config"
+	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/blockchain"
 	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
 	"github.com/Sheff1981/valdr-core/mining"
@@ -64,16 +65,19 @@ func TestTestnet2ChainworkReorgPersistsAfterRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	targetBranch := make([]*block.Block, 0, 2)
 	for i := int64(1); i <= 2; i++ {
-		if _, err := mining.MineBlock(
+		candidate, err := mining.MineBlock(
 			targetChain,
 			targetMiner,
 			profile.GenesisTimestamp+i*profile.TargetBlockTimeSeconds,
 			nil,
-		); err != nil {
+		)
+		if err != nil {
 			_ = store.Close()
 			t.Fatalf("mine target branch block %d: %v", i, err)
 		}
+		targetBranch = append(targetBranch, candidate)
 	}
 	oldTargetTip := targetChain.Tip().BlockHash
 	oldTargetWork := targetChain.Chainwork()
@@ -208,5 +212,81 @@ func TestTestnet2ChainworkReorgPersistsAfterRestart(t *testing.T) {
 	}
 	if reopenedSourceBalance != wantSource {
 		t.Fatalf("reopened source miner balance=%d want=%d", reopenedSourceBalance, wantSource)
+	}
+
+	// Revive the original disconnected branch after restart and make it heavier
+	// than the currently active branch. This proves repeated reorg correctness,
+	// side-branch persistence, and fork-choice stability across restart.
+	returnChain, err := blockchain.NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, candidate := range targetBranch {
+		if err := returnChain.AddBlock(candidate); err != nil {
+			t.Fatalf("restore original target branch block %d: %v", i+1, err)
+		}
+	}
+	for i := int64(3); i <= 4; i++ {
+		if _, err := mining.MineBlock(
+			returnChain,
+			targetMiner,
+			profile.GenesisTimestamp+i*profile.TargetBlockTimeSeconds,
+			nil,
+		); err != nil {
+			t.Fatalf("extend revived target branch block %d: %v", i, err)
+		}
+	}
+	return3, ok := returnChain.BlockAt(3)
+	if !ok {
+		t.Fatal("missing revived target block 3")
+	}
+	return4, ok := returnChain.BlockAt(4)
+	if !ok {
+		t.Fatal("missing revived target block 4")
+	}
+	update3, err := reopened.AddBlockWithUpdate(return3)
+	if err != nil {
+		t.Fatalf("import revived target block 3: %v", err)
+	}
+	if update3.Activated {
+		t.Fatal("equal-work revived branch activated before becoming heavier")
+	}
+	update4, err := reopened.AddBlockWithUpdate(return4)
+	if err != nil {
+		t.Fatalf("import revived target block 4: %v", err)
+	}
+	if !update4.Activated {
+		t.Fatal("heavier revived branch did not activate")
+	}
+	if reopened.Height() != 4 ||
+		reopened.Tip().BlockHash != return4.BlockHash ||
+		reopened.Chainwork() != returnChain.Chainwork() {
+		t.Fatalf(
+			"second reorg height/tip/work=%d/%s/%s want=%d/%s/%s",
+			reopened.Height(),
+			reopened.Tip().BlockHash,
+			reopened.Chainwork(),
+			returnChain.Height(),
+			return4.BlockHash,
+			returnChain.Chainwork(),
+		)
+	}
+	if _, ok := reopened.BlockByHash(sourceChain.Tip().BlockHash); !ok {
+		t.Fatal("second reorg lost previously active source branch")
+	}
+	sourceAfterSecond, err := reopened.Balance(sourceMiner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sourceAfterSecond != 0 {
+		t.Fatalf("second reorg disconnected source miner balance=%d want=0", sourceAfterSecond)
+	}
+	targetAfterSecond, err := reopened.Balance(targetMiner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantTarget := uint64(4) * profile.InitialSubsidyVDR * config.AtomicUnitsPerVDR
+	if targetAfterSecond != wantTarget {
+		t.Fatalf("second reorg target miner balance=%d want=%d", targetAfterSecond, wantTarget)
 	}
 }
