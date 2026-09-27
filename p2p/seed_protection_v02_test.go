@@ -522,3 +522,31 @@ func TestV2PeerAdvertisementCountIsBounded(t *testing.T) {
 		t.Fatal("oversized peer advertisement mutated discovered-peer state")
 	}
 }
+
+
+func TestInvalidPeerAdvertisementDoesNotPartiallyMutateDiscovery(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "atomic-peer-gossip",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	peers := []peerAdvertisement{
+		{NodeID: "valid-peer", Address: "127.0.0.1:21001"},
+		{NodeID: "invalid-peer", Address: "not-an-address"},
+	}
+	if err := node.handlePeers(peers); !errors.Is(err, ErrInvalidPeerAddress) {
+		t.Fatalf("error=%v want ErrInvalidPeerAddress", err)
+	}
+	if got := len(node.DiscoveredPeers()); got != 0 {
+		t.Fatalf("malformed peers payload partially mutated discovery: count=%d", got)
+	}
+}
