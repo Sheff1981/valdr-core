@@ -586,3 +586,84 @@ func TestDuplicatePeerAdvertisementsAreRejectedAtomically(t *testing.T) {
 		}
 	}
 }
+
+
+func TestDroppedOutboundPeerBecomesReconnectCandidate(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "reconnect-target",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	local, remote := net.Pipe()
+	defer remote.Close()
+	peer := Peer{
+		NodeID:          "reconnect-peer",
+		Address:         "127.0.0.1:23001",
+		ProtocolVersion: uint32(profile.ProtocolMax),
+		Inbound:         false,
+	}
+	pc := &peerConnection{conn: local, traffic: newPeerTrafficState(node.protection)}
+
+	node.mu.Lock()
+	node.peers[peer.NodeID] = peer
+	node.conns[peer.NodeID] = pc
+	node.mu.Unlock()
+
+	node.dropPeer(peer.NodeID, pc)
+
+	if node.PeerCount() != 0 {
+		t.Fatalf("peer count=%d want=0 after drop", node.PeerCount())
+	}
+	discovered := node.DiscoveredPeers()
+	if len(discovered) != 1 ||
+		discovered[0].NodeID != peer.NodeID ||
+		discovered[0].Address != peer.Address {
+		t.Fatalf("reconnect candidates=%+v want peer=%+v", discovered, peer)
+	}
+}
+
+func TestDroppedInboundPeerIsNotForcedIntoReconnectCandidates(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "inbound-drop-target",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	local, remote := net.Pipe()
+	defer remote.Close()
+	peer := Peer{
+		NodeID:          "inbound-peer",
+		Address:         "127.0.0.1:23002",
+		ProtocolVersion: uint32(profile.ProtocolMax),
+		Inbound:         true,
+	}
+	pc := &peerConnection{conn: local, traffic: newPeerTrafficState(node.protection)}
+
+	node.mu.Lock()
+	node.peers[peer.NodeID] = peer
+	node.conns[peer.NodeID] = pc
+	node.mu.Unlock()
+
+	node.dropPeer(peer.NodeID, pc)
+
+	if got := len(node.DiscoveredPeers()); got != 0 {
+		t.Fatalf("inbound peer unexpectedly became reconnect candidate: count=%d", got)
+	}
+}
