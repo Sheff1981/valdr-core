@@ -96,3 +96,86 @@ func TestMempoolReconsidersDisconnectedTransaction(t *testing.T) {
 		t.Fatal("valid disconnected transaction was not reconsidered")
 	}
 }
+
+
+func TestMempoolReorgDoesNotReconsiderCoinbaseOrReconfirmedTransaction(t *testing.T) {
+	chain := blockchain.New()
+	ownerKey, err := valdrcrypto.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerAddress, err := valdrcrypto.AddressFromPublicKey(&ownerKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipientKey, err := valdrcrypto.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipientAddress, err := valdrcrypto.AddressFromPublicKey(&recipientKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fundingBlock, err := mining.MineBlock(
+		chain,
+		ownerAddress,
+		config.GenesisTimestamp+60,
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	funding := fundingBlock.Transactions[0]
+	spend := transaction.New(
+		[]transaction.Input{{
+			PreviousTransactionID: funding.TransactionID,
+			OutputIndex:           0,
+		}},
+		[]transaction.Output{{
+			Amount:    config.InitialMiningReward - 25,
+			Recipient: recipientAddress,
+		}},
+		config.GenesisTimestamp+120,
+	)
+	if err := spend.Sign(ownerKey); err != nil {
+		t.Fatal(err)
+	}
+	confirmedBlock, err := mining.MineBlock(
+		chain,
+		ownerAddress,
+		config.GenesisTimestamp+120,
+		[]*transaction.Transaction{spend},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pool := mempool.New()
+	node, err := NewNode(NodeConfig{
+		NodeID:        "mempool-reconfirmed-node",
+		ListenAddress: "127.0.0.1:0",
+		Blockchain:    chain,
+		Mempool:       pool,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	node.applyMempoolChainUpdate(blockchain.ChainUpdate{
+		Activated:    true,
+		Disconnected: []*block.Block{confirmedBlock},
+		Connected:    []*block.Block{confirmedBlock},
+	})
+
+	if pool.Contains(spend.TransactionID) {
+		t.Fatal("transaction confirmed in the new branch re-entered mempool")
+	}
+	coinbase := confirmedBlock.Transactions[0]
+	if coinbase == nil || !coinbase.IsCoinbase() {
+		t.Fatal("missing confirmed coinbase fixture")
+	}
+	if pool.Contains(coinbase.TransactionID) {
+		t.Fatal("disconnected coinbase entered mempool")
+	}
+}
