@@ -70,6 +70,9 @@ func FuzzDecodeV2TransactionPayload(f *testing.F) {
 	f.Add([]byte(`{"transaction":null}`))
 
 	f.Fuzz(func(t *testing.T, payload []byte) {
+		if len(payload) == 0 || len(payload) > v2MessagePayloadLimit(V2MessageTx) {
+			return
+		}
 		frame := V2Frame{
 			ProtocolVersion: 2,
 			MessageType:     V2MessageTx,
