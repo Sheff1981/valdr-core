@@ -2,9 +2,10 @@
 
 **Master baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`  
 **Scope:** Testnet2 technical hardening pulled forward before Stage 14.  
-**Audit status:** **NOT AUDITED.** No independent external security audit/report has been performed.
+**Audit status:** **NOT AUDITED.** No independent external security audit/report has been performed.  
+**Automated Testnet2 gate:** **PASS** on Core CI #466, run `36291552764`, exact commit `4c661df003aba12892b6ac75668c8a4a36658f4e`.
 
-This checklist maps the Stage 18 requirements to repository tests and CI gates. A green CI run on the exact commit containing this file is required before the Stage 18 automated gate may be recorded as PASS.
+This checklist maps the Stage 18 requirements to repository tests and CI gates. Core CI #466 completed successfully across the active cross-platform matrix and therefore closes the automated Testnet2 Stage 18 hardening gate for that exact commit.
 
 | Requirement | Evidence / gate | Status |
 | --- | --- | --- |
@@ -33,6 +34,10 @@ The Stage 18 Linux test creates two **CI-only synthetic package revisions** from
 
 ## Security gate interpretation
 
-A green active CI run demonstrates that the automated hardening checklist above passes for that exact commit. It does not prove absence of vulnerabilities and must not be described as an external audit.
+Core CI #466 completed **SUCCESS** on exact commit `4c661df003aba12892b6ac75668c8a4a36658f4e`. The run covered the full active CI matrix, including deterministic Core binary analysis, normal tests, race tests, static analysis, fuzzing, dependency audits, Desktop lifecycle/duplicate-child checks, cross-platform Desktop builds/runtime checks, Stage 18 Linux release upgrade/rollback, package assembly, clean release verification and the existing Testnet runtime gates.
+
+No known critical/high unresolved issue was produced by these automated gates. This is an automated security-hardening result, not proof of absence of vulnerabilities and not an external audit.
+
+**Stage 18 automated Testnet2 exit gate: PASS.**
 
 Stage 12C manual Windows acceptance, Stage 13D RC freeze and Stage 14A independent multi-machine Testnet validation remain separate gates.
