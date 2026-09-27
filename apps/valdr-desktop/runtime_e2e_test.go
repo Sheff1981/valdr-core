@@ -99,8 +99,9 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if err := app.StartMining(source.Address); err != nil {
 		t.Fatal(err)
 	}
-	funded := waitForRuntimeHeight(t, app, fundingStart+1, 2*time.Minute)
-	miningTelemetry := waitForRuntimeMiningTelemetry(t, app, 2*time.Minute)
+	miningTimeout := desktopRuntimeMiningTimeout()
+	funded := waitForRuntimeHeight(t, app, fundingStart+1, miningTimeout)
+	miningTelemetry := waitForRuntimeMiningTelemetry(t, app, miningTimeout)
 	if miningTelemetry.AcceptedBlocks < 1 ||
 		miningTelemetry.HashrateHPS <= 0 ||
 		miningTelemetry.LastBlockHashrateHPS <= 0 ||
@@ -183,7 +184,7 @@ func TestDesktopRuntimeWalletSendReceiveHistory(t *testing.T) {
 	if err := app.StartMining(source.Address); err != nil {
 		t.Fatal(err)
 	}
-	_ = waitForRuntimeHeight(t, app, funded.NodeStatus.Height+1, 2*time.Minute)
+	_ = waitForRuntimeHeight(t, app, funded.NodeStatus.Height+1, miningTimeout)
 	if err := app.StopMining(); err != nil {
 		t.Fatal(err)
 	}
@@ -529,4 +530,16 @@ func assertRuntimeSecretsAbsent(
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+
+func desktopRuntimeMiningTimeout() time.Duration {
+	// Testnet2 uses real 22-leading-zero-bit PoW. Mining time has a long
+	// probabilistic tail, and GitHub's Intel macOS runners are materially
+	// slower than the other native runners. Give that runner additional time
+	// without weakening the assertions or changing Testnet2 difficulty.
+	if runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		return 4 * time.Minute
+	}
+	return 2 * time.Minute
 }
