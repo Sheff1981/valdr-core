@@ -6,6 +6,9 @@ import (
 
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/block"
+	"github.com/Sheff1981/valdr-core/core/blockchain"
+	valdrcrypto "github.com/Sheff1981/valdr-core/crypto"
+	"github.com/Sheff1981/valdr-core/mining"
 	badger "github.com/dgraph-io/badger/v4"
 )
 
@@ -156,5 +159,50 @@ func TestBadgerCorruptActiveChainworkDetectedOnLoad(t *testing.T) {
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+
+func TestBadgerCorruptUndoDetectedOnBranchLoad(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	store, err := NewBadgerStore(dir, profile.ChainID, profile.GenesisHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	chain, err := blockchain.NewPersistentForProfile(store, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := valdrcrypto.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	minerAddress, err := valdrcrypto.AddressFromPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mined, err := mining.MineBlock(
+		chain,
+		minerAddress,
+		profile.GenesisTimestamp+profile.TargetBlockTimeSeconds,
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.Update(func(txn *badger.Txn) error {
+		return txn.Delete(undoKey(mined.BlockHash))
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.LoadAllBlocks(); !errors.Is(err, ErrStorageMetadataCorrupt) {
+		t.Fatalf("LoadAllBlocks error=%v want ErrStorageMetadataCorrupt", err)
 	}
 }
