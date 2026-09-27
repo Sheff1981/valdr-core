@@ -156,6 +156,7 @@ func (s *BadgerStore) Load() ([]*block.Block, error) {
 	}
 	blocks := make([]*block.Block, 0, info.Height+1)
 	err = s.db.View(func(txn *badger.Txn) error {
+		var cumulativeWork *big.Int
 		for height := uint64(0); height <= info.Height; height++ {
 			hash, err := getString(txn, heightKey(height))
 			if err != nil {
@@ -172,7 +173,15 @@ func (s *BadgerStore) Load() ([]*block.Block, error) {
 			if candidate.Height != height || candidate.BlockHash != hash {
 				return fmt.Errorf("%w: active mapping at height %d", ErrStorageMetadataCorrupt, height)
 			}
+			_, nextWork, err := blockTargetAndCumulativeWork(&candidate, cumulativeWork)
+			if err != nil {
+				return fmt.Errorf("%w: chainwork at height %d: %v", ErrStorageMetadataCorrupt, height, err)
+			}
+			cumulativeWork = nextWork
 			blocks = append(blocks, &candidate)
+		}
+		if cumulativeWork == nil || consensus.ChainworkHex(cumulativeWork) != info.Chainwork {
+			return fmt.Errorf("%w: active chainwork mismatch", ErrStorageMetadataCorrupt)
 		}
 
 		var persistedUTXO []utxo.UTXO
