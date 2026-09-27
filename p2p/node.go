@@ -1132,7 +1132,17 @@ func (n *Node) handleV2Frame(peerID string, frame V2Frame) error {
 		var pong struct {
 			Nonce uint64 `json:"nonce"`
 		}
-		return DecodeV2Payload(frame, &pong)
+		if err := DecodeV2Payload(frame, &pong); err != nil {
+			return err
+		}
+		n.mu.RLock()
+		pc := n.conns[peerID]
+		n.mu.RUnlock()
+		if pc == nil || pc.traffic == nil ||
+			!pc.traffic.acceptPong(pong.Nonce, n.protection.Now()) {
+			return fmt.Errorf("%w: unexpected or mismatched pong", ErrInvalidFrame)
+		}
+		return nil
 
 	case V2MessageGetHeaders:
 		var request V2LocatorRequest
