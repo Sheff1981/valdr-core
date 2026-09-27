@@ -810,6 +810,11 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 	if n.enableV2 && len(peers) > maxPeerAdvertisementsV2 {
 		return fmt.Errorf("%w: peer advertisement count=%d", ErrInvalidPeerAddress, len(peers))
 	}
+
+	// Validate the complete advertisement set before mutating discovery state.
+	// A malformed trailing entry must not be able to smuggle earlier addresses
+	// into the persistent learned-peer cache.
+	validated := make([]peerAdvertisement, 0, len(peers))
 	for _, peer := range peers {
 		if peer.NodeID == n.nodeID {
 			continue
@@ -836,12 +841,15 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 				err,
 			)
 		}
+		validated = append(validated, peer)
+	}
 
-		n.mu.Lock()
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, peer := range validated {
 		if _, connected := n.peers[peer.NodeID]; !connected {
 			n.rememberDiscoveredPeerLocked(peer.NodeID, peer.Address)
 		}
-		n.mu.Unlock()
 	}
 	return nil
 }
