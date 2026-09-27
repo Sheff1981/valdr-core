@@ -52,7 +52,7 @@ func TestStartRejectsNonLoopbackRPCBind(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("start exit=%d want=2 stdout=%s stderr=%s", code, out.String(), errOut.String())
 	}
-	if !strings.Contains(errOut.String(), "privileged RPC must bind to localhost/loopback") {
+	if !strings.Contains(errOut.String(), "privileged RPC must bind to localhost/loopback unless --rpc-allow-non-loopback is explicitly set") {
 		t.Fatalf("unexpected stderr: %s", errOut.String())
 	}
 }
@@ -66,6 +66,12 @@ func TestLoopbackRPCHostValidation(t *testing.T) {
 	for _, host := range []string{"0.0.0.0", "::", "192.0.2.10", "example.org", ""} {
 		if isLoopbackRPCHost(host) {
 			t.Fatalf("non-loopback host %q accepted", host)
+		}
+		if rpcBindAllowed(host, false) {
+			t.Fatalf("non-loopback host %q allowed without explicit opt-in", host)
+		}
+		if host != "" && !rpcBindAllowed(host, true) {
+			t.Fatalf("non-loopback host %q rejected with explicit opt-in", host)
 		}
 	}
 }
