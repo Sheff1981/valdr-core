@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
@@ -167,4 +168,113 @@ func appendV2Blocks(
 		result = append(result, candidate)
 	}
 	return result
+}
+
+
+func TestTestnet2DeeperLowerWorkBranchDoesNotActivate(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	active, err := NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lowWork, err := NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	activeMiner := testMinerAddress(t)
+	lowWorkMiner := testMinerAddress(t)
+
+	// Four normal-timing Testnet2 blocks retain the harder non-special target.
+	activeBlocks := appendV2Blocks(t, active, profile, activeMiner, 4)
+
+	// Five delayed blocks trigger Testnet2 min-difficulty escape. The branch is
+	// taller, but each block contributes less work, so cumulative chainwork must
+	// remain below the shorter active branch.
+	lowWorkBlocks := make([]*block.Block, 0, 5)
+	for height := 1; height <= 5; height++ {
+		timestamp := profile.GenesisTimestamp +
+			int64(height)*profile.MinDifficultyAfterSeconds
+		coinbase, err := transaction.NewCoinbaseForChain(
+			profile.ChainID,
+			uint64(height),
+			lowWorkMiner,
+			profile.InitialSubsidyVDR*config.AtomicUnitsPerVDR,
+			timestamp,
+		)
+		if err != nil {
+			t.Fatalf("low-work coinbase height %d: %v", height, err)
+		}
+		candidate, err := lowWork.Append(
+			timestamp,
+			[]*transaction.Transaction{coinbase},
+		)
+		if err != nil {
+			t.Fatalf("append low-work height %d: %v", height, err)
+		}
+		lowWorkBlocks = append(lowWorkBlocks, candidate)
+	}
+
+	activeWork, ok := new(big.Int).SetString(active.Chainwork(), 16)
+	if !ok {
+		t.Fatalf("invalid active chainwork %q", active.Chainwork())
+	}
+	lowWorkTotal, ok := new(big.Int).SetString(lowWork.Chainwork(), 16)
+	if !ok {
+		t.Fatalf("invalid low-work chainwork %q", lowWork.Chainwork())
+	}
+	if lowWork.Height() <= active.Height() {
+		t.Fatalf("test setup: low-work height=%d active=%d", lowWork.Height(), active.Height())
+	}
+	if lowWorkTotal.Cmp(activeWork) >= 0 {
+		t.Fatalf(
+			"test setup: deeper branch work=%s must be lower than active=%s",
+			lowWorkTotal,
+			activeWork,
+		)
+	}
+
+	originalTip := active.Tip().BlockHash
+	for i, candidate := range lowWorkBlocks {
+		update, err := active.AddBlockWithUpdate(candidate)
+		if err != nil {
+			t.Fatalf("import low-work block %d: %v", i+1, err)
+		}
+		if update.Activated {
+			t.Fatalf("deeper lower-work branch activated at height %d", candidate.Height)
+		}
+	}
+	if active.Tip().BlockHash != originalTip || active.Height() != uint64(len(activeBlocks)) {
+		t.Fatalf(
+			"active tip/height changed to %s/%d want %s/%d",
+			active.Tip().BlockHash,
+			active.Height(),
+			originalTip,
+			len(activeBlocks),
+		)
+	}
+	if _, ok := active.BlockByHash(lowWorkBlocks[len(lowWorkBlocks)-1].BlockHash); !ok {
+		t.Fatal("deeper lower-work side branch was not retained")
+	}
+
+	activeBalance, err := active.Balance(activeMiner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantActive := uint64(len(activeBlocks)) *
+		profile.InitialSubsidyVDR * config.AtomicUnitsPerVDR
+	if activeBalance != wantActive {
+		t.Fatalf("active miner balance=%d want=%d", activeBalance, wantActive)
+	}
+	lowWorkBalance, err := active.Balance(lowWorkMiner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lowWorkBalance != 0 {
+		t.Fatalf("side-branch miner balance=%d want=0", lowWorkBalance)
+	}
 }
