@@ -151,10 +151,21 @@ func (s *peerTrafficState) allow(cfg ProtectionConfig, payloadBytes int) bool {
 func (s *peerTrafficState) markActivity(now time.Time) {
 	s.mu.Lock()
 	s.lastActivity = now
+	s.mu.Unlock()
+}
+
+func (s *peerTrafficState) acceptPong(nonce uint64, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.lastActivity = now
+	if !s.awaitingPong || nonce != s.lastPing {
+		return false
+	}
 	s.awaitingPong = false
 	s.lastPing = 0
 	s.pingSentAt = time.Time{}
-	s.mu.Unlock()
+	return true
 }
 
 func (s *peerTrafficState) setAwaitingPong(
