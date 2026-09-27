@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-const peerCacheV2Version = 1
+const (
+	peerCacheV2Version      = 1
+	maxPeerCacheV2FileBytes = 1 << 20
+)
 
 type peerCacheV2File struct {
 	Version   int      `json:"version"`
@@ -22,10 +25,17 @@ type peerCacheV2File struct {
 // LoadPeerCacheV2 loads non-consensus peer addresses learned by a v2 node.
 // Missing cache files are normal on first start.
 func LoadPeerCacheV2(path string, public bool) ([]string, error) {
-	data, err := os.ReadFile(path)
+	info, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > maxPeerCacheV2FileBytes {
+		return nil, fmt.Errorf("peer cache exceeds %d bytes", maxPeerCacheV2FileBytes)
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -88,5 +98,8 @@ func normalizePeerCacheAddresses(addresses []string, public bool) []string {
 		result = append(result, address)
 	}
 	sort.Strings(result)
+	if len(result) > DefaultMaxDiscoveredPeers {
+		result = result[:DefaultMaxDiscoveredPeers]
+	}
 	return result
 }
