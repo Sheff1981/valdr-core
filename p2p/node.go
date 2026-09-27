@@ -1683,16 +1683,24 @@ func (n *Node) registerPeer(peer Peer, conn net.Conn) (*peerConnection, error) {
 func (n *Node) dropPeer(peerID string, expected *peerConnection) {
 	n.mu.Lock()
 	current, exists := n.conns[peerID]
+	peer, peerExists := n.peers[peerID]
 	if exists && current == expected {
 		delete(n.conns, peerID)
 		delete(n.peers, peerID)
+		delete(n.syncV2, peerID)
+
+		// Preserve a valid outbound endpoint as a reconnect candidate. Without
+		// this, dynamically discovered peers disappear permanently after the
+		// first disconnect and outbound maintenance can never retry them unless
+		// a seed advertises them again.
+		if peerExists && !peer.Inbound &&
+			validateDiscoveredAddress(peer.Address, n.isPublicDiscovery()) == nil {
+			n.rememberDiscoveredPeerLocked(peer.NodeID, peer.Address)
+		}
 	}
 	n.mu.Unlock()
 
 	if exists && current == expected {
-		n.mu.Lock()
-		delete(n.syncV2, peerID)
-		n.mu.Unlock()
 		_ = current.conn.Close()
 		logging.Printf(logging.CategoryP2P, "peer disconnected node=%s", peerID)
 	}
