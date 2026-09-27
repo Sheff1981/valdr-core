@@ -812,9 +812,12 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 	}
 
 	// Validate the complete advertisement set before mutating discovery state.
-	// A malformed trailing entry must not be able to smuggle earlier addresses
-	// into the persistent learned-peer cache.
+	// Reject duplicate node identities and duplicate addresses in one message:
+	// an equivocal payload must not let ordering decide which identity/address
+	// becomes persistent learned-peer state.
 	validated := make([]peerAdvertisement, 0, len(peers))
+	seenNodeIDs := make(map[string]struct{}, len(peers))
+	seenAddresses := make(map[string]struct{}, len(peers))
 	for _, peer := range peers {
 		if peer.NodeID == n.nodeID {
 			continue
@@ -841,6 +844,14 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 				err,
 			)
 		}
+		if _, exists := seenNodeIDs[peer.NodeID]; exists {
+			return fmt.Errorf("%w: duplicate node_id=%q", ErrInvalidPeerAddress, peer.NodeID)
+		}
+		if _, exists := seenAddresses[peer.Address]; exists {
+			return fmt.Errorf("%w: duplicate address=%q", ErrInvalidPeerAddress, peer.Address)
+		}
+		seenNodeIDs[peer.NodeID] = struct{}{}
+		seenAddresses[peer.Address] = struct{}{}
 		validated = append(validated, peer)
 	}
 
