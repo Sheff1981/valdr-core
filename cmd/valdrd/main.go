@@ -7,11 +7,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -179,6 +181,10 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	}
 	if fs.NArg() != 0 || *p2pPort > 65535 || *rpcPort > 65535 {
 		fmt.Fprintln(errOut, "invalid valdrd start arguments")
+		return 2
+	}
+	if !isLoopbackRPCHost(*rpcHost) {
+		fmt.Fprintln(errOut, "privileged RPC must bind to localhost/loopback")
 		return 2
 	}
 	profile, err := config.ResolveNetworkProfile(*networkName)
@@ -522,4 +528,14 @@ func writeJSON(out io.Writer, value any, errOut io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+
+func isLoopbackRPCHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
