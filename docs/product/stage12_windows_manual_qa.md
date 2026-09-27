@@ -1,19 +1,26 @@
 # VALDR Stage 12 Windows manual QA
 
-**Baseline:** Master-TZ `docs/VALDR_Master_TZ_v0.2.11.md`
+**Baseline:** Master-TZ `docs/VALDR_Master_TZ_v0.2.13.md`
 **Branch:** `valdr-v0.2`  
 **Purpose:** final human-visible acceptance before Stage 12 is frozen.
 
 ## QA candidate
 
-Use the Testnet2 Windows development package from the fully green [VALDR v0.2 CI run #367](https://github.com/Sheff1981/valdr-core/actions/runs/36217224372):
+Use the **current Testnet2 Windows development package from fully green VALDR v0.2 CI #466**, run `36291552764`.
 
-- source commit: `ed9b1425847f4e391a678cca3cf87d3acf0d866c`;
-- GitHub Actions artifact: `valdr-stage13-windows-development` from **that exact run**;
+- source commit: `4c661df003aba12892b6ac75668c8a4a36658f4e`;
+- GitHub Actions artifact: `valdr-stage13-windows-development`, artifact ID `10922955291`;
+- canonical release assembly: artifact ID `10922337493`;
 - active network: `testnet2`, Chain ID `valdr-testnet-2`;
 - application version: `0.2.0-dev`;
 - installer: `VALDR-Desktop-0.2.0-dev-windows-x64-setup.exe`;
-- portable ZIP: `VALDR-Desktop-0.2.0-dev-windows-x64-portable.zip`.
+- installer size: `18,843,942` bytes;
+- installer SHA-256: `ee8a9dfee93acb95951cf6ae143198163476c2d8aa07bd528a1b3b196eccca75`;
+- portable ZIP: `VALDR-Desktop-0.2.0-dev-windows-x64-portable.zip`;
+- portable ZIP size: `21,967,641` bytes;
+- portable ZIP SHA-256: `7e4703dae55f12d1f708cedda8be7957e1b03c9b07ffce50bfdf3428d92f462d`.
+
+These hashes were independently recomputed from the exact CI #466 Windows artifact and match the canonical `release-manifest.json` in the same run's release assembly. That manifest binds exact commit `4c661df003aba12892b6ac75668c8a4a36658f4e`, version `0.2.0-dev`, network `testnet2` and Chain ID `valdr-testnet-2`.
 
 Before launch, verify the installer in PowerShell:
 
@@ -21,9 +28,25 @@ Before launch, verify the installer in PowerShell:
 Get-FileHash .\VALDR-Desktop-0.2.0-dev-windows-x64-setup.exe -Algorithm SHA256
 ```
 
-Compare the value with the installer entry in the **same run's** canonical `SHA256SUMS` / `release-manifest.json` from `valdr-stage13-release-assembly-development`. Confirm the manifest identifies the exact source commit and `valdr-testnet-2`. Do not use checksums or artifacts from run #356: those belong to Testnet1. This is a development acceptance candidate, not a public Testnet release. It is intentionally not Authenticode-signed; Master-TZ v0.2.11 uses SHA-256 + GitHub/Sigstore provenance as the mandatory Testnet authenticity model.
+Expected value:
 
-Use a fresh Windows profile/data directory for first-run checks. Mainnet must remain unavailable.
+```text
+ee8a9dfee93acb95951cf6ae143198163476c2d8aa07bd528a1b3b196eccca75
+```
+
+For portable ZIP:
+
+```powershell
+Get-FileHash .\VALDR-Desktop-0.2.0-dev-windows-x64-portable.zip -Algorithm SHA256
+```
+
+Expected value:
+
+```text
+7e4703dae55f12d1f708cedda8be7957e1b03c9b07ffce50bfdf3428d92f462d
+```
+
+This is a **development manual-acceptance candidate**, not a public Testnet release. It is intentionally not Authenticode-signed. Mandatory authenticity for this development gate remains SHA-256 plus exact GitHub/Sigstore provenance. Use a fresh Windows profile/data directory for first-run checks. Mainnet must remain unavailable.
 
 ## 1. First run
 
