@@ -22,8 +22,9 @@ import (
 )
 
 const (
-	defaultHandshakeTimeout = 5 * time.Second
+	defaultHandshakeTimeout  = 5 * time.Second
 	outboundOnlyHelloAddress = "0.0.0.0:0"
+	maxPeerAdvertisementsV2  = 256
 )
 
 var (
@@ -806,6 +807,9 @@ func (n *Node) handleGetPeers(peerID string) error {
 }
 
 func (n *Node) handlePeers(peers []peerAdvertisement) error {
+	if n.enableV2 && len(peers) > maxPeerAdvertisementsV2 {
+		return fmt.Errorf("%w: peer advertisement count=%d", ErrInvalidPeerAddress, len(peers))
+	}
 	for _, peer := range peers {
 		if peer.NodeID == n.nodeID {
 			continue
@@ -835,11 +839,23 @@ func (n *Node) handlePeers(peers []peerAdvertisement) error {
 
 		n.mu.Lock()
 		if _, connected := n.peers[peer.NodeID]; !connected {
-			n.discovered[peer.NodeID] = peer.Address
+			n.rememberDiscoveredPeerLocked(peer.NodeID, peer.Address)
 		}
 		n.mu.Unlock()
 	}
 	return nil
+}
+
+func (n *Node) rememberDiscoveredPeerLocked(nodeID, address string) bool {
+	if _, exists := n.discovered[nodeID]; exists {
+		n.discovered[nodeID] = address
+		return true
+	}
+	if len(n.discovered) >= n.protection.MaxDiscoveredPeers {
+		return false
+	}
+	n.discovered[nodeID] = address
+	return true
 }
 
 func (n *Node) afterPeerConnected(peer Peer) {
