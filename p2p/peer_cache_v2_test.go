@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -61,5 +62,34 @@ func TestPeerCacheV2DevnetAllowsLoopback(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got=%v want=%v", got, want)
+	}
+}
+
+
+func TestPeerCacheV2RejectsOversizeFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "peers-v2.json")
+	if err := os.WriteFile(path, make([]byte, maxPeerCacheV2FileBytes+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadPeerCacheV2(path, false); err == nil {
+		t.Fatal("oversize peer cache was accepted")
+	}
+}
+
+func TestPeerCacheV2CapsPersistedAddresses(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "peers-v2.json")
+	input := make([]string, 0, DefaultMaxDiscoveredPeers+32)
+	for i := 0; i < DefaultMaxDiscoveredPeers+32; i++ {
+		input = append(input, fmt.Sprintf("peer-%04d.example.org:17333", i))
+	}
+	if err := SavePeerCacheV2(path, false, input); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadPeerCacheV2(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != DefaultMaxDiscoveredPeers {
+		t.Fatalf("cache size=%d want=%d", len(got), DefaultMaxDiscoveredPeers)
 	}
 }
