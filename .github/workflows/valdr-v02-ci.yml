@@ -12,6 +12,10 @@ permissions:
   actions: read
   attestations: read
 
+concurrency:
+  group: valdr-v02-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-test-storage:
     runs-on: ubuntu-24.04
