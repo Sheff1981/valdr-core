@@ -18,6 +18,7 @@ const (
 	DefaultBanDuration          = time.Hour
 	DefaultMalformedThreshold   = 10
 	DefaultDuplicateCacheSize   = 4096
+	DefaultMaxDiscoveredPeers   = 4096
 	DefaultMessagesPerSecond    = 64
 	DefaultMessageBurst         = 128
 	DefaultBytesPerSecond       = 2 * 1024 * 1024
@@ -39,6 +40,7 @@ type ProtectionConfig struct {
 	BanDuration        time.Duration
 	MalformedThreshold int
 	DuplicateCacheSize int
+	MaxDiscoveredPeers int
 	MessagesPerSecond  float64
 	MessageBurst       float64
 	BytesPerSecond     float64
@@ -70,6 +72,9 @@ func normalizeProtectionConfig(cfg ProtectionConfig) ProtectionConfig {
 	}
 	if cfg.DuplicateCacheSize <= 0 {
 		cfg.DuplicateCacheSize = DefaultDuplicateCacheSize
+	}
+	if cfg.MaxDiscoveredPeers <= 0 {
+		cfg.MaxDiscoveredPeers = DefaultMaxDiscoveredPeers
 	}
 	if cfg.MessagesPerSecond <= 0 {
 		cfg.MessagesPerSecond = DefaultMessagesPerSecond
