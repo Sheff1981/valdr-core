@@ -88,3 +88,38 @@ func TestBadgerCorruptSchemaRejectedOnRestart(t *testing.T) {
 		t.Fatalf("Open error=%v want ErrStorageSchemaMismatch", err)
 	}
 }
+
+
+func TestBadgerCorruptUTXOHashDetectedOnLoad(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	genesis, err := block.NewGenesisForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	store, err := NewBadgerStore(dir, profile.ChainID, profile.GenesisHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save([]*block.Block{genesis}); err != nil {
+		_ = store.Close()
+		t.Fatal(err)
+	}
+	if err := store.db.Update(func(txn *badger.Txn) error {
+		return txn.Set(keyUTXOHash, []byte("corrupt-utxo-hash"))
+	}); err != nil {
+		_ = store.Close()
+		t.Fatal(err)
+	}
+	if _, err := store.Load(); !errors.Is(err, ErrStorageMetadataCorrupt) {
+		_ = store.Close()
+		t.Fatalf("Load error=%v want ErrStorageMetadataCorrupt", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
