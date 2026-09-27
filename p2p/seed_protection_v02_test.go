@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -445,5 +446,79 @@ func TestIdlePingRequiresMatchingPong(t *testing.T) {
 
 	if state.acceptPong(42, now) {
 		t.Fatal("duplicate pong was accepted without an outstanding ping")
+	}
+}
+
+
+func TestDiscoveredPeerSetIsBounded(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "bounded-discovery",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Protection: ProtectionConfig{
+			MaxDiscoveredPeers: 2,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	node.mu.Lock()
+	if !node.rememberDiscoveredPeerLocked("peer-a", "127.0.0.1:10001") {
+		t.Fatal("peer-a was not remembered")
+	}
+	if !node.rememberDiscoveredPeerLocked("peer-b", "127.0.0.1:10002") {
+		t.Fatal("peer-b was not remembered")
+	}
+	if node.rememberDiscoveredPeerLocked("peer-c", "127.0.0.1:10003") {
+		t.Fatal("peer-c exceeded learned-peer bound")
+	}
+	if !node.rememberDiscoveredPeerLocked("peer-a", "127.0.0.1:10004") {
+		t.Fatal("existing peer update should remain allowed at capacity")
+	}
+	got := len(node.discovered)
+	addr := node.discovered["peer-a"]
+	node.mu.Unlock()
+
+	if got != 2 {
+		t.Fatalf("discovered count=%d want=2", got)
+	}
+	if addr != "127.0.0.1:10004" {
+		t.Fatalf("peer-a address=%q want updated address", addr)
+	}
+}
+
+func TestV2PeerAdvertisementCountIsBounded(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "peer-gossip-limit",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	peers := make([]peerAdvertisement, maxPeerAdvertisementsV2+1)
+	for i := range peers {
+		peers[i] = peerAdvertisement{
+			NodeID:  fmt.Sprintf("peer-%d", i),
+			Address: fmt.Sprintf("127.0.0.1:%d", 20000+i),
+		}
+	}
+	if err := node.handlePeers(peers); !errors.Is(err, ErrInvalidPeerAddress) {
+		t.Fatalf("error=%v want ErrInvalidPeerAddress", err)
+	}
+	if len(node.DiscoveredPeers()) != 0 {
+		t.Fatal("oversized peer advertisement mutated discovered-peer state")
 	}
 }
