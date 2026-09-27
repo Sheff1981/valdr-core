@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
+	"github.com/Sheff1981/valdr-core/core/transaction"
 )
 
 func FuzzReadV2Frame(f *testing.F) {
@@ -59,5 +60,29 @@ func FuzzDecodeV2HelloPayload(f *testing.F) {
 		}
 		var hello V2Hello
 		_ = DecodeV2Payload(frame, &hello)
+	})
+}
+
+
+func FuzzDecodeV2TransactionPayload(f *testing.F) {
+	f.Add([]byte(`{"transaction":{"version":2,"chain_id":"valdr-testnet-2","inputs":[{"transaction_id":"0000000000000000000000000000000000000000000000000000000000000000","output_index":1}],"outputs":[{"amount":1,"recipient":"VDR1-invalid-seed"}],"timestamp":1,"public_key":"","signature":"","transaction_id":""}}`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(`{"transaction":null}`))
+
+	f.Fuzz(func(t *testing.T, payload []byte) {
+		frame := V2Frame{
+			ProtocolVersion: 2,
+			MessageType:     V2MessageTx,
+			Payload:         payload,
+		}
+		var message struct {
+			Transaction *transaction.Transaction `json:"transaction"`
+		}
+		if err := DecodeV2Payload(frame, &message); err != nil || message.Transaction == nil {
+			return
+		}
+		_ = message.Transaction.SerializedSize()
+		_ = message.Transaction.CalculateID()
+		_ = message.Transaction.ValidateForChain("valdr-testnet-2")
 	})
 }
