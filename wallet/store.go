@@ -13,6 +13,8 @@ import (
 	"strings"
 )
 
+const maxWalletFileBytes = 1 << 20
+
 var (
 	ErrWalletNotFound = errors.New("wallet not found")
 	ErrWalletExists   = errors.New("wallet already exists")
@@ -311,7 +313,7 @@ func (s *Store) find(selector string) (*walletRecord, error) {
 }
 
 func readWalletRecord(path string) (*walletRecord, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := readWalletFileBounded(path)
 	if err != nil {
 		return nil, err
 	}
@@ -427,4 +429,30 @@ func decodeJSONStrict(raw []byte, target any, disallowUnknown bool) error {
 		return err
 	}
 	return nil
+}
+
+
+func readWalletFileBounded(path string) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > maxWalletFileBytes {
+		return nil, ErrUnsupportedWalletFile
+	}
+
+	raw, err := io.ReadAll(io.LimitReader(file, maxWalletFileBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > maxWalletFileBytes {
+		return nil, ErrUnsupportedWalletFile
+	}
+	return raw, nil
 }
