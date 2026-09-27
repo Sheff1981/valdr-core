@@ -362,6 +362,9 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		Addr:              joinHostPort(*rpcHost, resolvedRPCPort),
 		Handler:           rpcServer.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	serverErr := make(chan error, 1)
