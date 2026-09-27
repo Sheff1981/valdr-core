@@ -75,3 +75,13 @@ func TestLoopbackRPCHostValidation(t *testing.T) {
 		}
 	}
 }
+
+
+func TestJoinHostPortSupportsIPv6(t *testing.T) {
+	if got := joinHostPort("127.0.0.1", 17332); got != "127.0.0.1:17332" {
+		t.Fatalf("IPv4 address=%q want 127.0.0.1:17332", got)
+	}
+	if got := joinHostPort("::1", 17332); got != "[::1]:17332" {
+		t.Fatalf("IPv6 address=%q want [::1]:17332", got)
+	}
+}
