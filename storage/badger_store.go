@@ -174,6 +174,30 @@ func (s *BadgerStore) Load() ([]*block.Block, error) {
 			}
 			blocks = append(blocks, &candidate)
 		}
+
+		var persistedUTXO []utxo.UTXO
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = []byte("utxo/")
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			key := it.Item().KeyCopy(nil)
+			raw, err := it.Item().ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			var item utxo.UTXO
+			if err := strictJSON(raw, &item); err != nil {
+				return fmt.Errorf("%w: UTXO record: %v", ErrStorageMetadataCorrupt, err)
+			}
+			if string(key) != string(utxoKey(item.TransactionID, item.OutputIndex)) {
+				return fmt.Errorf("%w: UTXO key mismatch", ErrStorageMetadataCorrupt)
+			}
+			persistedUTXO = append(persistedUTXO, item)
+		}
+		if HashUTXOSet(persistedUTXO) != info.UTXOHash {
+			return fmt.Errorf("%w: UTXO hash mismatch", ErrStorageMetadataCorrupt)
+		}
 		return nil
 	})
 	if err != nil {
