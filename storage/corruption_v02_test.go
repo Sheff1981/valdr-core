@@ -123,3 +123,38 @@ func TestBadgerCorruptUTXOHashDetectedOnLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+
+func TestBadgerCorruptActiveChainworkDetectedOnLoad(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	genesis, err := block.NewGenesisForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	store, err := NewBadgerStore(dir, profile.ChainID, profile.GenesisHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save([]*block.Block{genesis}); err != nil {
+		_ = store.Close()
+		t.Fatal(err)
+	}
+	if err := store.db.Update(func(txn *badger.Txn) error {
+		return txn.Set(keyActiveChainwork, []byte("01"))
+	}); err != nil {
+		_ = store.Close()
+		t.Fatal(err)
+	}
+	if _, err := store.Load(); !errors.Is(err, ErrStorageMetadataCorrupt) {
+		_ = store.Close()
+		t.Fatalf("Load error=%v want ErrStorageMetadataCorrupt", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
