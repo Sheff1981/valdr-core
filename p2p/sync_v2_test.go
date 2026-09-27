@@ -171,3 +171,61 @@ func TestV2SyncDecisionUsesCumulativeChainwork(t *testing.T) {
 		t.Fatal("higher peer height incorrectly overrode lower cumulative chainwork")
 	}
 }
+
+
+func TestV2SyncRejectsInvalidAdvertisedHeaderChainWithoutState(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain, err := blockchain.NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "invalid-header-target",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Blockchain:     chain,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	genesis := chain.Tip()
+	if genesis == nil {
+		t.Fatal("missing genesis")
+	}
+
+	candidate, err := block.NewV2(
+		1,
+		genesis.BlockHash,
+		genesis.Timestamp+profile.TargetBlockTimeSeconds,
+		genesis.Target,
+		0,
+		nil,
+		profile.ChainID,
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	header := candidate.Header()
+	// Hash is structurally self-consistent but nonce 0 is not guaranteed to
+	// satisfy PoW. Force a hash mismatch so consensus header validation must
+	// reject before any body request or sync state is retained.
+	header.BlockHash = strings.Repeat("11", 32)
+
+	err = node.handleHeadersV2("malicious-work-peer", V2HeadersPayload{
+		Headers: []block.Header{header},
+	})
+	if !errors.Is(err, ErrV2InvalidHeaders) {
+		t.Fatalf("handleHeadersV2 error=%v want ErrV2InvalidHeaders", err)
+	}
+	node.mu.RLock()
+	_, exists := node.syncV2["malicious-work-peer"]
+	node.mu.RUnlock()
+	if exists {
+		t.Fatal("invalid advertised header chain retained sync state")
+	}
+}
