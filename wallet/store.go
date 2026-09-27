@@ -45,6 +45,7 @@ func (s *Store) CreateEncrypted(
 	name string,
 	passphrase []byte,
 ) (*Wallet, error) {
+	name = strings.TrimSpace(name)
 	if len(passphrase) == 0 {
 		return nil, ErrPassphraseRequired
 	}
@@ -338,8 +339,10 @@ func readWalletRecord(path string) (*walletRecord, error) {
 			return nil, err
 		}
 		meta := file.Metadata()
+		// Expose a canonical display/selector name, but keep the exact stored
+		// v2 name for AES-GCM AAD verification. Older wallet files may contain
+		// surrounding whitespace that was authenticated at creation time.
 		meta.Name = strings.TrimSpace(meta.Name)
-		file.Name = meta.Name
 		if err := validateMetadata(meta); err != nil {
 			return nil, err
 		}
