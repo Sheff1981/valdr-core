@@ -1,12 +1,12 @@
 # VALDR Stage 14A independent Testnet runbook
 
-**Master baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`  
+**Master baseline:** `docs/VALDR_Master_TZ_v0.2.14.md`  
 **Network:** `testnet2` / `valdr-testnet-2`  
-**Status:** operational procedure only; Stage 14A is not complete until real independent-machine evidence exists.
+**Status:** ACTIVE NEXT GATE; Stage 14A is not complete until real independent-machine evidence exists.
 
 ## Purpose
 
-Run the final real distributed VALDR Testnet2 validation on at least three independently launched computers/clients after the technical implementation wave is complete.
+Run the final real distributed VALDR Testnet2 validation on at least three independently launched computers/clients. Under Master-TZ v0.2.14, this is the active next gate; Stage 12C manual Windows click-through was owner-waived and is not represented as passed.
 
 This procedure does not change consensus or network constants. It turns the automated/local preflight evidence into a reproducible real-network test.
 

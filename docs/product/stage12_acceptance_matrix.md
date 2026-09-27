@@ -1,7 +1,7 @@
 # VALDR Stage 12 Desktop acceptance matrix
 
 **Date:** 2026-09-27  
-**Master baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`  
+**Master baseline:** `docs/VALDR_Master_TZ_v0.2.14.md`  
 **Branch:** `valdr-v0.2`
 
 This file records Stage 12 evidence under the active cumulative Master-TZ v0.2.13. It does not change consensus or release scope.
@@ -39,7 +39,7 @@ This file records Stage 12 evidence under the active cumulative Master-TZ v0.2.1
 - Stage 12B.7 About / Build Identity: implemented and CI-verified. No official website URL is claimed because no canonical URL is currently recorded in the core repository.
 - Stage 12B.8 remains explicitly deferred by Master-TZ and is not part of the Stage 12B exit gate.
 
-**Stage 12B automated exit gate: PASS on CI #457.** Stage 12 itself is not frozen complete because Stage 12C manual Windows acceptance remains intentionally deferred to final validation.
+**Stage 12B automated exit gate: PASS on CI #457.** Stage 12C manual Windows acceptance was explicitly owner-waived on 2026-09-27 for v0.2. It remains not manually verified; Stage 12 is frozen for v0.2 on automated evidence plus the recorded waiver.
 
 ## Testnet2 P2P v2 relay / reorg runtime gate
 
@@ -76,7 +76,7 @@ This file records Stage 12 evidence under the active cumulative Master-TZ v0.2.1
 
 ## Remaining Stage 12 closure items
 
-Stage 12 must **not** yet be marked fully complete.
+Stage 12 is **frozen for v0.2 with an explicit owner waiver of Stage 12C**; this is not a manual PASS.
 
 1. **Manual GUI acceptance:** owner click-through of first-run, wallet, Send/Receive, Transactions, Settings and Advanced screens on the Windows build is still pending. The exact procedure is frozen in `docs/product/stage12_windows_manual_qa.md`.
 2. **Mining visual confirmation:** the previously reported blank hashrate was traced to the Desktop miner manager parsing pretty-printed JSON one line at a time. The parser now decodes the real JSON stream, and cross-platform runtime E2E requires positive accepted-block/hashrate/hash-count telemetry after a mined block. The GUI value still needs owner visual confirmation on Windows.

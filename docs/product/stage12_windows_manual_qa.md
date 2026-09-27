@@ -1,8 +1,8 @@
 # VALDR Stage 12 Windows manual QA
 
-**Baseline:** Master-TZ `docs/VALDR_Master_TZ_v0.2.13.md`
+**Baseline:** Master-TZ `docs/VALDR_Master_TZ_v0.2.14.md`
 **Branch:** `valdr-v0.2`  
-**Purpose:** final human-visible acceptance before Stage 12 is frozen.
+**Purpose:** optional retained human-visible checklist. By owner instruction on 2026-09-27, this is no longer a blocking v0.2 gate and has not been manually passed.
 
 ## QA candidate
 
@@ -124,7 +124,7 @@ Confirm language, theme, managed-node startup preference, Testnet-only network f
 
 ## Acceptance result
 
-Stage 12 may be frozen only after this checklist passes on the Windows build. Record any failed item before freezing the Testnet release candidate.
+Under Master-TZ v0.2.14 this checklist is optional for v0.2 and Stage 12 is frozen using automated evidence plus the explicit owner waiver. If this checklist is later executed, any failure must still be recorded and fixed before any affected release is accepted.
 
 Record the manual result with:
 

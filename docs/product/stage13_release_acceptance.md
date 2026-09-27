@@ -1,7 +1,7 @@
 # VALDR Stage 13 release acceptance evidence
 
 **Status:** DEVELOPMENT EVIDENCE COMPLETE — Testnet2 development packaging/provenance and clean verification are CI-verified; this is not a public release acceptance.  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.14.md`  
 **Current evidence commit:** `b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`  
 **CI evidence:** VALDR v0.2 CI run `36336520832` (#531) — SUCCESS on 2026-09-27.
 
@@ -33,7 +33,7 @@ This document records evidence only. CI #531 proves the current Testnet2 develop
 | Final Testnet release-candidate version | repository still uses `config.Version = "0.2.0-dev"` | pending deliberate freeze |
 | Final release clean verification | development path is proven; frozen non-development RC must repeat checksum + provenance verification | pending release candidate |
 | Stage 12B automated usability gate | final Stage 12B commit `61f6941cee00a19cd187929de2879cf54e43cb6e`; full cross-platform CI #457 green | automated gate green |
-| Stage 12 manual Windows acceptance | Stage 12C remains deferred final validation; no manual GUI PASS is recorded yet | blocking public release |
+| Stage 12 manual Windows acceptance | owner-waived on 2026-09-27 for v0.2; no manual GUI PASS is recorded | waived, not passed; no longer the release blocker under v0.2.14 |
 
 ## 2. Development artifacts proven by CI
 
@@ -100,6 +100,6 @@ No fake, borrowed or misleading Microsoft/Apple identity may be introduced to sa
 
 The Stage 13A Testnet2 development package matrix, clean install/launch/uninstall checks, manifest/checksum verification, GitHub/Sigstore provenance verification and exact-run non-public handoff are all CI-green on run `36336520832` (#531), exact commit `b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`.
 
-Therefore the **Stage 13A development evidence gate is PASS**. This does not create a public Testnet release: `config.Version` remains `0.2.0-dev`, Stage 12C manual Windows acceptance remains deferred final validation, and the website/public RC gates remain unresolved.
+Therefore the **Stage 13A development evidence gate is PASS**. This does not create a public Testnet release: `config.Version` remains `0.2.0-dev`, Stage 12C manual Windows acceptance is owner-waived for v0.2 and remains not manually verified. Stage 14A distributed validation is now the next active gate before the non-development public RC freeze.
 
-Stage 13B-C website technical/content gates are CI-green. The next automatable hardening work follows Master-TZ v0.2.13; Stage 12C manual Windows acceptance remains a genuine external gate and no Mainnet or public-release claim is authorized by this document.
+Stage 13B-C website technical/content gates are CI-green. The next automatable hardening work follows Master-TZ v0.2.13; Stage 12C is no longer a blocking gate under v0.2.14. Stage 14A independent multi-machine validation is the next active gate; no Mainnet or public-release claim is authorized until its required evidence and the later non-development RC gates are complete.
