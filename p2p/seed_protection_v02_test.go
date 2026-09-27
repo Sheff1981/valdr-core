@@ -406,3 +406,44 @@ func TestBootstrapAndMaintainUsesDiscoveredPeersWithoutSeeds(t *testing.T) {
 		t.Fatalf("peer count=%d want=1", node.PeerCount())
 	}
 }
+
+
+func TestIdlePingRequiresMatchingPong(t *testing.T) {
+	now := time.Unix(2_000_000_200, 0)
+	cfg := normalizeProtectionConfig(ProtectionConfig{
+		Now: func() time.Time { return now },
+	})
+	state := newPeerTrafficState(cfg)
+
+	state.setAwaitingPong(42, now)
+	now = now.Add(time.Second)
+
+	// Ordinary peer traffic is activity, but it must not satisfy the outstanding
+	// keepalive challenge. Otherwise a peer could avoid the ping timeout by
+	// sending unrelated frames forever.
+	state.markActivity(now)
+	_, awaiting, _, lastPing := state.idleState()
+	if !awaiting || lastPing != 42 {
+		t.Fatalf("unrelated activity cleared pending pong: awaiting=%t last_ping=%d", awaiting, lastPing)
+	}
+
+	if state.acceptPong(41, now) {
+		t.Fatal("mismatched pong nonce was accepted")
+	}
+	_, awaiting, _, lastPing = state.idleState()
+	if !awaiting || lastPing != 42 {
+		t.Fatalf("mismatched pong changed state: awaiting=%t last_ping=%d", awaiting, lastPing)
+	}
+
+	if !state.acceptPong(42, now) {
+		t.Fatal("matching pong nonce was rejected")
+	}
+	_, awaiting, _, lastPing = state.idleState()
+	if awaiting || lastPing != 0 {
+		t.Fatalf("matching pong did not clear keepalive state: awaiting=%t last_ping=%d", awaiting, lastPing)
+	}
+
+	if state.acceptPong(42, now) {
+		t.Fatal("duplicate pong was accepted without an outstanding ping")
+	}
+}
