@@ -5,7 +5,16 @@ compose=(docker compose -f deploy/docker-compose.testnet.yml)
 cleanup() {
   "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 }
-trap cleanup EXIT
+dump_failure() {
+  local code=$?
+  if [[ "$code" -ne 0 ]]; then
+    echo "Docker Testnet2 smoke failed; compose state/logs follow" >&2
+    "${compose[@]}" ps >&2 || true
+    "${compose[@]}" logs --tail=200 node1 node2 node3 explorer >&2 || true
+  fi
+  return "$code"
+}
+trap 'dump_failure; cleanup' EXIT
 
 "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 "${compose[@]}" build
@@ -33,9 +42,24 @@ for service in node1 node2 node3 explorer; do
   wait_healthy "$service"
 done
 
-status1=$("${compose[@]}" exec -T node1 valdrd status --node http://127.0.0.1:17332)
-status2=$("${compose[@]}" exec -T node2 valdrd status --node http://127.0.0.1:17332)
-status3=$("${compose[@]}" exec -T node3 valdrd status --node http://127.0.0.1:17332)
+rpc_status() {
+  local service="$1"
+  local output
+  for _ in $(seq 1 20); do
+    if output=$("${compose[@]}" exec -T "$service" valdrd status --node http://127.0.0.1:17332 2>/dev/null); then
+      printf '%s\n' "$output"
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "RPC status did not become available for $service" >&2
+  "${compose[@]}" logs --tail=100 "$service" >&2 || true
+  return 1
+}
+
+status1=$(rpc_status node1)
+status2=$(rpc_status node2)
+status3=$(rpc_status node3)
 
 python3 - "$status1" "$status2" "$status3" <<'PY'
 import json, sys
@@ -49,7 +73,10 @@ wait_peer_count() {
   local service="$1"
   local status peers
   for _ in $(seq 1 30); do
-    status=$("${compose[@]}" exec -T "$service" valdrd status --node http://127.0.0.1:17332)
+    if ! status=$(rpc_status "$service"); then
+      sleep 1
+      continue
+    fi
     peers=$(python3 - "$status" <<'PY'
 import json, sys
 print(json.loads(sys.argv[1])["peer_count"])
@@ -115,7 +142,10 @@ wait_height() {
   local expected_height="$2"
   local status height
   for _ in $(seq 1 60); do
-    status=$("${compose[@]}" exec -T "$service" valdrd status --node http://127.0.0.1:17332)
+    if ! status=$(rpc_status "$service"); then
+      sleep 1
+      continue
+    fi
     height=$(python3 - "$status" <<'PY'
 import json, sys
 print(json.loads(sys.argv[1])["height"])
@@ -137,9 +167,13 @@ wait_same_tip() {
   for _ in $(seq 1 60); do
     statuses=()
     for service in node1 node2 node3; do
-      statuses+=("$("${compose[@]}" exec -T "$service" valdrd status --node http://127.0.0.1:17332)")
+      if ! status=$(rpc_status "$service"); then
+        statuses=()
+        break
+      fi
+      statuses+=("$status")
     done
-    if python3 - "$expected_height" "${statuses[@]}" <<'PY'
+    if [[ "${#statuses[@]}" -eq 3 ]] && python3 - "$expected_height" "${statuses[@]}" <<'PY'
 import json, sys
 expected = int(sys.argv[1])
 nodes = [json.loads(raw) for raw in sys.argv[2:]]
@@ -253,7 +287,7 @@ assert result["transaction"]["transaction_id"] == wanted, result
 assert result["transaction"]["chain_id"] == "valdr-testnet-2", result
 PY
 
-  status=$("${compose[@]}" exec -T "$service" valdrd status --node http://127.0.0.1:17332)
+  status=$(rpc_status "$service")
   python3 - "$status" <<'PY'
 import json, sys
 status=json.loads(sys.argv[1])
@@ -406,8 +440,14 @@ wait_pair_tip() {
   local expected_height="$1"
   local status2 status3
   for _ in $(seq 1 60); do
-    status2=$("${compose[@]}" exec -T node2 valdrd status --node http://127.0.0.1:17332)
-    status3=$("${compose[@]}" exec -T node3 valdrd status --node http://127.0.0.1:17332)
+    if ! status2=$(rpc_status node2); then
+      sleep 1
+      continue
+    fi
+    if ! status3=$(rpc_status node3); then
+      sleep 1
+      continue
+    fi
     if python3 - "$expected_height" "$status2" "$status3" <<'PY'
 import json, sys
 expected=int(sys.argv[1])
