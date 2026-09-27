@@ -179,7 +179,7 @@ func TestDeeperLowerWorkBranchDoesNotActivate(t *testing.T) {
 
 	// Mine a short, high-work active branch by using the fastest clamped
 	// legacy intervals. Difficulty rises 1 -> 4 -> 16.
-	active1, err := active.Append(
+	_, err = active.Append(
 		config.GenesisTimestamp+15,
 		[]*transaction.Transaction{
 			testCoinbase(t, 1, activeMiner, config.GenesisTimestamp+15),
