@@ -57,6 +57,7 @@ jobs:
         run: |
           go test ./p2p -run=^$ -fuzz=^FuzzReadV2Frame$ -fuzztime=5s
           go test ./p2p -run=^$ -fuzz=^FuzzDecodeV2HelloPayload$ -fuzztime=5s
+          go test ./p2p -run=^$ -fuzz=^FuzzDecodeV2TransactionPayload$ -fuzztime=5s
           go test ./rpc -run=^$ -fuzz=^FuzzRPCRequestDecoder$ -fuzztime=5s
           go test ./wallet -run=^$ -fuzz=^FuzzWalletV2StrictDecoder$ -fuzztime=5s
 
