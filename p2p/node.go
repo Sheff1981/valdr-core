@@ -1652,13 +1652,27 @@ func (n *Node) validateHello(remote helloMessage) error {
 
 func (n *Node) registerPeer(peer Peer, conn net.Conn) (*peerConnection, error) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
 
 	if n.closed {
+		n.mu.Unlock()
 		return nil, ErrNodeClosed
 	}
-	if _, exists := n.peers[peer.NodeID]; exists {
-		return nil, fmt.Errorf("%w: %s", ErrDuplicatePeer, peer.NodeID)
+
+	var replaced *peerConnection
+	if currentPeer, exists := n.peers[peer.NodeID]; exists {
+		// Simultaneous cross-dials can otherwise make both sides keep their
+		// outbound socket and reject the matching inbound socket, causing both
+		// physical connections to collapse. Resolve opposite-direction
+		// duplicates deterministically: the lexicographically smaller NodeID
+		// owns the outbound direction and the larger NodeID owns the inbound
+		// direction. Both peers therefore select the same TCP connection.
+		preferInbound := n.nodeID > peer.NodeID
+		if currentPeer.Inbound == peer.Inbound || peer.Inbound != preferInbound {
+			n.mu.Unlock()
+			return nil, fmt.Errorf("%w: %s", ErrDuplicatePeer, peer.NodeID)
+		}
+		replaced = n.conns[peer.NodeID]
+		delete(n.syncV2, peer.NodeID)
 	}
 
 	pc := &peerConnection{
@@ -1669,6 +1683,17 @@ func (n *Node) registerPeer(peer Peer, conn net.Conn) (*peerConnection, error) {
 	n.peers[peer.NodeID] = peer
 	n.conns[peer.NodeID] = pc
 	delete(n.discovered, peer.NodeID)
+	n.mu.Unlock()
+
+	if replaced != nil {
+		_ = replaced.conn.Close()
+		logging.Printf(
+			logging.CategoryP2P,
+			"peer duplicate connection replaced node=%s inbound=%t",
+			peer.NodeID,
+			peer.Inbound,
+		)
+	}
 	logging.Printf(
 		logging.CategoryP2P,
 		"peer connected node=%s address=%s inbound=%t height=%d",
