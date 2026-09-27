@@ -213,3 +213,39 @@ func TestWalletV2NameCanonicalizationPreservesAuthenticatedLegacyMetadata(t *tes
 		t.Fatalf("unlocked address=%s want=%s", unlocked.Address, legacyNameWallet.Address)
 	}
 }
+
+
+func TestWalletAtomicReplaceFailurePreservesExistingFile(t *testing.T) {
+	store := NewStore(t.TempDir())
+	passphrase := []byte("atomic-wallet-passphrase")
+	created, err := store.CreateEncrypted("atomic", passphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(store.Dir, created.Address+".json")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeWalletFile(path, make(chan int)); err == nil {
+		t.Fatal("unsupported wallet serialization unexpectedly succeeded")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(after, before) {
+		t.Fatal("failed atomic replacement mutated existing wallet file")
+	}
+	matches, err := filepath.Glob(filepath.Join(store.Dir, ".wallet-*.tmp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("failed wallet replacement leaked temp files: %v", matches)
+	}
+	if _, err := store.Unlock("atomic", passphrase); err != nil {
+		t.Fatalf("wallet became unreadable after failed replacement: %v", err)
+	}
+}
