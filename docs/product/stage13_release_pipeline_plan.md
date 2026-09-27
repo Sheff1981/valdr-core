@@ -1,11 +1,11 @@
 # VALDR Stage 13 release/installer design plan
 
 **Status:** IN PROGRESS — development-only release plumbing; public release blocked.  
-**Baseline:** `docs/VALDR_Master_TZ_v0.2.8.md` §§19 and 23.  
+**Baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`.  
 **Branch:** `valdr-v0.2`  
 **Stage 12 state:** implementation/automated acceptance green; Windows manual GUI acceptance is still pending.
 
-Master-TZ v0.2.8 authorizes CI-safe Stage 13 implementation and keyless release provenance before Stage 12 manual acceptance closes. Public release tags and accepted release publication remain blocked until Stage 12 is green. Microsoft/Apple vendor signatures are optional hardening, not release blockers.
+Master-TZ v0.2.13 keeps CI-safe Stage 13 implementation and keyless release provenance available before Stage 12 manual acceptance closes. Public release tags and accepted release publication remain blocked until Stage 12 is green. Microsoft/Apple vendor signatures are optional hardening, not release blockers.
 
 ## 1. Release invariants
 
@@ -162,7 +162,7 @@ No final artifact filename/hash is duplicated into the website before a frozen r
 
 Website integration commits: `65d8cf7dc6fc6add0332b44d88f76b0d730c75cc`, `0b6bb9d94ffb5f1471952303530e73d6e007510f`, `240e72d5625512f1c2c0dfb37dd4a0993d411f84`, `571a3fcaa23e3bd1b7a84cc927c0054a1a44a745`.
 
-Website CI currently has an infrastructure-only blocker: runs `36145756061`, `36146021905`, `36146351810` and `36146923469` all terminated with zero executed steps and `runner_id=0`. This is not code-test evidence and must not be reported as a validation failure or success. The previous website commit `28234459191f479be1c6d9d364e668e62839db0b` had a successful full CI run, but that older success does not validate the new integration.
+Website CI is currently green: `Sheff1981/valdr-site` run `36266129459` (#59) completed SUCCESS on commit `805acb14df2680c13fc3488c3fc9ced1db9b9c95`. Final frozen-RC artifact links remain intentionally disabled until the release gates close.
 
 Required UX from the Master-TZ:
 
@@ -184,7 +184,7 @@ No placeholder public domain or unofficial mirror should be introduced.
 
 The pre-implementation metadata contract is defined in `docs/product/stage13_release_identity_contract.md`.
 
-A concrete release candidate must not use the current development string `0.2.0-dev`. The application version, package metadata, artifact names and release manifest must agree before any public Testnet release is published. Master-spec revision `v0.2.8` remains separate from the application version.
+A concrete release candidate must not use the current development string `0.2.0-dev`. The application version, package metadata, artifact names and release manifest must agree before any public Testnet release is published. Master-spec revision `v0.2.13` remains separate from the application version.
 
 ## 11. Stage 13 execution order
 
@@ -196,7 +196,7 @@ A concrete release candidate must not use the current development string `0.2.0-
 6. GitHub/Sigstore keyless provenance attestation for the canonical release assembly;
 7. clean provenance verification bound to repository/workflow/commit;
 8. release workflow mapping every asset to the exact git commit — development handoff workflow implemented; public publication path intentionally disabled while Stage 12 is open;
-9. official download-page integration — authoritative repository identified; development-state provenance UX and fail-closed metadata-driven artifact rendering implemented; final frozen-RC artifact links and successful website CI execution remain pending;
+9. official download-page integration — authoritative repository identified; development-state provenance UX and fail-closed metadata-driven artifact rendering implemented; final frozen-RC artifact links remain pending while website CI is already green;
 10. second-clean-environment verification of the frozen public release candidate;
 11. close §23 evidence matrix.
 

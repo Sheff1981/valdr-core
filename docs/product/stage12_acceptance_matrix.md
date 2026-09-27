@@ -1,10 +1,18 @@
 # VALDR Stage 12 Desktop acceptance matrix
 
-**Date:** 2026-09-26  
+**Date:** 2026-09-27  
 **Master baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`  
 **Branch:** `valdr-v0.2`
 
 This file records Stage 12 evidence under the active cumulative Master-TZ v0.2.13. It does not change consensus or release scope.
+
+## Current post-hardening full CI baseline
+
+- Exact source commit: `b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`.
+- VALDR v0.2 CI run `36336520832` (#531): **SUCCESS** on 2026-09-27.
+- All required jobs passed: Core/build/storage, Windows x64, Linux x64, macOS ARM64, macOS AMD64, canonical Stage 13 development assembly, independent clean verification and the non-public release handoff.
+- The green run includes the current P2P/reorg/BadgerDB/RPC/wallet/fuzz/runtime hardening, Docker Testnet2 smoke, Linux service smoke and three-node runtime smoke.
+- This is the current automated technical baseline. It does not replace Stage 12C human-visible Windows acceptance or Stage 14A independent-machine evidence.
 
 ## Testnet2 R0 automated baseline
 
@@ -75,7 +83,7 @@ Stage 12 must **not** yet be marked fully complete.
 3. **Secret presentation hardening:** private-key output is automatically hidden when leaving the Wallet view or when the app is backgrounded, and wallet passphrase inputs are cleared after create/unlock attempts. Frontend source-contract coverage prevents silent regression.
 4. If manual QA finds a defect, fix it and rerun the full CI matrix before Stage 12 is frozen.
 
-Stage 13 development packaging/provenance was regenerated on Testnet2 in CI #367, but public release acceptance remains blocked by Stage 12 manual Windows QA and the later release gates. The current project-owner priority is Core/Testnet2 network verification before further UX/site expansion; this does not mark Stage 12 manually complete or authorize a public release.
+Stage 13 development packaging/provenance was regenerated and clean-verified on Testnet2 in CI #531, but public release acceptance remains blocked by Stage 12 manual Windows QA and the later release gates. The current project-owner priority is Core/Testnet2 network verification before further UX/site expansion; this does not mark Stage 12 manually complete or authorize a public release.
 
 ## Public positioning consistency
 

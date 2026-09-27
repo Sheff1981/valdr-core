@@ -6,21 +6,21 @@
 
 ## QA candidate
 
-Use the **current Testnet2 Windows development package from fully green VALDR v0.2 CI #466**, run `36291552764`.
+Use the **current Testnet2 Windows development package from fully green VALDR v0.2 CI #531**, run `36336520832`.
 
-- source commit: `4c661df003aba12892b6ac75668c8a4a36658f4e`;
-- GitHub Actions artifact: `valdr-stage13-windows-development`, artifact ID `10922955291`;
-- canonical release assembly: artifact ID `10922337493`;
+- source commit: `b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`;
+- GitHub Actions artifact: `valdr-stage13-windows-development`, artifact ID `10937387339`;
+- canonical release assembly: artifact ID `10937527319`;
 - active network: `testnet2`, Chain ID `valdr-testnet-2`;
 - application version: `0.2.0-dev`;
 - installer: `VALDR-Desktop-0.2.0-dev-windows-x64-setup.exe`;
-- installer size: `18,843,942` bytes;
-- installer SHA-256: `ee8a9dfee93acb95951cf6ae143198163476c2d8aa07bd528a1b3b196eccca75`;
+- installer size: `18,853,305` bytes;
+- installer SHA-256: `8080562cd1025a6d8151ce6b2935477e42074861d3070731c1723e7134fc23be`;
 - portable ZIP: `VALDR-Desktop-0.2.0-dev-windows-x64-portable.zip`;
-- portable ZIP size: `21,967,641` bytes;
-- portable ZIP SHA-256: `7e4703dae55f12d1f708cedda8be7957e1b03c9b07ffce50bfdf3428d92f462d`.
+- portable ZIP size: `21,980,284` bytes;
+- portable ZIP SHA-256: `959dd314a7b35be6ce11448b3d34d83a3144fa91792fe993d3d9d6ff5923b114`.
 
-These hashes were independently recomputed from the exact CI #466 Windows artifact and match the canonical `release-manifest.json` in the same run's release assembly. That manifest binds exact commit `4c661df003aba12892b6ac75668c8a4a36658f4e`, version `0.2.0-dev`, network `testnet2` and Chain ID `valdr-testnet-2`.
+These values come from the exact CI #531 Windows development artifact and its generated `release-manifest.json`. The same run's canonical release assembly passed checksum verification, repository/workflow/commit-bound GitHub/Sigstore provenance verification and the non-public release handoff. The manifest binds exact commit `b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`, version `0.2.0-dev`, network `testnet2` and Chain ID `valdr-testnet-2`.
 
 Before launch, verify the installer in PowerShell:
 
@@ -31,7 +31,7 @@ Get-FileHash .\VALDR-Desktop-0.2.0-dev-windows-x64-setup.exe -Algorithm SHA256
 Expected value:
 
 ```text
-ee8a9dfee93acb95951cf6ae143198163476c2d8aa07bd528a1b3b196eccca75
+8080562cd1025a6d8151ce6b2935477e42074861d3070731c1723e7134fc23be
 ```
 
 For portable ZIP:
@@ -43,7 +43,7 @@ Get-FileHash .\VALDR-Desktop-0.2.0-dev-windows-x64-portable.zip -Algorithm SHA25
 Expected value:
 
 ```text
-7e4703dae55f12d1f708cedda8be7957e1b03c9b07ffce50bfdf3428d92f462d
+959dd314a7b35be6ce11448b3d34d83a3144fa91792fe993d3d9d6ff5923b114
 ```
 
 This is a **development manual-acceptance candidate**, not a public Testnet release. It is intentionally not Authenticode-signed. Mandatory authenticity for this development gate remains SHA-256 plus exact GitHub/Sigstore provenance. Use a fresh Windows profile/data directory for first-run checks. Mainnet must remain unavailable.

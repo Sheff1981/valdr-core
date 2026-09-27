@@ -1,6 +1,6 @@
 # VALDR Stage 14A independent Testnet runbook
 
-**Master baseline:** `docs/VALDR_Master_TZ_v0.2.12.md`  
+**Master baseline:** `docs/VALDR_Master_TZ_v0.2.13.md`  
 **Network:** `testnet2` / `valdr-testnet-2`  
 **Status:** operational procedure only; Stage 14A is not complete until real independent-machine evidence exists.
 
@@ -9,6 +9,8 @@
 Run the final real distributed VALDR Testnet2 validation on at least three independently launched computers/clients after the technical implementation wave is complete.
 
 This procedure does not change consensus or network constants. It turns the automated/local preflight evidence into a reproducible real-network test.
+
+Current automated preflight baseline: VALDR v0.2 CI #531, run `36336520832`, exact commit `b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`, completed SUCCESS on 2026-09-27. This pin is preflight evidence only; it does not count as any of the required independent Stage 14A sessions.
 
 ## Required topology
 
