@@ -250,8 +250,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	pool := mempool.New()
 	p2pAddress := ""
 	if !*outboundOnly {
-		p2pAddress = *p2pHost + ":" +
-			strconv.FormatUint(uint64(resolvedP2PPort), 10)
+		p2pAddress = joinHostPort(*p2pHost, resolvedP2PPort)
 	}
 	node, err := p2p.NewNode(p2p.NodeConfig{
 		NodeID:           *nodeID,
@@ -360,7 +359,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	}
 
 	httpServer := &http.Server{
-		Addr:              *rpcHost + ":" + strconv.FormatUint(uint64(resolvedRPCPort), 10),
+		Addr:              joinHostPort(*rpcHost, resolvedRPCPort),
 		Handler:           rpcServer.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -550,4 +549,12 @@ func isLoopbackRPCHost(host string) bool {
 
 func rpcBindAllowed(host string, allowNonLoopback bool) bool {
 	return isLoopbackRPCHost(host) || allowNonLoopback
+}
+
+
+func joinHostPort(host string, port uint) string {
+	return net.JoinHostPort(
+		strings.TrimSpace(host),
+		strconv.FormatUint(uint64(port), 10),
+	)
 }
