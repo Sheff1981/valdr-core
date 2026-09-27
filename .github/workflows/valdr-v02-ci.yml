@@ -64,7 +64,14 @@ jobs:
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
 
       - name: Stage 18 Desktop lifecycle and duplicate-child gate
-        run: go test ./desktop ./apps/valdr-desktop -run "TestDesktop(NodeRejectsDuplicateManagedStart|MinerRejectsDuplicateManagedStart|NodeSurfacesUnexpectedExitButNotIntentionalStop|NodeStartClearsPreviousCrashState|AppCreatesEncryptedWalletOnly)$" -count=1
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./desktop -run "TestDesktop(NodeRejectsDuplicateManagedStart|MinerRejectsDuplicateManagedStart|NodeSurfacesUnexpectedExitButNotIntentionalStop|NodeStartClearsPreviousCrashState)$" -count=1
+          (
+            cd apps/valdr-desktop
+            go test -run "TestDesktopAppCreatesEncryptedWalletOnly$" -count=1
+          )
 
       - name: Storage v2 and migration gate
         run: go test ./storage ./core/blockchain ./cmd/valdrd
@@ -278,12 +285,20 @@ jobs:
             echo "VALDR Desktop window was not found for screenshot capture" >&2
             exit 1
           fi
-          import -display "$DISPLAY" -window "$WINDOW_ID" "$RUNNER_TEMP/valdr-desktop-current.png"
-          test -s "$RUNNER_TEMP/valdr-desktop-current.png"
-          COLORS="$(identify -format '%k' "$RUNNER_TEMP/valdr-desktop-current.png")"
+          COLORS=0
+          for _ in $(seq 1 40); do
+            import -display "$DISPLAY" -window "$WINDOW_ID" "$RUNNER_TEMP/valdr-desktop-current.png"
+            test -s "$RUNNER_TEMP/valdr-desktop-current.png"
+            COLORS="$(identify -format '%k' "$RUNNER_TEMP/valdr-desktop-current.png")"
+            if [ "$COLORS" -ge 32 ]; then
+              break
+            fi
+            sleep 0.5
+          done
           if [ "$COLORS" -lt 32 ]; then
             identify "$RUNNER_TEMP/valdr-desktop-current.png" || true
-            echo "Desktop screenshot appears blank or unrendered: colors=$COLORS" >&2
+            cat "$LOG" || true
+            echo "Desktop screenshot remained blank or unrendered after render wait: colors=$COLORS" >&2
             exit 1
           fi
 
