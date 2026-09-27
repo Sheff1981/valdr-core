@@ -158,3 +158,58 @@ func TestWalletV2RejectsOversizeFileBeforeDecode(t *testing.T) {
 		t.Fatalf("oversize wallet error=%v want ErrUnsupportedWalletFile", err)
 	}
 }
+
+
+func TestWalletV2NameCanonicalizationPreservesAuthenticatedLegacyMetadata(t *testing.T) {
+	passphrase := []byte("metadata-aad-passphrase")
+	store := NewStore(t.TempDir())
+
+	created, err := store.CreateEncrypted("  canonical-name  ", passphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Name != "canonical-name" {
+		t.Fatalf("created wallet name=%q want canonical-name", created.Name)
+	}
+
+	// Simulate a wallet produced before name canonicalization: surrounding
+	// whitespace is part of the authenticated AAD and must not be mutated
+	// before AES-GCM verification.
+	legacyNameWallet, err := New("  legacy-spaced-name  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := encryptWalletV2(legacyNameWallet, passphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(store.Dir, legacyNameWallet.Address+".json")
+	if err := writeWalletFile(path, file); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := store.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range items {
+		if item.Address == legacyNameWallet.Address {
+			found = true
+			if item.Name != "legacy-spaced-name" {
+				t.Fatalf("listed legacy name=%q want trimmed selector name", item.Name)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("legacy spaced-name wallet missing from list")
+	}
+
+	unlocked, err := store.Unlock("legacy-spaced-name", passphrase)
+	if err != nil {
+		t.Fatalf("unlock authenticated legacy metadata: %v", err)
+	}
+	if unlocked.Address != legacyNameWallet.Address {
+		t.Fatalf("unlocked address=%s want=%s", unlocked.Address, legacyNameWallet.Address)
+	}
+}
