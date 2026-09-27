@@ -140,3 +140,21 @@ func TestImportEncryptedVerifiedTamperDoesNotWriteDestination(t *testing.T) {
 		t.Fatalf("tampered import wrote destination wallet: %+v", items)
 	}
 }
+
+
+func TestWalletV2RejectsOversizeFileBeforeDecode(t *testing.T) {
+	store := NewStore(t.TempDir())
+	passphrase := []byte("oversize-wallet-passphrase")
+	created, err := store.CreateEncrypted("oversize", passphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(store.Dir, created.Address+".json")
+	if err := os.WriteFile(path, make([]byte, maxWalletFileBytes+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.Unlock("oversize", passphrase); !errors.Is(err, ErrUnsupportedWalletFile) {
+		t.Fatalf("oversize wallet error=%v want ErrUnsupportedWalletFile", err)
+	}
+}
