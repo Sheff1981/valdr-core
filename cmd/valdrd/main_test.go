@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"bytes"
 	"os"
 	"path/filepath"
@@ -83,5 +84,15 @@ func TestJoinHostPortSupportsIPv6(t *testing.T) {
 	}
 	if got := joinHostPort("::1", 17332); got != "[::1]:17332" {
 		t.Fatalf("IPv6 address=%q want [::1]:17332", got)
+	}
+}
+
+
+func TestPrivilegedRPCWriteTimeoutCoversMiningDeadline(t *testing.T) {
+	if privilegedRPCWriteTimeout <= 5*time.Minute {
+		t.Fatalf(
+			"privileged RPC write timeout=%s must exceed valdr-miner mineBlock deadline",
+			privilegedRPCWriteTimeout,
+		)
 	}
 }
