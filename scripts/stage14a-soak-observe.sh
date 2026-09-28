@@ -48,15 +48,46 @@ deadline=$((start_epoch + duration_seconds))
 previous_height=""
 previous_chainwork=""
 
+append_error_record() {
+  local now_iso="$1" now_epoch="$2" component="$3" exit_code="$4" message="$5" disk_bytes="$6"
+  python3 - "$now_iso" "$now_epoch" "$component" "$exit_code" "$message" "$disk_bytes" <<'PY' >>"$output"
+import json, sys
+ts, epoch, component, exit_code, message, disk_raw = sys.argv[1:]
+record = {
+    "observed_at": ts,
+    "observed_epoch": int(epoch),
+    "observation_error": {
+        "component": component,
+        "exit_code": int(exit_code),
+        "message": message[-2048:],
+    },
+    "disk_bytes": int(float(disk_raw)),
+}
+print(json.dumps(record, sort_keys=True, separators=(",", ":")))
+PY
+}
+
 snapshot() {
-  local status peers mining disk_bytes now_epoch now_iso
+  local status peers mining disk_bytes now_epoch now_iso rc
   now_epoch=$(date +%s)
   now_iso=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-  status=$(valdrd status --node "$node")
-  peers=$(valdr-cli peers --node "$node")
-  mining=$(valdr-cli mining info --node "$node")
   disk_bytes=$(du -sk "$data_dir" 2>/dev/null | awk '{print $1 * 1024}' || printf '0')
+
+  if ! status=$(valdrd status --node "$node" 2>&1); then
+    rc=$?
+    append_error_record "$now_iso" "$now_epoch" "valdrd-status" "$rc" "$status" "$disk_bytes"
+    return 0
+  fi
+  if ! peers=$(valdr-cli peers --node "$node" 2>&1); then
+    rc=$?
+    append_error_record "$now_iso" "$now_epoch" "valdr-cli-peers" "$rc" "$peers" "$disk_bytes"
+    return 0
+  fi
+  if ! mining=$(valdr-cli mining info --node "$node" 2>&1); then
+    rc=$?
+    append_error_record "$now_iso" "$now_epoch" "valdr-cli-mining-info" "$rc" "$mining" "$disk_bytes"
+    return 0
+  fi
 
   python3 - "$now_iso" "$now_epoch" "$status" "$peers" "$mining" "$disk_bytes" "$previous_height" "$previous_chainwork" <<'PY' >>"$output"
 import json, sys

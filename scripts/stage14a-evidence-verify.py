@@ -106,8 +106,16 @@ def verify_session(session_dir):
         fail(f"{session_dir}: unexpected local result")
 
     count = summary.get("snapshot_count")
+    success_count = summary.get("successful_snapshot_count", count)
+    error_count = summary.get("observation_error_count", 0)
     if not isinstance(count, int) or count < 1:
         fail(f"{session_dir}: snapshot_count must be positive")
+    if not isinstance(success_count, int) or success_count < 1:
+        fail(f"{session_dir}: successful_snapshot_count must be positive")
+    if not isinstance(error_count, int) or error_count < 0:
+        fail(f"{session_dir}: observation_error_count must be non-negative")
+    if success_count + error_count != count:
+        fail(f"{session_dir}: snapshot summary counts are inconsistent")
     start_height = int(summary.get("start_height"))
     end_height = int(summary.get("end_height"))
     if end_height < start_height:
@@ -118,12 +126,21 @@ def verify_session(session_dir):
         fail(f"{session_dir}: chainwork regressed")
 
     snapshots = 0
+    successful_snapshots = 0
+    observed_errors = 0
     tip_hashes = set()
     with snapshots_path.open("r", encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
             item = json.loads(line)
+            snapshots += 1
+            if "observation_error" in item:
+                err = item.get("observation_error")
+                if not isinstance(err, dict) or not err.get("component"):
+                    fail(f"{session_dir}: malformed observation_error snapshot")
+                observed_errors += 1
+                continue
             status = item.get("status") or {}
             if status.get("network") != EXPECTED_NETWORK or status.get("chain_id") != EXPECTED_CHAIN_ID:
                 fail(f"{session_dir}: snapshot network identity mismatch")
@@ -131,9 +148,13 @@ def verify_session(session_dir):
             if not isinstance(tip_hash, str) or not tip_hash:
                 fail(f"{session_dir}: snapshot missing tip_hash")
             tip_hashes.add(tip_hash)
-            snapshots += 1
+            successful_snapshots += 1
     if snapshots != count:
         fail(f"{session_dir}: snapshot_count does not match snapshots.jsonl")
+    if successful_snapshots != success_count:
+        fail(f"{session_dir}: successful_snapshot_count does not match snapshots.jsonl")
+    if observed_errors != error_count:
+        fail(f"{session_dir}: observation_error_count does not match snapshots.jsonl")
 
     event_types = set()
     with events_path.open("r", encoding="utf-8") as f:
@@ -159,6 +180,8 @@ def verify_session(session_dir):
         "bootstrap_route": manifest.get("bootstrap_route"),
         "planned_duration_seconds": manifest.get("planned_duration_seconds"),
         "snapshot_count": count,
+        "successful_snapshot_count": success_count,
+        "observation_error_count": error_count,
         "start_height": start_height,
         "end_height": end_height,
         "_tip_hashes": tip_hashes,

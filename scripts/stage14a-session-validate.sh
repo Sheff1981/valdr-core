@@ -136,8 +136,12 @@ with open(snapshots_path, "r", encoding="utf-8") as f:
             records.append(json.loads(line))
 if not records:
     raise SystemExit("no Stage14A snapshots were recorded")
-first = records[0]["status"]
-last = records[-1]["status"]
+successful = [r for r in records if isinstance(r.get("status"), dict)]
+if not successful:
+    raise SystemExit("no successful Stage14A status snapshots were recorded")
+first = successful[0]["status"]
+last = successful[-1]["status"]
+error_count = sum(1 for r in records if "observation_error" in r)
 summary = {
     "schema": "valdr-stage14a-session-summary-v1",
     "session_id": session_id,
@@ -146,6 +150,8 @@ summary = {
     "started_at": started_at,
     "ended_at": ended_at,
     "snapshot_count": len(records),
+    "successful_snapshot_count": len(successful),
+    "observation_error_count": error_count,
     "network": last["network"],
     "chain_id": last["chain_id"],
     "start_height": first["height"],
