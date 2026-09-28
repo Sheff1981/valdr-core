@@ -91,6 +91,7 @@ PY
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m1" peer_exchange --result pass --note "CI synthetic operator event" >/dev/null
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m2" mining --result pass >/dev/null
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m3" transaction --result pass >/dev/null
+python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g3-m1" mining --result pass >/dev/null
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g2-m1" restart --result pass >/dev/null
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g2-m2" db_verify --result pass >/dev/null
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g2-m3" bootstrap_loss --result pass >/dev/null
@@ -112,10 +113,40 @@ assert result["checks"]["each_session_has_at_least_three_independent_machine_lab
 assert result["checks"]["single_exact_source_commit"] is True
 assert result["checks"]["bootstrap_route_recorded_each_session"] is True
 assert result["checks"]["common_tip_observed_each_session"] is True
+assert result["checks"]["required_operator_scenarios_passed"] is True
+assert result["checks"]["mining_passed_on_at_least_two_machine_labels"] is True
 assert all(item["common_tip_observed"] for item in result["distributed_sessions"])
 assert all(item["observed_duration_seconds"] >= 0 for item in result["evidence"])
 coverage = set(result["operator_recorded_scenario_coverage"])
+passed = set(result["operator_recorded_passed_scenarios"])
 assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "bootstrap_loss"} <= coverage
+assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "bootstrap_loss"} <= passed
+assert len(result["mining_pass_machine_labels"]) >= 2
+PY
+
+cp -R "$tmp/out" "$tmp/one-miner-out"
+python3 - "$tmp/one-miner-out/ci-g3-m1" <<'PY'
+import hashlib, json, pathlib, sys
+root=pathlib.Path(sys.argv[1])
+events=root/"events.jsonl"
+rows=[json.loads(x) for x in events.read_text(encoding="utf-8").splitlines() if x.strip()]
+rows=[x for x in rows if x.get("event_type") != "mining"]
+events.write_text("\n".join(json.dumps(x, sort_keys=True) for x in rows)+("\n" if rows else ""), encoding="utf-8")
+names=["manifest.json","snapshots.jsonl","summary.json","events.jsonl"]
+(root/"SHA256SUMS").write_text(
+    "\n".join(f"{hashlib.sha256((root/n).read_bytes()).hexdigest()}  {n}" for n in names)+"\n",
+    encoding="utf-8",
+)
+PY
+if python3 "$verifier" "$tmp/one-miner-out" >"$tmp/one-miner.json"; then
+  echo "Stage14A evidence with only one mining machine unexpectedly became ready" >&2
+  exit 1
+fi
+python3 - "$tmp/one-miner.json" <<'PY'
+import json, sys
+result=json.load(open(sys.argv[1], encoding="utf-8"))
+assert result["automated_evidence_ready"] is False
+assert result["checks"]["mining_passed_on_at_least_two_machine_labels"] is False
 PY
 
 # Guard against the previous weak interpretation: one machine per distributed
