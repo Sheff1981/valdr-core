@@ -73,18 +73,18 @@ snapshot() {
   now_iso=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   disk_bytes=$(du -sk "$data_dir" 2>/dev/null | awk '{print $1 * 1024}' || printf '0')
 
-  if ! status=$(valdrd status --node "$node" 2>&1); then
-    rc=$?
+  status=$(valdrd status --node "$node" 2>&1) && rc=0 || rc=$?
+  if (( rc != 0 )); then
     append_error_record "$now_iso" "$now_epoch" "valdrd-status" "$rc" "$status" "$disk_bytes"
     return 0
   fi
-  if ! peers=$(valdr-cli peers --node "$node" 2>&1); then
-    rc=$?
+  peers=$(valdr-cli peers --node "$node" 2>&1) && rc=0 || rc=$?
+  if (( rc != 0 )); then
     append_error_record "$now_iso" "$now_epoch" "valdr-cli-peers" "$rc" "$peers" "$disk_bytes"
     return 0
   fi
-  if ! mining=$(valdr-cli mining info --node "$node" 2>&1); then
-    rc=$?
+  mining=$(valdr-cli mining info --node "$node" 2>&1) && rc=0 || rc=$?
+  if (( rc != 0 )); then
     append_error_record "$now_iso" "$now_epoch" "valdr-cli-mining-info" "$rc" "$mining" "$disk_bytes"
     return 0
   fi

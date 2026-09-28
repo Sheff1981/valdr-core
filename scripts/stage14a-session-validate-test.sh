@@ -162,7 +162,9 @@ python3 - "$tmp/flaky.jsonl" <<'PY'
 import json, sys
 records=[json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]
 assert len(records) >= 2, records
-assert any("observation_error" in r for r in records), records
+errors=[r["observation_error"] for r in records if "observation_error" in r]
+assert errors, records
+assert any(e["component"] == "valdrd-status" and e["exit_code"] == 7 for e in errors), errors
 assert any(r.get("status", {}).get("height") == 43 for r in records), records
 PY
 
