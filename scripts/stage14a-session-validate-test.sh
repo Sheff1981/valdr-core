@@ -114,6 +114,7 @@ assert result["checks"]["single_exact_source_commit"] is True
 assert result["checks"]["bootstrap_route_recorded_each_session"] is True
 assert result["checks"]["common_tip_observed_each_session"] is True
 assert result["checks"]["same_final_tip_and_chainwork_each_session"] is True
+assert all(len(item["end_heights"]) == 1 for item in result["distributed_sessions"])
 assert result["checks"]["required_operator_scenarios_passed"] is True
 assert result["checks"]["mining_passed_on_at_least_two_machine_labels"] is True
 assert all(item["common_tip_observed"] for item in result["distributed_sessions"])
@@ -124,6 +125,30 @@ assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "boots
 assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "bootstrap_loss"} <= passed
 assert len(result["mining_pass_machine_labels"]) >= 2
 PY
+
+cp -R "$tmp/out/ci-g1-m1" "$tmp/bad-hash-format"
+python3 - "$tmp/bad-hash-format" <<'PY'
+import hashlib, json, pathlib, sys
+root=pathlib.Path(sys.argv[1])
+snapshots=root/"snapshots.jsonl"
+rows=[json.loads(x) for x in snapshots.read_text(encoding="utf-8").splitlines() if x.strip()]
+rows[0]["status"]["tip_hash"]="ABCDEF"
+snapshots.write_text("\n".join(json.dumps(x, sort_keys=True) for x in rows)+"\n", encoding="utf-8")
+summary=root/"summary.json"
+s=json.loads(summary.read_text(encoding="utf-8"))
+s["start_tip_hash"]="ABCDEF"
+s["end_tip_hash"]="ABCDEF"
+summary.write_text(json.dumps(s, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+names=["manifest.json","snapshots.jsonl","summary.json","events.jsonl"]
+(root/"SHA256SUMS").write_text(
+    "\n".join(f"{hashlib.sha256((root/n).read_bytes()).hexdigest()}  {n}" for n in names)+"\n",
+    encoding="utf-8",
+)
+PY
+if python3 "$verifier" "$tmp/bad-hash-format" >/dev/null 2>&1; then
+  echo "Stage14A evidence with malformed tip hash unexpectedly verified" >&2
+  exit 1
+fi
 
 cp -R "$tmp/out" "$tmp/divergent-final-out"
 python3 - "$tmp/divergent-final-out/ci-g2-m3" <<'PY'
