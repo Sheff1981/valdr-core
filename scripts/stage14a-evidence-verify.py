@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import datetime as dt
 import hashlib
 import json
 import pathlib
@@ -146,6 +147,7 @@ def verify_session(session_dir):
     successful_snapshots = 0
     observed_errors = 0
     tip_hashes = set()
+    successful_statuses = []
     with snapshots_path.open("r", encoding="utf-8") as f:
         for line in f:
             if not line.strip():
@@ -165,6 +167,7 @@ def verify_session(session_dir):
             if not isinstance(tip_hash, str) or not tip_hash:
                 fail(f"{session_dir}: snapshot missing tip_hash")
             tip_hashes.add(tip_hash)
+            successful_statuses.append(status)
             successful_snapshots += 1
     if snapshots != count:
         fail(f"{session_dir}: snapshot_count does not match snapshots.jsonl")
@@ -172,6 +175,43 @@ def verify_session(session_dir):
         fail(f"{session_dir}: successful_snapshot_count does not match snapshots.jsonl")
     if observed_errors != error_count:
         fail(f"{session_dir}: observation_error_count does not match snapshots.jsonl")
+
+    first_status = successful_statuses[0]
+    last_status = successful_statuses[-1]
+    if int(first_status.get("height")) != start_height:
+        fail(f"{session_dir}: summary start_height does not match first successful snapshot")
+    if int(last_status.get("height")) != end_height:
+        fail(f"{session_dir}: summary end_height does not match last successful snapshot")
+    if summary.get("start_tip_hash") != first_status.get("tip_hash"):
+        fail(f"{session_dir}: summary start_tip_hash does not match first successful snapshot")
+    if summary.get("end_tip_hash") != last_status.get("tip_hash"):
+        fail(f"{session_dir}: summary end_tip_hash does not match last successful snapshot")
+    if int(str(summary.get("start_chainwork")), 16) != int(str(first_status.get("chainwork")), 16):
+        fail(f"{session_dir}: summary start_chainwork does not match first successful snapshot")
+    if int(str(summary.get("end_chainwork")), 16) != int(str(last_status.get("chainwork")), 16):
+        fail(f"{session_dir}: summary end_chainwork does not match last successful snapshot")
+
+    manifest_started = manifest.get("started_at")
+    summary_started = summary.get("started_at")
+    summary_ended = summary.get("ended_at")
+    for label, value in (
+        ("manifest started_at", manifest_started),
+        ("summary started_at", summary_started),
+        ("summary ended_at", summary_ended),
+    ):
+        if not isinstance(value, str) or not UTC_RE.fullmatch(value):
+            fail(f"{session_dir}: invalid {label}")
+    if manifest_started != summary_started:
+        fail(f"{session_dir}: manifest/summary started_at mismatch")
+    started_dt = dt.datetime.strptime(summary_started, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+    ended_dt = dt.datetime.strptime(summary_ended, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+    if ended_dt < started_dt:
+        fail(f"{session_dir}: ended_at precedes started_at")
+    observed_duration_seconds = int((ended_dt - started_dt).total_seconds())
+
+    planned_duration_seconds = manifest.get("planned_duration_seconds")
+    if not isinstance(planned_duration_seconds, int) or isinstance(planned_duration_seconds, bool) or planned_duration_seconds < 0:
+        fail(f"{session_dir}: planned_duration_seconds must be a non-negative integer")
 
     event_types = set()
     failed_event_count = 0
@@ -207,7 +247,8 @@ def verify_session(session_dir):
         "operator": manifest.get("operator"),
         "source_commit": commit,
         "bootstrap_route": manifest.get("bootstrap_route"),
-        "planned_duration_seconds": manifest.get("planned_duration_seconds"),
+        "planned_duration_seconds": planned_duration_seconds,
+        "observed_duration_seconds": observed_duration_seconds,
         "snapshot_count": count,
         "successful_snapshot_count": success_count,
         "observation_error_count": error_count,
