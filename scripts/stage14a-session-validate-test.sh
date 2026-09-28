@@ -199,6 +199,48 @@ if python3 "$verifier" "$tmp/tampered" >/dev/null 2>&1; then
   exit 1
 fi
 
+cp -R "$tmp/out/ci-g1-m1" "$tmp/reorg-height-drop"
+python3 - "$tmp/reorg-height-drop" "$verifier" <<'PY'
+import hashlib, importlib.util, json, pathlib, sys
+root=pathlib.Path(sys.argv[1])
+verifier_path=pathlib.Path(sys.argv[2])
+snapshots_path=root/"snapshots.jsonl"
+summary_path=root/"summary.json"
+rows=[json.loads(x) for x in snapshots_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+first=rows[0]
+second=json.loads(json.dumps(first))
+first["status"]["height"]=42
+first["status"]["tip_hash"]="0"*63+"a"
+first["status"]["chainwork"]="0"*60+"1234"
+second["observed_epoch"]=int(first.get("observed_epoch", 0))+1
+second["status"]["height"]=41
+second["status"]["tip_hash"]="0"*63+"b"
+second["status"]["chainwork"]="0"*60+"1235"
+snapshots_path.write_text("\n".join(json.dumps(x, sort_keys=True) for x in (first, second))+"\n", encoding="utf-8")
+summary=json.loads(summary_path.read_text(encoding="utf-8"))
+summary["snapshot_count"]=2
+summary["successful_snapshot_count"]=2
+summary["observation_error_count"]=0
+summary["start_height"]=42
+summary["end_height"]=41
+summary["start_tip_hash"]=first["status"]["tip_hash"]
+summary["end_tip_hash"]=second["status"]["tip_hash"]
+summary["start_chainwork"]=first["status"]["chainwork"]
+summary["end_chainwork"]=second["status"]["chainwork"]
+summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+names=["manifest.json","snapshots.jsonl","summary.json","events.jsonl"]
+(root/"SHA256SUMS").write_text(
+    "\n".join(f"{hashlib.sha256((root/n).read_bytes()).hexdigest()}  {n}" for n in names)+"\n",
+    encoding="utf-8",
+)
+spec=importlib.util.spec_from_file_location("stage14a_verify", verifier_path)
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+verified=module.verify_session(root)
+assert verified["start_height"] == 42
+assert verified["end_height"] == 41
+PY
+
 cp -R "$tmp/out/ci-g1-m1" "$tmp/bad-summary"
 python3 - "$tmp/bad-summary" <<'PY'
 import hashlib, json, pathlib, sys
