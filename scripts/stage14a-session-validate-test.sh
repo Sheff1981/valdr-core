@@ -113,6 +113,7 @@ assert result["checks"]["single_exact_source_commit"] is True
 assert result["checks"]["bootstrap_route_recorded_each_session"] is True
 assert result["checks"]["common_tip_observed_each_session"] is True
 assert all(item["common_tip_observed"] for item in result["distributed_sessions"])
+assert all(item["observed_duration_seconds"] >= 0 for item in result["evidence"])
 coverage = set(result["operator_recorded_scenario_coverage"])
 assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "bootstrap_loss"} <= coverage
 PY
@@ -195,6 +196,25 @@ cp -R "$tmp/out/ci-g3-m3" "$tmp/tampered"
 printf '\n' >>"$tmp/tampered/manifest.json"
 if python3 "$verifier" "$tmp/tampered" >/dev/null 2>&1; then
   echo "tampered Stage14A evidence unexpectedly verified" >&2
+  exit 1
+fi
+
+cp -R "$tmp/out/ci-g1-m1" "$tmp/bad-summary"
+python3 - "$tmp/bad-summary" <<'PY'
+import hashlib, json, pathlib, sys
+root=pathlib.Path(sys.argv[1])
+summary_path=root/"summary.json"
+summary=json.loads(summary_path.read_text(encoding="utf-8"))
+summary["end_tip_hash"]="f"*64
+summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+names=["manifest.json","snapshots.jsonl","summary.json","events.jsonl"]
+(root/"SHA256SUMS").write_text(
+    "\n".join(f"{hashlib.sha256((root/n).read_bytes()).hexdigest()}  {n}" for n in names)+"\n",
+    encoding="utf-8",
+)
+PY
+if python3 "$verifier" "$tmp/bad-summary" >/dev/null 2>&1; then
+  echo "semantically inconsistent Stage14A summary unexpectedly verified" >&2
   exit 1
 fi
 
