@@ -174,6 +174,7 @@ def verify_session(session_dir):
         fail(f"{session_dir}: observation_error_count does not match snapshots.jsonl")
 
     event_types = set()
+    failed_event_count = 0
     with events_path.open("r", encoding="utf-8") as f:
         for line in f:
             if not line.strip():
@@ -190,6 +191,8 @@ def verify_session(session_dir):
                 fail(f"{session_dir}: unsupported event_type: {event_type!r}")
             if event.get("result") not in EVENT_RESULTS:
                 fail(f"{session_dir}: unsupported event result")
+            if event.get("result") == "fail":
+                failed_event_count += 1
             if event.get("evidence_kind") != "operator_recorded":
                 fail(f"{session_dir}: unexpected event evidence_kind")
             recorded_at = event.get("recorded_at")
@@ -212,6 +215,7 @@ def verify_session(session_dir):
         "end_height": end_height,
         "_tip_hashes": tip_hashes,
         "_event_types": event_types,
+        "_failed_event_count": failed_event_count,
     }
 
 
@@ -257,6 +261,7 @@ def main():
         all_groups_have_three_machines = True
         all_groups_have_bootstrap = True
         all_groups_have_common_tip = True
+        no_operator_recorded_failures = True
         for group_id in sorted(grouped):
             items = grouped[group_id]
             machines = sorted({x["machine_id"] for x in items})
@@ -267,11 +272,16 @@ def main():
             })
             common_tips = set(items[0]["_tip_hashes"])
             group_event_types = set()
+            group_failed_events = 0
             group_event_types.update(items[0]["_event_types"])
+            group_failed_events += items[0]["_failed_event_count"]
             for item in items[1:]:
                 common_tips.intersection_update(item["_tip_hashes"])
                 group_event_types.update(item["_event_types"])
+                group_failed_events += item["_failed_event_count"]
             all_recorded_event_types.update(group_event_types)
+            if group_failed_events:
+                no_operator_recorded_failures = False
 
             has_three = len(machines) >= 3
             has_bootstrap = bool(routes)
@@ -289,6 +299,7 @@ def main():
                 "common_tip_observed": has_common_tip,
                 "common_tip_hashes": sorted(common_tips),
                 "operator_recorded_event_types": sorted(group_event_types),
+                "operator_recorded_failed_event_count": group_failed_events,
             })
 
         checks = {
@@ -297,6 +308,7 @@ def main():
             "single_exact_source_commit": len(commits) == 1,
             "bootstrap_route_recorded_each_session": all_groups_have_bootstrap,
             "common_tip_observed_each_session": all_groups_have_common_tip,
+            "no_operator_recorded_failures": no_operator_recorded_failures,
             "all_integrity_checks_passed": True,
         }
         ready = all(checks.values())

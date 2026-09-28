@@ -198,4 +198,19 @@ if python3 "$verifier" "$tmp/bad-event" >/dev/null 2>&1; then
   exit 1
 fi
 
+cp -R "$tmp/out" "$tmp/failing-out"
+python3 "$repo_root/scripts/stage14a-event.py"   "$tmp/failing-out/ci-g3-m1" crash_error --result fail --note "CI synthetic failure" >/dev/null
+if python3 "$verifier" "$tmp/failing-out" >"$tmp/failing.json"; then
+  echo "Stage14A evidence with operator-recorded failure unexpectedly became ready" >&2
+  exit 1
+fi
+python3 - "$tmp/failing.json" <<'PY'
+import json, sys
+result=json.load(open(sys.argv[1], encoding="utf-8"))
+assert result["automated_evidence_ready"] is False
+assert result["checks"]["no_operator_recorded_failures"] is False
+assert any(x["operator_recorded_failed_event_count"] > 0 for x in result["distributed_sessions"])
+assert result["stage14a_pass"] is False
+PY
+
 echo "Stage14A grouped multi-machine evidence tooling smoke passed"
