@@ -11,6 +11,7 @@ EXPECTED_CHAIN_ID = "valdr-testnet-2"
 SESSION_SCHEMA = "valdr-stage14a-session-v1"
 SUMMARY_SCHEMA = "valdr-stage14a-session-summary-v1"
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+HASH256_RE = re.compile(r"^[0-9a-f]{64}$")
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 EVENT_TYPES = {
     "peer_exchange",
@@ -165,8 +166,11 @@ def verify_session(session_dir):
             if status.get("network") != EXPECTED_NETWORK or status.get("chain_id") != EXPECTED_CHAIN_ID:
                 fail(f"{session_dir}: snapshot network identity mismatch")
             tip_hash = status.get("tip_hash")
-            if not isinstance(tip_hash, str) or not tip_hash:
-                fail(f"{session_dir}: snapshot missing tip_hash")
+            if not isinstance(tip_hash, str) or not HASH256_RE.fullmatch(tip_hash):
+                fail(f"{session_dir}: snapshot tip_hash must be 64 lowercase hexadecimal characters")
+            chainwork = status.get("chainwork")
+            if not isinstance(chainwork, str) or not HASH256_RE.fullmatch(chainwork):
+                fail(f"{session_dir}: snapshot chainwork must be 64 lowercase hexadecimal characters")
             tip_hashes.add(tip_hash)
             successful_statuses.append(status)
             successful_snapshots += 1
@@ -341,9 +345,10 @@ def main():
             has_three = len(machines) >= 3
             has_bootstrap = bool(routes)
             has_common_tip = bool(common_tips)
+            end_heights = sorted({x["end_height"] for x in items})
             end_tips = sorted({x["end_tip_hash"] for x in items})
             end_chainworks = sorted({x["end_chainwork"] for x in items})
-            end_converged = len(end_tips) == 1 and len(end_chainworks) == 1
+            end_converged = len(end_heights) == 1 and len(end_tips) == 1 and len(end_chainworks) == 1
             all_groups_have_three_machines &= has_three
             all_groups_have_bootstrap &= has_bootstrap
             all_groups_have_common_tip &= has_common_tip
@@ -358,6 +363,7 @@ def main():
                 "common_tip_observed": has_common_tip,
                 "common_tip_hashes": sorted(common_tips),
                 "end_converged": end_converged,
+                "end_heights": end_heights,
                 "end_tip_hashes": end_tips,
                 "end_chainworks": end_chainworks,
                 "operator_recorded_event_types": sorted(group_event_types),
