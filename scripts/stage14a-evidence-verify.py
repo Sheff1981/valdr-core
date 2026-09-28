@@ -258,6 +258,8 @@ def verify_session(session_dir):
         "observation_error_count": error_count,
         "start_height": start_height,
         "end_height": end_height,
+        "end_tip_hash": last_status.get("tip_hash"),
+        "end_chainwork": str(last_status.get("chainwork")),
         "_tip_hashes": tip_hashes,
         "_event_types": event_types,
         "_passed_event_types": passed_event_types,
@@ -309,6 +311,7 @@ def main():
         all_groups_have_three_machines = True
         all_groups_have_bootstrap = True
         all_groups_have_common_tip = True
+        all_groups_end_converged = True
         no_operator_recorded_failures = True
         for group_id in sorted(grouped):
             items = grouped[group_id]
@@ -338,9 +341,13 @@ def main():
             has_three = len(machines) >= 3
             has_bootstrap = bool(routes)
             has_common_tip = bool(common_tips)
+            end_tips = sorted({x["end_tip_hash"] for x in items})
+            end_chainworks = sorted({x["end_chainwork"] for x in items})
+            end_converged = len(end_tips) == 1 and len(end_chainworks) == 1
             all_groups_have_three_machines &= has_three
             all_groups_have_bootstrap &= has_bootstrap
             all_groups_have_common_tip &= has_common_tip
+            all_groups_end_converged &= end_converged
 
             group_results.append({
                 "session_group_id": group_id,
@@ -350,6 +357,9 @@ def main():
                 "bootstrap_routes": routes,
                 "common_tip_observed": has_common_tip,
                 "common_tip_hashes": sorted(common_tips),
+                "end_converged": end_converged,
+                "end_tip_hashes": end_tips,
+                "end_chainworks": end_chainworks,
                 "operator_recorded_event_types": sorted(group_event_types),
                 "operator_recorded_failed_event_count": group_failed_events,
             })
@@ -368,6 +378,7 @@ def main():
             "single_exact_source_commit": len(commits) == 1,
             "bootstrap_route_recorded_each_session": all_groups_have_bootstrap,
             "common_tip_observed_each_session": all_groups_have_common_tip,
+            "same_final_tip_and_chainwork_each_session": all_groups_end_converged,
             "no_operator_recorded_failures": no_operator_recorded_failures,
             "required_operator_scenarios_passed": required_passed_scenarios <= all_passed_event_types,
             "mining_passed_on_at_least_two_machine_labels": len(mining_pass_machines) >= 2,
