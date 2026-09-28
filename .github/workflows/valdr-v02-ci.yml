@@ -133,6 +133,13 @@ jobs:
       - name: Stage 12 outbound-only runtime smoke
         run: bash scripts/desktop-outbound-smoke.sh
 
+      - name: Stage 14A session evidence tooling gate
+        run: |
+          bash -n scripts/stage14a-soak-observe.sh
+          bash -n scripts/stage14a-session-validate.sh
+          bash -n scripts/stage14a-session-validate-test.sh
+          bash scripts/stage14a-session-validate-test.sh
+
       - name: Docker image build
         run: docker build -t valdr:testnet-v0.2 .
 
