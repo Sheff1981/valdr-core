@@ -8,6 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $manifestPath = Join-Path $SessionDir "manifest.json"
 $eventsPath = Join-Path $SessionDir "events.jsonl"
 if (-not (Test-Path -LiteralPath $manifestPath)) { throw "missing manifest: $manifestPath" }
@@ -26,7 +27,11 @@ $event = [ordered]@{
     note = $Note
     evidence_kind = "operator_recorded"
 }
-Add-Content -LiteralPath $eventsPath -Value ($event | ConvertTo-Json -Depth 10 -Compress) -Encoding utf8
+[System.IO.File]::AppendAllText(
+    $eventsPath,
+    (($event | ConvertTo-Json -Depth 10 -Compress) + [Environment]::NewLine),
+    $Utf8NoBom
+)
 
 $names = @("manifest.json", "snapshots.jsonl", "summary.json", "events.jsonl")
 $missing = @($names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $SessionDir $_)) })

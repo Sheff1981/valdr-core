@@ -13,6 +13,15 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
+function Write-Utf8NoBom([string]$Path, [string]$Text) {
+    [System.IO.File]::WriteAllText($Path, $Text, $script:Utf8NoBom)
+}
+
+function Append-Utf8NoBom([string]$Path, [string]$Text) {
+    [System.IO.File]::AppendAllText($Path, $Text, $script:Utf8NoBom)
+}
 
 function Get-UtcIso {
     return (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -29,7 +38,7 @@ function Get-DirectoryBytes([string]$Path) {
 
 function Append-JsonLine([string]$Path, $Object) {
     $line = $Object | ConvertTo-Json -Depth 20 -Compress
-    Add-Content -LiteralPath $Path -Value $line -Encoding utf8
+    Append-Utf8NoBom $Path ($line + [Environment]::NewLine)
 }
 
 function Invoke-Captured([scriptblock]$Command) {
@@ -45,7 +54,7 @@ if (-not (Get-Command valdrd -ErrorAction SilentlyContinue)) { throw "valdrd not
 if (-not (Get-Command valdr-cli -ErrorAction SilentlyContinue)) { throw "valdr-cli not found in PATH" }
 
 if ([string]::IsNullOrWhiteSpace($SessionId)) {
-    $SessionId = "$(Get-Date -AsUTC -Format 'yyyyMMddTHHmmssZ')-$MachineId"
+    $SessionId = "$((Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))-$MachineId"
 }
 if ($SessionId -notmatch '^[A-Za-z0-9._-]+$') { throw "invalid session id" }
 
@@ -83,9 +92,9 @@ $manifest = [ordered]@{
     valdrd_version = $version
     acceptance_scope = "local-session-evidence-only"
 }
-$manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestPath -Encoding utf8
-Set-Content -LiteralPath $snapshotsPath -Value "" -NoNewline -Encoding utf8
-Set-Content -LiteralPath $eventsPath -Value "" -NoNewline -Encoding utf8
+Write-Utf8NoBom $manifestPath (($manifest | ConvertTo-Json -Depth 10) + [Environment]::NewLine)
+Write-Utf8NoBom $snapshotsPath ""
+Write-Utf8NoBom $eventsPath ""
 
 $deadline = [DateTimeOffset]::UtcNow.AddSeconds($DurationSeconds)
 $previousHeight = $null
@@ -193,7 +202,7 @@ $summary = [ordered]@{
     stage14a_pass = $false
     note = "Stage 14A requires consolidated independent multi-machine session evidence."
 }
-$summary | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $summaryPath -Encoding utf8
+Write-Utf8NoBom $summaryPath (($summary | ConvertTo-Json -Depth 10) + [Environment]::NewLine)
 
 $names = @("manifest.json", "snapshots.jsonl", "summary.json", "events.jsonl")
 $lines = foreach ($name in $names) {
