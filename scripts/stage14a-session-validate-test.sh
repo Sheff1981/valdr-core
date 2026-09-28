@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="$repo_root/scripts/stage14a-session-validate.sh"
+verifier="$repo_root/scripts/stage14a-evidence-verify.py"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -49,7 +50,7 @@ EOF
 
 chmod +x "$tmp/bin/valdrd" "$tmp/bin/valdr-cli"
 
-PATH="$tmp/bin:$PATH" bash "$target"   --session-id ci-smoke   --operator ci   --source-commit 0123456789abcdef0123456789abcdef01234567   --bootstrap-route ci-fake-bootstrap   --node http://127.0.0.1:17332   --data "$tmp/data"   --duration-seconds 0   --interval-seconds 1   --output-dir "$tmp/out"
+PATH="$tmp/bin:$PATH" bash "$target"   --session-id ci-smoke   --operator ci   --machine-id ci-machine-1   --source-commit 0123456789abcdef0123456789abcdef01234567   --bootstrap-route ci-fake-bootstrap   --node http://127.0.0.1:17332   --data "$tmp/data"   --duration-seconds 0   --interval-seconds 1   --output-dir "$tmp/out"
 
 test -s "$tmp/out/ci-smoke/manifest.json"
 test -s "$tmp/out/ci-smoke/snapshots.jsonl"
@@ -63,6 +64,7 @@ summary = json.load(open(sys.argv[2], encoding="utf-8"))
 assert manifest["network"] == "testnet2"
 assert manifest["chain_id"] == "valdr-testnet-2"
 assert manifest["source_commit"] == "0123456789abcdef0123456789abcdef01234567"
+assert manifest["machine_id"] == "ci-machine-1"
 assert summary["snapshot_count"] == 1
 assert summary["start_height"] == 42
 assert summary["end_height"] == 42
@@ -70,4 +72,34 @@ assert summary["result"] == "local_observation_complete"
 assert summary["stage14a_pass"] is False
 PY
 
-echo "Stage14A session evidence tooling smoke passed"
+for n in 2 3; do
+  PATH="$tmp/bin:$PATH" bash "$target" \
+    --session-id "ci-smoke-$n" \
+    --operator ci \
+    --machine-id "ci-machine-$n" \
+    --source-commit 0123456789abcdef0123456789abcdef01234567 \
+    --bootstrap-route ci-fake-bootstrap \
+    --node http://127.0.0.1:17332 \
+    --data "$tmp/data" \
+    --duration-seconds 0 \
+    --interval-seconds 1 \
+    --output-dir "$tmp/out"
+done
+
+python3 "$verifier" \
+  "$tmp/out/ci-smoke" \
+  "$tmp/out/ci-smoke-2" \
+  "$tmp/out/ci-smoke-3" >"$tmp/consolidated.json"
+
+python3 - "$tmp/consolidated.json" <<'PY'
+import json, sys
+result = json.load(open(sys.argv[1], encoding="utf-8"))
+assert result["automated_evidence_ready"] is True
+assert result["stage14a_pass"] is False
+assert result["human_review_required"] is True
+assert result["session_count"] == 3
+assert result["machine_count"] == 3
+assert result["checks"]["single_exact_source_commit"] is True
+PY
+
+echo "Stage14A session and consolidated evidence tooling smoke passed"

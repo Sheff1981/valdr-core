@@ -138,6 +138,7 @@ jobs:
           bash -n scripts/stage14a-soak-observe.sh
           bash -n scripts/stage14a-session-validate.sh
           bash -n scripts/stage14a-session-validate-test.sh
+          python3 -m py_compile scripts/stage14a-evidence-verify.py
           bash scripts/stage14a-session-validate-test.sh
 
       - name: Docker image build

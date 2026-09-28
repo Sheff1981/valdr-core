@@ -11,6 +11,7 @@ interval_seconds=60
 output_dir="./stage14a-evidence"
 session_id=""
 operator_id=""
+machine_id=""
 source_commit=""
 bootstrap_route=""
 
@@ -24,7 +25,8 @@ multi-machine evidence defined by the active Master-TZ.
 
 Options:
   --session-id ID         session identifier; default UTC timestamp
-  --operator ID           operator/machine label recorded in evidence
+  --operator ID           operator label recorded in evidence
+  --machine-id ID         stable non-secret machine/client label recorded in evidence
   --source-commit SHA     tested source commit; default current git HEAD
   --bootstrap-route TEXT  bootstrap route label/address used for this session
   --node URL              local VALDR RPC endpoint (default http://127.0.0.1:17332)
@@ -39,6 +41,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --session-id) session_id="$2"; shift 2 ;;
     --operator) operator_id="$2"; shift 2 ;;
+    --machine-id) machine_id="$2"; shift 2 ;;
     --source-commit) source_commit="$2"; shift 2 ;;
     --bootstrap-route) bootstrap_route="$2"; shift 2 ;;
     --node) node="$2"; shift 2 ;;
@@ -81,14 +84,15 @@ checksums="$session_dir/SHA256SUMS"
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 valdrd_version="$(valdrd version | head -n 1)"
 
-python3 - "$manifest" "$session_id" "$operator_id" "$source_commit" "$bootstrap_route" "$node" "$duration_seconds" "$interval_seconds" "$started_at" "$valdrd_version" <<'PY'
+python3 - "$manifest" "$session_id" "$operator_id" "$machine_id" "$source_commit" "$bootstrap_route" "$node" "$duration_seconds" "$interval_seconds" "$started_at" "$valdrd_version" <<'PY'
 import json, sys
-(path, session_id, operator_id, source_commit, bootstrap_route, node,
+(path, session_id, operator_id, machine_id, source_commit, bootstrap_route, node,
  duration, interval, started_at, valdrd_version) = sys.argv[1:]
 obj = {
     "schema": "valdr-stage14a-session-v1",
     "session_id": session_id,
     "operator": operator_id or None,
+    "machine_id": machine_id or None,
     "source_commit": source_commit,
     "bootstrap_route": bootstrap_route or None,
     "rpc_endpoint": node,
