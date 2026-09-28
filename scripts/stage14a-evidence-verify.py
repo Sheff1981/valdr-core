@@ -56,13 +56,14 @@ def verify_session(session_dir):
     manifest_path = session_dir / "manifest.json"
     snapshots_path = session_dir / "snapshots.jsonl"
     summary_path = session_dir / "summary.json"
+    events_path = session_dir / "events.jsonl"
     sums_path = session_dir / "SHA256SUMS"
-    for path in (manifest_path, snapshots_path, summary_path, sums_path):
+    for path in (manifest_path, snapshots_path, summary_path, events_path, sums_path):
         if not path.is_file():
             fail(f"{session_dir}: missing {path.name}")
 
     sums = parse_sums(sums_path)
-    expected_names = {"manifest.json", "snapshots.jsonl", "summary.json"}
+    expected_names = {"manifest.json", "snapshots.jsonl", "summary.json", "events.jsonl"}
     if set(sums) != expected_names:
         fail(f"{session_dir}: checksum set mismatch: {sorted(sums)}")
     for name, expected in sums.items():
@@ -134,6 +135,21 @@ def verify_session(session_dir):
     if snapshots != count:
         fail(f"{session_dir}: snapshot_count does not match snapshots.jsonl")
 
+    event_types = set()
+    with events_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            event = json.loads(line)
+            if event.get("session_group_id") != group_id:
+                fail(f"{session_dir}: event session group mismatch")
+            if event.get("machine_id") != machine_id:
+                fail(f"{session_dir}: event machine mismatch")
+            event_type = event.get("event_type")
+            if not isinstance(event_type, str) or not event_type:
+                fail(f"{session_dir}: event_type is required")
+            event_types.add(event_type)
+
     return {
         "session_id": session_id,
         "session_group_id": group_id,
@@ -146,6 +162,7 @@ def verify_session(session_dir):
         "start_height": start_height,
         "end_height": end_height,
         "_tip_hashes": tip_hashes,
+        "_event_types": event_types,
     }
 
 
@@ -187,6 +204,7 @@ def main():
             grouped.setdefault(item["session_group_id"], []).append(item)
 
         group_results = []
+        all_recorded_event_types = set()
         all_groups_have_three_machines = True
         all_groups_have_bootstrap = True
         all_groups_have_common_tip = True
@@ -199,8 +217,12 @@ def main():
                 if x.get("bootstrap_route") and str(x["bootstrap_route"]).strip()
             })
             common_tips = set(items[0]["_tip_hashes"])
+            group_event_types = set()
+            group_event_types.update(items[0]["_event_types"])
             for item in items[1:]:
                 common_tips.intersection_update(item["_tip_hashes"])
+                group_event_types.update(item["_event_types"])
+            all_recorded_event_types.update(group_event_types)
 
             has_three = len(machines) >= 3
             has_bootstrap = bool(routes)
@@ -217,6 +239,7 @@ def main():
                 "bootstrap_routes": routes,
                 "common_tip_observed": has_common_tip,
                 "common_tip_hashes": sorted(common_tips),
+                "operator_recorded_event_types": sorted(group_event_types),
             })
 
         checks = {
@@ -240,6 +263,7 @@ def main():
             "source_commits": commits,
             "checks": checks,
             "distributed_sessions": group_results,
+            "operator_recorded_scenario_coverage": sorted(all_recorded_event_types),
             "automated_evidence_ready": ready,
             "stage14a_pass": False,
             "human_review_required": True,

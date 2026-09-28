@@ -2,186 +2,110 @@
 
 **Master baseline:** `docs/VALDR_Master_TZ_v0.2.14.md`  
 **Network:** `testnet2` / `valdr-testnet-2`  
-**Status:** ACTIVE NEXT GATE; Stage 14A is not complete until real independent-machine evidence exists.
-
-## Purpose
-
-Run the final real distributed VALDR Testnet2 validation on at least three independently launched computers/clients. Under Master-TZ v0.2.14, this is the active next gate; Stage 12C manual Windows click-through was owner-waived and is not represented as passed.
-
-This procedure does not change consensus or network constants. It turns the automated/local preflight evidence into a reproducible real-network test.
-
-Current automated preflight baseline: VALDR v0.2 CI #531, run `36336520832`, exact commit `b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`, completed SUCCESS on 2026-09-27. This pin is preflight evidence only; it does not count as any of the required independent Stage 14A sessions.
+**Status:** ACTIVE NEXT GATE. Automated/local evidence does not complete Stage 14A.
 
 ## Required topology
 
-Use at least three independently launched systems:
+Every distributed validation session uses at least three genuinely independent computers/clients:
 
-- **A — bootstrap/public node:** reachable from the Internet on TCP/17333.
-- **B — independent node/miner:** connects initially to A.
-- **C — independent node/client:** connects initially to A and must learn B through peer exchange.
+- **A — bootstrap/public node:** reachable on TCP/17333.
+- **B — independent node/miner:** initially connects to A.
+- **C — independent node/client:** initially connects to A and learns B through peer exchange.
 
-The systems may be ordinary user PCs or volunteer public nodes. They must not be three containers on one CI host.
+Three containers on one CI host do not satisfy this gate. RPC stays localhost-only on TCP/17332.
 
-RPC stays localhost-only on TCP/17332.
+## Validation schedule
 
-## Before starting
+Run at least **three separate distributed session groups**, each approximately **2-3 hours**. Each group contains evidence from A, B and C. The normal topology therefore produces at least nine local evidence directories.
 
-On all three systems use the exact same accepted source/build commit.
+Use the exact same accepted source/build commit on all systems.
 
-Verify:
+## Evidence collection
 
-```bash
-valdrd version
-valdr-miner version
-valdr-cli version
-```
-
-Use separate data directories and wallets on every machine. Never copy a wallet/private key between operators merely to run the soak.
-
-## Start node A
-
-Node A must have a real externally reachable address. Replace `PUBLIC_A:17333` with its actual routable address.
+On every machine run the collector with the same `--session-group` and a unique `--machine-id`:
 
 ```bash
-valdrd start \
-  --network testnet2 \
-  --data ./valdr-testnet2-a \
-  --node-id stage14a-node-a \
-  --p2p-host 0.0.0.0 \
-  --advertise-address PUBLIC_A:17333 \
-  --rpc-host 127.0.0.1
-```
-
-The operator/router/firewall must allow inbound TCP/17333.
-
-Do not expose RPC/17332 to the Internet.
-
-## Start node B
-
-```bash
-valdrd start \
-  --network testnet2 \
-  --data ./valdr-testnet2-b \
-  --node-id stage14a-node-b \
-  --p2p-host 0.0.0.0 \
-  --advertise-address PUBLIC_B:17333 \
-  --rpc-host 127.0.0.1 \
-  --seed PUBLIC_A:17333
-```
-
-If B cannot accept inbound traffic, run it outbound-only and omit the advertised public address. At least one real initial reachable bootstrap route is still mandatory.
-
-## Start node C
-
-```bash
-valdrd start \
-  --network testnet2 \
-  --data ./valdr-testnet2-c \
-  --node-id stage14a-node-c \
-  --p2p-host 0.0.0.0 \
-  --advertise-address PUBLIC_C:17333 \
-  --rpc-host 127.0.0.1 \
-  --seed PUBLIC_A:17333
-```
-
-## Confirm the network identity
-
-On every machine:
-
-```bash
-valdrd status --node http://127.0.0.1:17332
-valdr-cli peers --node http://127.0.0.1:17332
-valdr-cli mining info --node http://127.0.0.1:17332
-```
-
-Required identity:
-
-- network: `testnet2`
-- Chain ID: `valdr-testnet-2`
-- P2P port: 17333
-- RPC remains localhost-only
-- all nodes eventually agree on height, tip hash and cumulative chainwork.
-
-## Start evidence collection
-
-On each system run:
-
-```bash
-bash scripts/stage14a-soak-observe.sh \
+bash scripts/stage14a-session-validate.sh \
+  --session-group s1 \
+  --machine-id node-a \
+  --operator operator-a \
+  --source-commit EXACT_40_CHAR_COMMIT \
+  --bootstrap-route PUBLIC_A:17333 \
   --node http://127.0.0.1:17332 \
   --data ./valdr-testnet2-a \
   --duration-seconds 10800 \
   --interval-seconds 60 \
-  --output stage14a-node-a.jsonl
+  --output-dir ./stage14a-evidence
 ```
 
-Use the matching local data directory and a unique output filename on B and C.
+Repeat for B and C, then repeat the complete A/B/C session as `s2` and `s3`.
 
-The observer records Testnet2 identity, height, tip, cumulative chainwork, target/retarget information, peers, mempool, mining information and local data-directory size.
+Each evidence directory contains `manifest.json`, `snapshots.jsonl`, `summary.json`, `events.jsonl` and `SHA256SUMS`. The local summary deliberately keeps `stage14a_pass: false`.
 
-## Mining during the soak
+## Record operator events
 
-At least two independent operators should mine Testnet blocks during the window using their own reward addresses and their own local node RPC.
-
-Example:
+Use another terminal to record important actions/results:
 
 ```bash
-valdr-miner start \
-  --node http://127.0.0.1:17332 \
-  --reward-address VDR1... \
-  --blocks 1
+python3 scripts/stage14a-event.py ./stage14a-evidence/SESSION_ID peer_exchange --result pass
+python3 scripts/stage14a-event.py ./stage14a-evidence/SESSION_ID mining --result pass
+python3 scripts/stage14a-event.py ./stage14a-evidence/SESSION_ID transaction --result pass
+python3 scripts/stage14a-event.py ./stage14a-evidence/SESSION_ID restart --result pass
+python3 scripts/stage14a-event.py ./stage14a-evidence/SESSION_ID db_verify --result pass
+python3 scripts/stage14a-event.py ./stage14a-evidence/SESSION_ID bootstrap_loss --result pass
 ```
 
-Do not share private keys. The miner receives only a reward address and talks to the local node over RPC.
+Other supported event types: `mempool`, `desktop_sync`, `package_start`, `wallet_backup_restore`, `reorg_observation`, `crash_error`, `note`.
 
-## Required restart/bootstrap-loss exercise
+These entries are operator-recorded observations, not automatic proof.
+
+## Bootstrap-loss/restart exercise
 
 After peer exchange is confirmed:
 
-1. Verify C has learned B in `valdr-cli peers`.
-2. Stop A, the original bootstrap route.
+1. Confirm C learned B.
+2. Stop A.
 3. Keep B running.
 4. Restart C.
-5. C must reconnect from its persisted learned-peer cache without A.
+5. C must reconnect from learned-peer cache without A.
 6. Mine a block on B.
 7. C must converge to B's height/tip/chainwork.
 8. Restart A.
 9. A must catch up without deleting or repairing its database.
 
-Record the approximate UTC times of each action.
+Record the actions in the evidence event log.
 
-## What must be watched during each 2-3 hour validation session
+## Mining, transactions and product checks
 
-Record any:
+Across the three session groups exercise, as applicable:
 
-- height/tip/chainwork disagreement;
-- unexpected reorg or orphan pattern;
-- difficulty/target transition problem;
-- peer-count collapse or inability to reconnect;
-- bootstrap failure;
-- stuck mempool transaction;
-- database error or need for manual repair;
-- node/miner crash;
-- Desktop synchronization problem;
-- installer/package failure.
+- mining from at least two independent miner instances/operators;
+- block propagation and retarget observation;
+- transaction creation/signing/relay/confirmation;
+- mempool behavior;
+- peer discovery and learned-peer cache;
+- restart persistence and DB verification;
+- Desktop synchronization;
+- installer/package startup;
+- wallet backup/restore;
+- crash/error reporting.
 
-No issue should be hidden by deleting node data.
+Never share private keys merely to run validation.
 
-## Stage 14A exit evidence
+## Consolidated verification
 
-Stage 14A can be marked complete only at the final validation phase when all of the following are true:
+After copying all evidence directories into one review directory:
 
-- at least three independently launched nodes/clients participated;
-- at least one real cold-client bootstrap route was reachable;
-- peer exchange learned additional peers;
-- peer cache survived restart;
-- losing the original bootstrap route did not break connected consensus;
-- at least three separate validation sessions were completed, each approximately 2-3 hours;
-- no consensus split occurred;
-- no manual database repair was required;
-- any blockers found were fixed;
-- full CI was rerun green after the last blocker fix.
+```bash
+python3 scripts/stage14a-evidence-verify.py ./stage14a-evidence
+```
 
-Store the three observer JSONL files and a short UTC event log with the accepted source commit as Stage 14A evidence.
+The verifier checks SHA-256 integrity, Testnet2 identity, one exact source commit, at least three distributed session groups, at least three machine labels in every group, a recorded bootstrap route in every group, and at least one common tip hash observed by the participating machines in every group. It also reports operator-recorded scenario coverage.
 
-Local Docker/CI tests are preflight evidence only and must never be substituted for this independent-machine soak.
+A successful automated report sets `automated_evidence_ready: true` but still sets `stage14a_pass: false` and `human_review_required: true`.
+
+## Final human exit gate
+
+Stage 14A can be accepted only after reviewing real evidence and confirming independent machines, a genuinely reachable cold-client bootstrap route, approximately 2-3 hour sessions, peer exchange/cache recovery, mining/transactions/restart/recovery exercises, no unresolved consensus split, no manual DB repair, and no unresolved critical blocker.
+
+Any blocker must be fixed and the full active CI rerun green before acceptance. CI/Docker/local multi-node runs are preflight evidence only.

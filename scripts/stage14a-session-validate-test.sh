@@ -63,6 +63,7 @@ done
 test -s "$tmp/out/ci-g1-m1/manifest.json"
 test -s "$tmp/out/ci-g1-m1/snapshots.jsonl"
 test -s "$tmp/out/ci-g1-m1/summary.json"
+test -f "$tmp/out/ci-g1-m1/events.jsonl"
 test -s "$tmp/out/ci-g1-m1/SHA256SUMS"
 
 python3 - "$tmp/out/ci-g1-m1/manifest.json" "$tmp/out/ci-g1-m1/summary.json" <<'PY'
@@ -82,6 +83,13 @@ assert summary["result"] == "local_observation_complete"
 assert summary["stage14a_pass"] is False
 PY
 
+python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m1" peer_exchange --result pass --note "CI synthetic operator event" >/dev/null
+python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m2" mining --result pass >/dev/null
+python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m3" transaction --result pass >/dev/null
+python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g2-m1" restart --result pass >/dev/null
+python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g2-m2" db_verify --result pass >/dev/null
+python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g2-m3" bootstrap_loss --result pass >/dev/null
+
 python3 "$verifier" "$tmp/out" >"$tmp/consolidated.json"
 
 python3 - "$tmp/consolidated.json" <<'PY'
@@ -100,6 +108,8 @@ assert result["checks"]["single_exact_source_commit"] is True
 assert result["checks"]["bootstrap_route_recorded_each_session"] is True
 assert result["checks"]["common_tip_observed_each_session"] is True
 assert all(item["common_tip_observed"] for item in result["distributed_sessions"])
+coverage = set(result["operator_recorded_scenario_coverage"])
+assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "bootstrap_loss"} <= coverage
 PY
 
 # Guard against the previous weak interpretation: one machine per distributed
@@ -119,5 +129,12 @@ assert result["automated_evidence_ready"] is False
 assert result["checks"]["each_session_has_at_least_three_independent_machine_labels"] is False
 assert result["stage14a_pass"] is False
 PY
+
+cp -R "$tmp/out/ci-g3-m3" "$tmp/tampered"
+printf '\n' >>"$tmp/tampered/manifest.json"
+if python3 "$verifier" "$tmp/tampered" >/dev/null 2>&1; then
+  echo "tampered Stage14A evidence unexpectedly verified" >&2
+  exit 1
+fi
 
 echo "Stage14A grouped multi-machine evidence tooling smoke passed"

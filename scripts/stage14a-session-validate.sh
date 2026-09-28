@@ -87,6 +87,7 @@ chmod 700 "$session_dir" 2>/dev/null || true
 snapshots="$session_dir/snapshots.jsonl"
 manifest="$session_dir/manifest.json"
 summary="$session_dir/summary.json"
+events="$session_dir/events.jsonl"
 checksums="$session_dir/SHA256SUMS"
 
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -118,6 +119,8 @@ with open(path, "w", encoding="utf-8") as f:
     f.write("\n")
 PY
 chmod 600 "$manifest" 2>/dev/null || true
+: > "$events"
+chmod 600 "$events" 2>/dev/null || true
 
 bash "$observer"   --node "$node"   --data "$data_dir"   --duration-seconds "$duration_seconds"   --interval-seconds "$interval_seconds"   --output "$snapshots"
 
@@ -164,12 +167,12 @@ chmod 600 "$snapshots" "$summary" 2>/dev/null || true
 if command -v sha256sum >/dev/null; then
   (
     cd "$session_dir"
-    sha256sum manifest.json snapshots.jsonl summary.json > SHA256SUMS
+    sha256sum manifest.json snapshots.jsonl summary.json events.jsonl > SHA256SUMS
   )
 elif command -v shasum >/dev/null; then
   (
     cd "$session_dir"
-    shasum -a 256 manifest.json snapshots.jsonl summary.json > SHA256SUMS
+    shasum -a 256 manifest.json snapshots.jsonl summary.json events.jsonl > SHA256SUMS
   )
 else
   echo "sha256sum or shasum is required" >&2
