@@ -11,6 +11,23 @@ SESSION_SCHEMA = "valdr-stage14a-session-v1"
 SUMMARY_SCHEMA = "valdr-stage14a-session-summary-v1"
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+EVENT_TYPES = {
+    "peer_exchange",
+    "bootstrap_loss",
+    "restart",
+    "db_verify",
+    "mining",
+    "transaction",
+    "mempool",
+    "desktop_sync",
+    "package_start",
+    "wallet_backup_restore",
+    "reorg_observation",
+    "crash_error",
+    "note",
+}
+EVENT_RESULTS = {"pass", "fail", "observed", "not_applicable"}
+UTC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 def fail(message):
@@ -162,13 +179,22 @@ def verify_session(session_dir):
             if not line.strip():
                 continue
             event = json.loads(line)
+            if event.get("schema") != "valdr-stage14a-event-v1":
+                fail(f"{session_dir}: unexpected event schema")
             if event.get("session_group_id") != group_id:
                 fail(f"{session_dir}: event session group mismatch")
             if event.get("machine_id") != machine_id:
                 fail(f"{session_dir}: event machine mismatch")
             event_type = event.get("event_type")
-            if not isinstance(event_type, str) or not event_type:
-                fail(f"{session_dir}: event_type is required")
+            if event_type not in EVENT_TYPES:
+                fail(f"{session_dir}: unsupported event_type: {event_type!r}")
+            if event.get("result") not in EVENT_RESULTS:
+                fail(f"{session_dir}: unsupported event result")
+            if event.get("evidence_kind") != "operator_recorded":
+                fail(f"{session_dir}: unexpected event evidence_kind")
+            recorded_at = event.get("recorded_at")
+            if not isinstance(recorded_at, str) or not UTC_RE.fullmatch(recorded_at):
+                fail(f"{session_dir}: invalid event recorded_at")
             event_types.add(event_type)
 
     return {

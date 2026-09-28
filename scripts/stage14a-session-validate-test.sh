@@ -180,4 +180,22 @@ if python3 "$verifier" "$tmp/tampered" >/dev/null 2>&1; then
   exit 1
 fi
 
+cp -R "$tmp/out/ci-g1-m1" "$tmp/bad-event"
+python3 - "$tmp/bad-event" <<'PY'
+import hashlib, json, pathlib, sys
+root=pathlib.Path(sys.argv[1])
+events=root/"events.jsonl"
+rows=[json.loads(x) for x in events.read_text().splitlines() if x.strip()]
+rows[0]["event_type"]="made_up_event"
+events.write_text("\n".join(json.dumps(x, sort_keys=True) for x in rows)+"\n")
+names=["manifest.json","snapshots.jsonl","summary.json","events.jsonl"]
+(root/"SHA256SUMS").write_text(
+    "\n".join(f"{hashlib.sha256((root/n).read_bytes()).hexdigest()}  {n}" for n in names)+"\n"
+)
+PY
+if python3 "$verifier" "$tmp/bad-event" >/dev/null 2>&1; then
+  echo "semantically invalid Stage14A event unexpectedly verified" >&2
+  exit 1
+fi
+
 echo "Stage14A grouped multi-machine evidence tooling smoke passed"
