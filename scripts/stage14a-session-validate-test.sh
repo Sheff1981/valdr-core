@@ -113,6 +113,7 @@ assert result["checks"]["each_session_has_at_least_three_independent_machine_lab
 assert result["checks"]["single_exact_source_commit"] is True
 assert result["checks"]["bootstrap_route_recorded_each_session"] is True
 assert result["checks"]["common_tip_observed_each_session"] is True
+assert result["checks"]["same_final_tip_and_chainwork_each_session"] is True
 assert result["checks"]["required_operator_scenarios_passed"] is True
 assert result["checks"]["mining_passed_on_at_least_two_machine_labels"] is True
 assert all(item["common_tip_observed"] for item in result["distributed_sessions"])
@@ -122,6 +123,46 @@ passed = set(result["operator_recorded_passed_scenarios"])
 assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "bootstrap_loss"} <= coverage
 assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "bootstrap_loss"} <= passed
 assert len(result["mining_pass_machine_labels"]) >= 2
+PY
+
+cp -R "$tmp/out" "$tmp/divergent-final-out"
+python3 - "$tmp/divergent-final-out/ci-g2-m3" <<'PY'
+import hashlib, json, pathlib, sys
+root=pathlib.Path(sys.argv[1])
+snapshots_path=root/"snapshots.jsonl"
+summary_path=root/"summary.json"
+rows=[json.loads(x) for x in snapshots_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+old=rows[0]
+new=json.loads(json.dumps(old))
+new["observed_epoch"]=int(old.get("observed_epoch", 0))+1
+new["status"]["height"]=43
+new["status"]["tip_hash"]="f"*64
+new["status"]["chainwork"]="0"*60+"9999"
+snapshots_path.write_text("\n".join(json.dumps(x, sort_keys=True) for x in (old, new))+"\n", encoding="utf-8")
+summary=json.loads(summary_path.read_text(encoding="utf-8"))
+summary["snapshot_count"]=2
+summary["successful_snapshot_count"]=2
+summary["observation_error_count"]=0
+summary["end_height"]=43
+summary["end_tip_hash"]=new["status"]["tip_hash"]
+summary["end_chainwork"]=new["status"]["chainwork"]
+summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+names=["manifest.json","snapshots.jsonl","summary.json","events.jsonl"]
+(root/"SHA256SUMS").write_text(
+    "\n".join(f"{hashlib.sha256((root/n).read_bytes()).hexdigest()}  {n}" for n in names)+"\n",
+    encoding="utf-8",
+)
+PY
+if python3 "$verifier" "$tmp/divergent-final-out" >"$tmp/divergent-final.json"; then
+  echo "Stage14A evidence with divergent final chain unexpectedly became ready" >&2
+  exit 1
+fi
+python3 - "$tmp/divergent-final.json" <<'PY'
+import json, sys
+result=json.load(open(sys.argv[1], encoding="utf-8"))
+assert result["automated_evidence_ready"] is False
+assert result["checks"]["same_final_tip_and_chainwork_each_session"] is False
+assert any(not x["end_converged"] for x in result["distributed_sessions"])
 PY
 
 cp -R "$tmp/out" "$tmp/one-miner-out"
