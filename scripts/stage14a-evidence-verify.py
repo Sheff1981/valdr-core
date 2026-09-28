@@ -10,6 +10,7 @@ EXPECTED_CHAIN_ID = "valdr-testnet-2"
 SESSION_SCHEMA = "valdr-stage14a-session-v1"
 SUMMARY_SCHEMA = "valdr-stage14a-session-summary-v1"
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+SAFE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def fail(message):
@@ -45,6 +46,12 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def require_safe_id(value, label, session_dir):
+    if not isinstance(value, str) or not SAFE_ID_RE.fullmatch(value):
+        fail(f"{session_dir}: {label} must contain only A-Z a-z 0-9 . _ -")
+    return value
+
+
 def verify_session(session_dir):
     manifest_path = session_dir / "manifest.json"
     snapshots_path = session_dir / "snapshots.jsonl"
@@ -75,18 +82,20 @@ def verify_session(session_dir):
     if manifest.get("chain_id") != EXPECTED_CHAIN_ID or summary.get("chain_id") != EXPECTED_CHAIN_ID:
         fail(f"{session_dir}: wrong chain id")
 
-    session_id = manifest.get("session_id")
-    if not session_id or summary.get("session_id") != session_id:
+    session_id = require_safe_id(manifest.get("session_id"), "session_id", session_dir)
+    group_id = require_safe_id(manifest.get("session_group_id"), "session_group_id", session_dir)
+    if summary.get("session_id") != session_id:
         fail(f"{session_dir}: session id mismatch")
+    if summary.get("session_group_id") != group_id:
+        fail(f"{session_dir}: session group mismatch")
+
     commit = str(manifest.get("source_commit") or "").lower()
     if not COMMIT_RE.fullmatch(commit):
         fail(f"{session_dir}: source_commit must be an exact 40-character git SHA")
     if str(summary.get("source_commit") or "").lower() != commit:
         fail(f"{session_dir}: summary source_commit mismatch")
 
-    machine_id = manifest.get("machine_id")
-    if not isinstance(machine_id, str) or not machine_id.strip():
-        fail(f"{session_dir}: machine_id is required for consolidated Stage 14A evidence")
+    machine_id = require_safe_id(manifest.get("machine_id"), "machine_id", session_dir)
 
     if manifest.get("acceptance_scope") != "local-session-evidence-only":
         fail(f"{session_dir}: unexpected acceptance scope")
@@ -108,6 +117,7 @@ def verify_session(session_dir):
         fail(f"{session_dir}: chainwork regressed")
 
     snapshots = 0
+    tip_hashes = set()
     with snapshots_path.open("r", encoding="utf-8") as f:
         for line in f:
             if not line.strip():
@@ -116,13 +126,18 @@ def verify_session(session_dir):
             status = item.get("status") or {}
             if status.get("network") != EXPECTED_NETWORK or status.get("chain_id") != EXPECTED_CHAIN_ID:
                 fail(f"{session_dir}: snapshot network identity mismatch")
+            tip_hash = status.get("tip_hash")
+            if not isinstance(tip_hash, str) or not tip_hash:
+                fail(f"{session_dir}: snapshot missing tip_hash")
+            tip_hashes.add(tip_hash)
             snapshots += 1
     if snapshots != count:
         fail(f"{session_dir}: snapshot_count does not match snapshots.jsonl")
 
     return {
         "session_id": session_id,
-        "machine_id": machine_id.strip(),
+        "session_group_id": group_id,
+        "machine_id": machine_id,
         "operator": manifest.get("operator"),
         "source_commit": commit,
         "bootstrap_route": manifest.get("bootstrap_route"),
@@ -130,6 +145,7 @@ def verify_session(session_dir):
         "snapshot_count": count,
         "start_height": start_height,
         "end_height": end_height,
+        "_tip_hashes": tip_hashes,
     }
 
 
@@ -144,46 +160,98 @@ def discover(args):
     return paths
 
 
+def public_session(session):
+    return {k: v for k, v in session.items() if not k.startswith("_")}
+
+
 def main():
     try:
         dirs = discover(sys.argv[1:])
-        sessions = [verify_session(p) for p in dirs]
-        ids = [s["session_id"] for s in sessions]
-        machines = [s["machine_id"] for s in sessions]
-        commits = sorted({s["source_commit"] for s in sessions})
-        bootstrap_routes = sorted({str(s["bootstrap_route"]).strip() for s in sessions if s["bootstrap_route"]})
+        evidence = [verify_session(p) for p in dirs]
+        ids = [s["session_id"] for s in evidence]
+        commits = sorted({s["source_commit"] for s in evidence})
 
         if len(set(ids)) != len(ids):
             fail("duplicate session_id in consolidated evidence")
 
+        grouped = {}
+        seen_group_machine = set()
+        for item in evidence:
+            pair = (item["session_group_id"], item["machine_id"])
+            if pair in seen_group_machine:
+                fail(
+                    f"duplicate machine evidence for distributed session "
+                    f"{item['session_group_id']}: {item['machine_id']}"
+                )
+            seen_group_machine.add(pair)
+            grouped.setdefault(item["session_group_id"], []).append(item)
+
+        group_results = []
+        all_groups_have_three_machines = True
+        all_groups_have_bootstrap = True
+        all_groups_have_common_tip = True
+        for group_id in sorted(grouped):
+            items = grouped[group_id]
+            machines = sorted({x["machine_id"] for x in items})
+            routes = sorted({
+                str(x["bootstrap_route"]).strip()
+                for x in items
+                if x.get("bootstrap_route") and str(x["bootstrap_route"]).strip()
+            })
+            common_tips = set(items[0]["_tip_hashes"])
+            for item in items[1:]:
+                common_tips.intersection_update(item["_tip_hashes"])
+
+            has_three = len(machines) >= 3
+            has_bootstrap = bool(routes)
+            has_common_tip = bool(common_tips)
+            all_groups_have_three_machines &= has_three
+            all_groups_have_bootstrap &= has_bootstrap
+            all_groups_have_common_tip &= has_common_tip
+
+            group_results.append({
+                "session_group_id": group_id,
+                "evidence_count": len(items),
+                "machine_count": len(machines),
+                "machines": machines,
+                "bootstrap_routes": routes,
+                "common_tip_observed": has_common_tip,
+                "common_tip_hashes": sorted(common_tips),
+            })
+
         checks = {
-            "at_least_three_sessions": len(sessions) >= 3,
-            "at_least_three_independent_machine_labels": len(set(machines)) >= 3,
+            "at_least_three_distributed_sessions": len(group_results) >= 3,
+            "each_session_has_at_least_three_independent_machine_labels": all_groups_have_three_machines,
             "single_exact_source_commit": len(commits) == 1,
-            "bootstrap_route_recorded": bool(bootstrap_routes),
+            "bootstrap_route_recorded_each_session": all_groups_have_bootstrap,
+            "common_tip_observed_each_session": all_groups_have_common_tip,
             "all_integrity_checks_passed": True,
         }
         ready = all(checks.values())
+        machines = sorted({s["machine_id"] for s in evidence})
         result = {
-            "schema": "valdr-stage14a-consolidated-check-v1",
+            "schema": "valdr-stage14a-consolidated-check-v2",
             "network": EXPECTED_NETWORK,
             "chain_id": EXPECTED_CHAIN_ID,
-            "session_count": len(sessions),
-            "machine_count": len(set(machines)),
+            "session_count": len(group_results),
+            "evidence_count": len(evidence),
+            "machine_count": len(machines),
+            "machines": machines,
             "source_commits": commits,
-            "bootstrap_routes": bootstrap_routes,
             "checks": checks,
+            "distributed_sessions": group_results,
             "automated_evidence_ready": ready,
             "stage14a_pass": False,
             "human_review_required": True,
             "duration_and_scenario_acceptance_checked": False,
             "note": (
                 "Automated evidence readiness is not Stage 14A acceptance. "
-                "Human review must confirm independent machines, real bootstrap reachability, "
-                "2-3 hour session intent, mining/transaction/restart/recovery scenarios, "
-                "and absence of unresolved consensus or critical blockers."
+                "Human review must confirm that machine labels represent genuinely independent clients, "
+                "bootstrap routes were really reachable, session duration was approximately 2-3 hours, "
+                "required mining/transaction/restart/recovery scenarios were exercised, and no unresolved "
+                "consensus or critical blockers remain."
             ),
-            "sessions": sessions,
+            "evidence": [public_session(s) for s in evidence],
         }
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0 if ready else 1

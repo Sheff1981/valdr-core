@@ -50,14 +50,22 @@ EOF
 
 chmod +x "$tmp/bin/valdrd" "$tmp/bin/valdr-cli"
 
-PATH="$tmp/bin:$PATH" bash "$target"   --session-id ci-smoke   --operator ci   --machine-id ci-machine-1   --source-commit 0123456789abcdef0123456789abcdef01234567   --bootstrap-route ci-fake-bootstrap   --node http://127.0.0.1:17332   --data "$tmp/data"   --duration-seconds 0   --interval-seconds 1   --output-dir "$tmp/out"
+commit=0123456789abcdef0123456789abcdef01234567
 
-test -s "$tmp/out/ci-smoke/manifest.json"
-test -s "$tmp/out/ci-smoke/snapshots.jsonl"
-test -s "$tmp/out/ci-smoke/summary.json"
-test -s "$tmp/out/ci-smoke/SHA256SUMS"
+# Three distributed validation sessions, each with three independent machine labels.
+for group in 1 2 3; do
+  for machine in 1 2 3; do
+    evidence_id="ci-g${group}-m${machine}"
+    PATH="$tmp/bin:$PATH" bash "$target"       --session-id "$evidence_id"       --session-group "ci-group-$group"       --operator ci       --machine-id "ci-machine-$machine"       --source-commit "$commit"       --bootstrap-route ci-fake-bootstrap       --node http://127.0.0.1:17332       --data "$tmp/data"       --duration-seconds 0       --interval-seconds 1       --output-dir "$tmp/out"
+  done
+done
 
-python3 - "$tmp/out/ci-smoke/manifest.json" "$tmp/out/ci-smoke/summary.json" <<'PY'
+test -s "$tmp/out/ci-g1-m1/manifest.json"
+test -s "$tmp/out/ci-g1-m1/snapshots.jsonl"
+test -s "$tmp/out/ci-g1-m1/summary.json"
+test -s "$tmp/out/ci-g1-m1/SHA256SUMS"
+
+python3 - "$tmp/out/ci-g1-m1/manifest.json" "$tmp/out/ci-g1-m1/summary.json" <<'PY'
 import json, sys
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 summary = json.load(open(sys.argv[2], encoding="utf-8"))
@@ -65,6 +73,8 @@ assert manifest["network"] == "testnet2"
 assert manifest["chain_id"] == "valdr-testnet-2"
 assert manifest["source_commit"] == "0123456789abcdef0123456789abcdef01234567"
 assert manifest["machine_id"] == "ci-machine-1"
+assert manifest["session_group_id"] == "ci-group-1"
+assert summary["session_group_id"] == "ci-group-1"
 assert summary["snapshot_count"] == 1
 assert summary["start_height"] == 42
 assert summary["end_height"] == 42
@@ -72,34 +82,42 @@ assert summary["result"] == "local_observation_complete"
 assert summary["stage14a_pass"] is False
 PY
 
-for n in 2 3; do
-  PATH="$tmp/bin:$PATH" bash "$target" \
-    --session-id "ci-smoke-$n" \
-    --operator ci \
-    --machine-id "ci-machine-$n" \
-    --source-commit 0123456789abcdef0123456789abcdef01234567 \
-    --bootstrap-route ci-fake-bootstrap \
-    --node http://127.0.0.1:17332 \
-    --data "$tmp/data" \
-    --duration-seconds 0 \
-    --interval-seconds 1 \
-    --output-dir "$tmp/out"
-done
-
-python3 "$verifier" \
-  "$tmp/out/ci-smoke" \
-  "$tmp/out/ci-smoke-2" \
-  "$tmp/out/ci-smoke-3" >"$tmp/consolidated.json"
+python3 "$verifier" "$tmp/out" >"$tmp/consolidated.json"
 
 python3 - "$tmp/consolidated.json" <<'PY'
 import json, sys
 result = json.load(open(sys.argv[1], encoding="utf-8"))
+assert result["schema"] == "valdr-stage14a-consolidated-check-v2"
 assert result["automated_evidence_ready"] is True
 assert result["stage14a_pass"] is False
 assert result["human_review_required"] is True
 assert result["session_count"] == 3
+assert result["evidence_count"] == 9
 assert result["machine_count"] == 3
+assert result["checks"]["at_least_three_distributed_sessions"] is True
+assert result["checks"]["each_session_has_at_least_three_independent_machine_labels"] is True
 assert result["checks"]["single_exact_source_commit"] is True
+assert result["checks"]["bootstrap_route_recorded_each_session"] is True
+assert result["checks"]["common_tip_observed_each_session"] is True
+assert all(item["common_tip_observed"] for item in result["distributed_sessions"])
 PY
 
-echo "Stage14A session and consolidated evidence tooling smoke passed"
+# Guard against the previous weak interpretation: one machine per distributed
+# session is not enough even if three different machines exist overall.
+mkdir -p "$tmp/weak"
+for group in 1 2 3; do
+  cp -R "$tmp/out/ci-g${group}-m${group}" "$tmp/weak/"
+done
+if python3 "$verifier" "$tmp/weak" >"$tmp/weak.json"; then
+  echo "weak Stage14A evidence unexpectedly passed" >&2
+  exit 1
+fi
+python3 - "$tmp/weak.json" <<'PY'
+import json, sys
+result = json.load(open(sys.argv[1], encoding="utf-8"))
+assert result["automated_evidence_ready"] is False
+assert result["checks"]["each_session_has_at_least_three_independent_machine_labels"] is False
+assert result["stage14a_pass"] is False
+PY
+
+echo "Stage14A grouped multi-machine evidence tooling smoke passed"

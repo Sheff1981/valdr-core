@@ -10,6 +10,7 @@ duration_seconds=10800
 interval_seconds=60
 output_dir="./stage14a-evidence"
 session_id=""
+session_group_id=""
 operator_id=""
 machine_id=""
 source_commit=""
@@ -24,7 +25,8 @@ declare Stage 14A passed; final acceptance still requires the independent
 multi-machine evidence defined by the active Master-TZ.
 
 Options:
-  --session-id ID         session identifier; default UTC timestamp
+  --session-id ID         unique local evidence identifier; default UTC timestamp + machine id
+  --session-group ID      distributed validation session identifier; required
   --operator ID           operator label recorded in evidence
   --machine-id ID         stable non-secret machine/client label recorded in evidence
   --source-commit SHA     tested source commit; default current git HEAD
@@ -40,6 +42,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --session-id) session_id="$2"; shift 2 ;;
+    --session-group) session_group_id="$2"; shift 2 ;;
     --operator) operator_id="$2"; shift 2 ;;
     --machine-id) machine_id="$2"; shift 2 ;;
     --source-commit) source_commit="$2"; shift 2 ;;
@@ -57,8 +60,13 @@ done
 [[ "$duration_seconds" =~ ^[0-9]+$ ]] || { echo "duration must be a non-negative integer" >&2; exit 2; }
 [[ "$interval_seconds" =~ ^[1-9][0-9]*$ ]] || { echo "interval must be a positive integer" >&2; exit 2; }
 
+[[ -n "$session_group_id" ]] || { echo "session-group is required" >&2; exit 2; }
+[[ -n "$machine_id" ]] || { echo "machine-id is required" >&2; exit 2; }
+[[ "$session_group_id" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "session-group may contain only A-Z a-z 0-9 . _ -" >&2; exit 2; }
+[[ "$machine_id" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "machine-id may contain only A-Z a-z 0-9 . _ -" >&2; exit 2; }
+
 if [[ -z "$session_id" ]]; then
-  session_id="$(date -u +%Y%m%dT%H%M%SZ)"
+  session_id="$(date -u +%Y%m%dT%H%M%SZ)-$machine_id"
 fi
 [[ "$session_id" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "session-id may contain only A-Z a-z 0-9 . _ -" >&2; exit 2; }
 
@@ -84,13 +92,14 @@ checksums="$session_dir/SHA256SUMS"
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 valdrd_version="$(valdrd version | head -n 1)"
 
-python3 - "$manifest" "$session_id" "$operator_id" "$machine_id" "$source_commit" "$bootstrap_route" "$node" "$duration_seconds" "$interval_seconds" "$started_at" "$valdrd_version" <<'PY'
+python3 - "$manifest" "$session_id" "$session_group_id" "$operator_id" "$machine_id" "$source_commit" "$bootstrap_route" "$node" "$duration_seconds" "$interval_seconds" "$started_at" "$valdrd_version" <<'PY'
 import json, sys
-(path, session_id, operator_id, machine_id, source_commit, bootstrap_route, node,
+(path, session_id, session_group_id, operator_id, machine_id, source_commit, bootstrap_route, node,
  duration, interval, started_at, valdrd_version) = sys.argv[1:]
 obj = {
     "schema": "valdr-stage14a-session-v1",
     "session_id": session_id,
+    "session_group_id": session_group_id,
     "operator": operator_id or None,
     "machine_id": machine_id or None,
     "source_commit": source_commit,
@@ -114,9 +123,9 @@ bash "$observer"   --node "$node"   --data "$data_dir"   --duration-seconds "$du
 
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-python3 - "$snapshots" "$summary" "$session_id" "$source_commit" "$started_at" "$ended_at" <<'PY'
+python3 - "$snapshots" "$summary" "$session_id" "$session_group_id" "$source_commit" "$started_at" "$ended_at" <<'PY'
 import json, sys
-snapshots_path, summary_path, session_id, source_commit, started_at, ended_at = sys.argv[1:]
+snapshots_path, summary_path, session_id, session_group_id, source_commit, started_at, ended_at = sys.argv[1:]
 records = []
 with open(snapshots_path, "r", encoding="utf-8") as f:
     for line in f:
@@ -129,6 +138,7 @@ last = records[-1]["status"]
 summary = {
     "schema": "valdr-stage14a-session-summary-v1",
     "session_id": session_id,
+    "session_group_id": session_group_id,
     "source_commit": source_commit,
     "started_at": started_at,
     "ended_at": ended_at,
