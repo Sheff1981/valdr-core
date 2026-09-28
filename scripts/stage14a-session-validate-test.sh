@@ -136,7 +136,25 @@ assert result["stage14a_pass"] is False
 PY
 
 mkdir -p "$tmp/flaky-bin"
-cp "$tmp/bin/valdr-cli" "$tmp/flaky-bin/valdr-cli"
+cat >"$tmp/flaky-bin/valdr-cli" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-} ${2:-}" in
+  "mining info")
+    cat <<'JSON'
+{"height":43,"current_target":"0000031b5d43afe99ee43470e1337c3642e9d9254926038fdf6d1a2e57aaa21f","hashrate":0}
+JSON
+    ;;
+  *)
+    if [[ "${1:-}" == "peers" ]]; then
+      echo '{"peers":[]}'
+    else
+      echo "unsupported fake valdr-cli command" >&2
+      exit 2
+    fi
+    ;;
+esac
+EOF
 cat >"$tmp/flaky-bin/valdrd" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
