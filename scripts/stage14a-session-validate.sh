@@ -81,6 +81,10 @@ fi
 [[ -n "$source_commit" ]] || { echo "unable to determine source commit; pass --source-commit" >&2; exit 2; }
 
 session_dir="$output_dir/$session_id"
+if [[ -e "$session_dir" ]] && find "$session_dir" -mindepth 1 -print -quit 2>/dev/null | grep -q .; then
+  echo "session evidence directory already exists and is not empty: $session_dir" >&2
+  exit 2
+fi
 mkdir -p "$session_dir"
 chmod 700 "$session_dir" 2>/dev/null || true
 

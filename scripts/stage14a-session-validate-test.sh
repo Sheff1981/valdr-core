@@ -66,6 +66,11 @@ test -s "$tmp/out/ci-g1-m1/summary.json"
 test -f "$tmp/out/ci-g1-m1/events.jsonl"
 test -s "$tmp/out/ci-g1-m1/SHA256SUMS"
 
+if PATH="$tmp/bin:$PATH" bash "$target"   --session-id ci-g1-m1   --session-group ci-group-1   --operator ci   --machine-id ci-machine-1   --source-commit "$commit"   --bootstrap-route ci-fake-bootstrap   --node http://127.0.0.1:17332   --data "$tmp/data"   --duration-seconds 0   --interval-seconds 1   --output-dir "$tmp/out" >/dev/null 2>&1; then
+  echo "duplicate Stage14A session id unexpectedly overwrote evidence" >&2
+  exit 1
+fi
+
 python3 - "$tmp/out/ci-g1-m1/manifest.json" "$tmp/out/ci-g1-m1/summary.json" <<'PY'
 import json, sys
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))

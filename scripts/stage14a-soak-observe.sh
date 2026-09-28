@@ -40,7 +40,7 @@ command -v valdr-cli >/dev/null || { echo "valdr-cli not found in PATH" >&2; exi
 command -v python3 >/dev/null || { echo "python3 not found in PATH" >&2; exit 1; }
 
 mkdir -p "$(dirname "$output")"
-touch "$output"
+: > "$output"
 chmod 600 "$output" 2>/dev/null || true
 
 start_epoch=$(date +%s)
