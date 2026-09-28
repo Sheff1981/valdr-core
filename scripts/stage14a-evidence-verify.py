@@ -215,6 +215,7 @@ def verify_session(session_dir):
         fail(f"{session_dir}: planned_duration_seconds must be a non-negative integer")
 
     event_types = set()
+    passed_event_types = set()
     failed_event_count = 0
     with events_path.open("r", encoding="utf-8") as f:
         for line in f:
@@ -234,6 +235,8 @@ def verify_session(session_dir):
                 fail(f"{session_dir}: unsupported event result")
             if event.get("result") == "fail":
                 failed_event_count += 1
+            if event.get("result") == "pass":
+                passed_event_types.add(event_type)
             if event.get("evidence_kind") != "operator_recorded":
                 fail(f"{session_dir}: unexpected event evidence_kind")
             recorded_at = event.get("recorded_at")
@@ -257,6 +260,7 @@ def verify_session(session_dir):
         "end_height": end_height,
         "_tip_hashes": tip_hashes,
         "_event_types": event_types,
+        "_passed_event_types": passed_event_types,
         "_failed_event_count": failed_event_count,
     }
 
@@ -300,6 +304,8 @@ def main():
 
         group_results = []
         all_recorded_event_types = set()
+        all_passed_event_types = set()
+        mining_pass_machines = set()
         all_groups_have_three_machines = True
         all_groups_have_bootstrap = True
         all_groups_have_common_tip = True
@@ -322,6 +328,10 @@ def main():
                 group_event_types.update(item["_event_types"])
                 group_failed_events += item["_failed_event_count"]
             all_recorded_event_types.update(group_event_types)
+            for item in items:
+                all_passed_event_types.update(item["_passed_event_types"])
+                if "mining" in item["_passed_event_types"]:
+                    mining_pass_machines.add(item["machine_id"])
             if group_failed_events:
                 no_operator_recorded_failures = False
 
@@ -344,6 +354,14 @@ def main():
                 "operator_recorded_failed_event_count": group_failed_events,
             })
 
+        required_passed_scenarios = {
+            "peer_exchange",
+            "bootstrap_loss",
+            "restart",
+            "db_verify",
+            "mining",
+            "transaction",
+        }
         checks = {
             "at_least_three_distributed_sessions": len(group_results) >= 3,
             "each_session_has_at_least_three_independent_machine_labels": all_groups_have_three_machines,
@@ -351,6 +369,8 @@ def main():
             "bootstrap_route_recorded_each_session": all_groups_have_bootstrap,
             "common_tip_observed_each_session": all_groups_have_common_tip,
             "no_operator_recorded_failures": no_operator_recorded_failures,
+            "required_operator_scenarios_passed": required_passed_scenarios <= all_passed_event_types,
+            "mining_passed_on_at_least_two_machine_labels": len(mining_pass_machines) >= 2,
             "all_integrity_checks_passed": True,
         }
         ready = all(checks.values())
@@ -367,6 +387,8 @@ def main():
             "checks": checks,
             "distributed_sessions": group_results,
             "operator_recorded_scenario_coverage": sorted(all_recorded_event_types),
+            "operator_recorded_passed_scenarios": sorted(all_passed_event_types),
+            "mining_pass_machine_labels": sorted(mining_pass_machines),
             "automated_evidence_ready": ready,
             "stage14a_pass": False,
             "human_review_required": True,
