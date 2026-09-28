@@ -165,11 +165,6 @@ jobs:
         with:
           go-version: "1.26.8"
 
-      - name: Stage 14A PowerShell evidence tooling gate
-        if: matrix.name == 'windows-amd64'
-        shell: pwsh
-        run: ./scripts/stage14a-session-validate-powershell-test.ps1
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -539,6 +534,11 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.26.8"
+
+      - name: Stage 14A PowerShell evidence tooling gate
+        if: matrix.name == 'windows-amd64'
+        shell: pwsh
+        run: ./scripts/stage14a-session-validate-powershell-test.ps1
 
       - name: Set up Node
         uses: actions/setup-node@v4
