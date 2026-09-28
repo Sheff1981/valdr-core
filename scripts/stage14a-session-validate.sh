@@ -79,6 +79,8 @@ if [[ -z "$source_commit" ]]; then
   source_commit="$(git -C "$script_dir/.." rev-parse HEAD 2>/dev/null || true)"
 fi
 [[ -n "$source_commit" ]] || { echo "unable to determine source commit; pass --source-commit" >&2; exit 2; }
+[[ "$source_commit" =~ ^[0-9A-Fa-f]{40}$ ]] || { echo "source-commit must be exactly 40 hexadecimal characters" >&2; exit 2; }
+source_commit="$(printf '%s' "$source_commit" | tr '[:upper:]' '[:lower:]')"
 
 session_dir="$output_dir/$session_id"
 if [[ -e "$session_dir" ]] && [[ -n "$(find "$session_dir" -mindepth 1 -print -quit 2>/dev/null)" ]]; then

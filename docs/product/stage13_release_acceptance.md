@@ -5,7 +5,7 @@
 **Current evidence commit:** `b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`  
 **CI evidence:** VALDR v0.2 CI run `36336520832` (#531) — SUCCESS on 2026-09-27.
 
-This document records evidence only. CI #531 proves the current Testnet2 development pipeline on one exact post-hardening source commit, including the cross-platform Desktop matrix, Core/Testnet2 hardening gates, packaging, clean verification and non-public provenance handoff. It does not satisfy the remaining manual/public-release gates and does not authorize a Mainnet launch.
+This document records evidence only. CI #531 proves the current Testnet2 development pipeline on one exact post-hardening source commit, including the cross-platform Desktop matrix, Core/Testnet2 hardening gates, packaging, clean verification and non-public provenance handoff. It does not satisfy the remaining distributed/public-release gates and does not authorize a Mainnet launch.
 
 ## 1. Current evidence matrix
 
@@ -86,13 +86,15 @@ If legitimate OS-vendor signing becomes obtainable later, it may be added as har
 
 ## 4. Remaining public-release blockers
 
-The remaining mandatory blockers are:
+Under Master-TZ v0.2.14 the remaining mandatory blockers are:
 
-1. close Stage 12 manual Windows GUI acceptance;
-2. deliberately freeze a non-development Testnet release-candidate version instead of `0.2.0-dev`;
-3. Stage 13B and Stage 13C website gates are green; final RC artifact links remain intentionally disabled until freeze;
-4. run the final RC packaging, SHA-256, GitHub/Sigstore provenance and independent clean verification gates;
-5. publish only after the accepted artifacts map to the exact frozen commit.
+1. complete Stage 14A independent multi-machine Testnet2 validation on the accepted candidate line;
+2. fix any blocker found by Stage 14A and rerun the full active CI green;
+3. deliberately freeze a non-development Testnet release-candidate version instead of `0.2.0-dev`;
+4. rerun final RC packaging, SHA-256, GitHub/Sigstore provenance and independent clean verification;
+5. update the already-green website integration from the accepted manifest and publish only artifacts mapped to the exact frozen commit.
+
+Stage 12C manual Windows GUI acceptance is owner-waived for v0.2 and remains **not manually passed**; it is not a current publication blocker.
 
 No fake, borrowed or misleading Microsoft/Apple identity may be introduced to satisfy an obsolete checklist item.
 
