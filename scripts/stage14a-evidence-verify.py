@@ -136,8 +136,9 @@ def verify_session(session_dir):
         fail(f"{session_dir}: snapshot summary counts are inconsistent")
     start_height = int(summary.get("start_height"))
     end_height = int(summary.get("end_height"))
-    if end_height < start_height:
-        fail(f"{session_dir}: height regressed")
+    # Height may legitimately decrease during a reorg to a shorter branch with
+    # greater cumulative work. Chainwork, not height, is the monotonic fork-choice
+    # invariant for VALDR.
     start_work = int(str(summary.get("start_chainwork")), 16)
     end_work = int(str(summary.get("end_chainwork")), 16)
     if end_work < start_work:
