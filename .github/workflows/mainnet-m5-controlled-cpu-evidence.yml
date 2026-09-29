@@ -1,0 +1,94 @@
+name: VALDR Mainnet M5 Controlled CPU Evidence
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - ".github/workflows/mainnet-m5-controlled-cpu-evidence.yml"
+      - "experiments/randomx-prototype/benchmark-real-cpu.*"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build RandomX (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          git clone --no-checkout https://github.com/tevador/RandomX.git rx
+          git -C rx checkout 12f2c2ffe2108d6cf54c391fee33c8bc3646cdab
+          cmake -S rx -B rx/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build rx/build --config Release --parallel
+          cp rx/build/randomx-benchmark ./randomx-benchmark
+          chmod +x ./randomx-benchmark
+          cp experiments/randomx-prototype/benchmark-real-cpu.sh ./benchmark-real-cpu.sh
+          chmod +x ./benchmark-real-cpu.sh
+
+      - name: Capture and benchmark Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          {
+            echo "VALDR_M5_CONTROLLED_CPU_EVIDENCE_V1"
+            echo "source_type=controlled_ci_cloud"
+            echo "runner_os=${{ runner.os }}"
+            echo "runner_arch=${{ runner.arch }}"
+            echo "image=${{ runner.image }}"
+            echo "cpu=$(grep -m1 'model name' /proc/cpuinfo | sed 's/^[^:]*: *//')"
+            echo "logical_cpus=$(getconf _NPROCESSORS_ONLN)"
+            echo "memory_kib=$(grep MemTotal /proc/meminfo | awk '{print $2}')"
+            echo
+          } > controlled-metadata.txt
+          ./benchmark-real-cpu.sh ./randomx-benchmark valdr-randomx-real-cpu.txt
+          cat controlled-metadata.txt valdr-randomx-real-cpu.txt > valdr-m5-controlled-cpu.txt
+
+      - name: Build RandomX (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          git clone --no-checkout https://github.com/tevador/RandomX.git rx
+          git -C rx checkout 12f2c2ffe2108d6cf54c391fee33c8bc3646cdab
+          cmake -S rx -B rx/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build rx/build --config Release --parallel
+          Copy-Item rx/build/Release/randomx-benchmark.exe ./
+          Copy-Item experiments/randomx-prototype/benchmark-real-cpu.ps1 ./
+
+      - name: Capture and benchmark Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $cpu = (Get-CimInstance Win32_Processor | Select-Object -First 1)
+          $mem = (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
+          @(
+            "VALDR_M5_CONTROLLED_CPU_EVIDENCE_V1"
+            "source_type=controlled_ci_cloud"
+            "runner_os=${{ runner.os }}"
+            "runner_arch=${{ runner.arch }}"
+            "image=${{ runner.image }}"
+            "cpu=$($cpu.Name)"
+            "logical_cpus=$([Environment]::ProcessorCount)"
+            "memory_bytes=$mem"
+            ""
+          ) | Set-Content -Encoding ascii controlled-metadata.txt
+          powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\benchmark-real-cpu.ps1 -Benchmark .\randomx-benchmark.exe -Output valdr-randomx-real-cpu.txt
+          Get-Content controlled-metadata.txt, valdr-randomx-real-cpu.txt | Set-Content -Encoding utf8 valdr-m5-controlled-cpu.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: valdr-m5-controlled-cpu-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            valdr-m5-controlled-cpu.txt
+            valdr-randomx-real-cpu.txt
+          if-no-files-found: error
