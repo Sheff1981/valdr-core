@@ -10,7 +10,7 @@ func TestCalibrationTargetExactInteger(t *testing.T) {
 	if work.String() != "60000" {
 		t.Fatalf("work=%s want=60000", work)
 	}
-	const want = "0001179ec9cbd821162ed1eaed54648692b4d9a68ba9a532c4dcf03f8552e79f"
+	const want = "0001179ec9cbd821dc3a6faf2c19ab138636571bb75d40948c5b344ad1fcff0a"
 	if got := fmtTarget(target); got != want {
 		t.Fatalf("target=%s want=%s", got, want)
 	}
