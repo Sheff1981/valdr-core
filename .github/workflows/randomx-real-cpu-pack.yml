@@ -10,6 +10,7 @@ on:
       - "experiments/randomx-prototype/REAL_CPU_BENCHMARK.md"
       - "experiments/randomx-prototype/RUN-VALDR-BENCHMARK.cmd"
       - "experiments/randomx-prototype/README_WINDOWS_RU.md"
+      - "experiments/mainnet-m5-ingest/**"
       - ".github/workflows/randomx-real-cpu-pack.yml"
 
 permissions:
@@ -48,6 +49,8 @@ jobs:
           cmake -S rx -B rx/build -DCMAKE_BUILD_TYPE=Release
           cmake --build rx/build --config Release --parallel
           New-Item -ItemType Directory -Force pack | Out-Null
+          go build -o pack/valdr-m5-ingest.exe ./experiments/mainnet-m5-ingest
+          go test ./experiments/mainnet-m5-ingest -count=1
           Copy-Item rx/build/Release/randomx-benchmark.exe pack/
           Copy-Item experiments/randomx-prototype/benchmark-real-cpu.ps1 pack/
           Copy-Item experiments/randomx-prototype/RUN-VALDR-BENCHMARK.cmd pack/
@@ -57,6 +60,7 @@ jobs:
             "pack/randomx-benchmark.exe",
             "pack/benchmark-real-cpu.ps1",
             "pack/RUN-VALDR-BENCHMARK.cmd",
+            "pack/valdr-m5-ingest.exe",
             "pack/README_WINDOWS_RU.md"
           )
           $lines = foreach ($file in $files) {
