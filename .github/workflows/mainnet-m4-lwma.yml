@@ -1,0 +1,29 @@
+name: VALDR Mainnet M4 LWMA Candidate
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "core/consensus/mainnet_lwma_candidate.go"
+      - "core/consensus/mainnet_lwma_candidate_test.go"
+      - ".github/workflows/mainnet-m4-lwma.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lwma:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Mainnet LWMA candidate tests and simulations
+        run: go test ./core/consensus -run "TestMainnetLWMA|TestValidateMainnetTimestampCandidate" -count=1 -v
