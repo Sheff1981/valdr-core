@@ -1,0 +1,34 @@
+name: VALDR Mainnet M4 Consensus Integration
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "core/consensus/mainnet_consensus_candidate.go"
+      - "core/consensus/mainnet_consensus_candidate_test.go"
+      - "storage/mainnet_daa_history.go"
+      - "storage/mainnet_daa_history_test.go"
+      - "storage/mainnet_randomx_test_helpers.go"
+      - ".github/workflows/mainnet-m4-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Mainnet M4 consensus integration
+        run: |
+          go test ./core/consensus -run "TestValidateMainnetConsensusCandidate" -count=1
+          go test ./storage -run "TestLoadMainnetDAAHistory|TestValidateStoredMainnetConsensusCandidateM4" -count=1
