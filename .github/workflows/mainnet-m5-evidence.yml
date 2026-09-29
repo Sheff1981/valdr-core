@@ -1,0 +1,28 @@
+name: VALDR Mainnet M5 Evidence Validator
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "experiments/mainnet-m5-evidence/**"
+      - ".github/workflows/mainnet-m5-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-validator:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Evidence validator tests
+        run: go test ./experiments/mainnet-m5-evidence -count=1
