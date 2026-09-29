@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Sheff1981/valdr-core/core/block"
 	"github.com/Sheff1981/valdr-core/core/consensus"
 	badger "github.com/dgraph-io/badger/v4"
 )
@@ -50,10 +51,7 @@ func (s *BadgerStore) NewRandomXAncestrySource(tipHash string) (*RandomXAncestry
 		if err != nil {
 			return fmt.Errorf("%w: RandomX ancestry tip block %s: %v", ErrStorageMetadataCorrupt, tipHash, err)
 		}
-		var b struct {
-			Height    uint64 `json:"height"`
-			BlockHash string `json:"block_hash"`
-		}
+		var b block.Block
 		if err := strictJSON(rawBlock, &b); err != nil {
 			return fmt.Errorf("%w: RandomX ancestry tip block: %v", ErrStorageMetadataCorrupt, err)
 		}
