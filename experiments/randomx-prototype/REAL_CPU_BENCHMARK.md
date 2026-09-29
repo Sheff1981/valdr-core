@@ -25,13 +25,22 @@ Result: `valdr-randomx-real-cpu.txt`.
 
 ## Minimum evidence before Mainnet freeze
 
-At least five independent computers:
-1. ordinary laptop;
-2. ordinary desktop;
-3. modern midrange desktop;
-4. higher-end desktop;
-5. one additional independent machine.
+The project owner is not required to provide five physical computers.
+
+Required evidence:
+
+1. **at least one real user-owned computer** running the VALDR RandomX benchmark pack;
+2. benchmark evidence covering **at least three CPU performance classes**:
+   - low/ordinary laptop class;
+   - mainstream desktop class;
+   - higher-performance desktop class;
+3. CI evidence on supported operating systems remains useful for build/determinism verification, but is not used alone to freeze launch difficulty.
+
+The three CPU classes may be covered by a combination of:
+- the user's real machine;
+- independent reproducible benchmark measurements;
+- controlled CI/cloud hardware where CPU identity and run conditions are recorded.
 
 Collect CPU model, RAM, OS, 1/2/4-thread H/s where available, all-logical-CPU H/s and any allocation/JIT failures.
 
-Do not use GitHub-hosted runner H/s as final launch calibration.
+Final InitialDifficulty must be conservative and must be validated by DAA simulations before Mainnet Genesis.
