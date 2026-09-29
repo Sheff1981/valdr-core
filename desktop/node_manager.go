@@ -109,6 +109,7 @@ func (m *NodeManager) Start() error {
 		return err
 	}
 	cmd := exec.Command(m.config.BinaryPath, args...)
+	configureManagedChildProcess(cmd)
 	cmd.Stdout = m.config.Stdout
 	cmd.Stderr = m.config.Stderr
 	stdin, err := cmd.StdinPipe()
