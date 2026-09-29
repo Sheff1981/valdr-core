@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Deps = Join-Path $Root ".deps"
 $Rx = Join-Path $Deps "RandomX"
@@ -17,7 +18,7 @@ $RxTests = Join-Path $Rx "build/Release/randomx-tests.exe"
 if (-not (Test-Path $RxTests)) { $RxTests = Join-Path $Rx "build/randomx-tests.exe" }
 & $RxTests
 
-cmake -S $Root -B $Build -DCMAKE_BUILD_TYPE=Release -DRANDOMX_DIR=$Rx
+cmake -S $Root -B $Build -DCMAKE_BUILD_TYPE=Release "-DRANDOMX_DIR=$Rx"
 cmake --build $Build --config Release --parallel
 
 $Vector = Join-Path $Build "Release/valdr-randomx-vector.exe"
