@@ -1,0 +1,25 @@
+name: VALDR Mainnet M5 Independent Reproduction
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "experiments/mainnet-m5-independent-repro/**"
+      - ".github/workflows/mainnet-m5-independent-repro.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Independent exact arithmetic reproduction
+        run: python experiments/mainnet-m5-independent-repro/reproduce.py
