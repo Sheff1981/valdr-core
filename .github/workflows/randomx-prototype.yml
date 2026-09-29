@@ -1,0 +1,46 @@
+name: VALDR RandomX Prototype
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "experiments/randomx-prototype/**"
+      - ".github/workflows/randomx-prototype.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  randomx-prototype:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux/macOS prototype
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          chmod +x experiments/randomx-prototype/build.sh
+          experiments/randomx-prototype/build.sh | tee randomx-output.txt
+
+      - name: Windows prototype
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          experiments/randomx-prototype/build.ps1 | Tee-Object -FilePath randomx-output.txt
+
+      - name: Capture VALDR vector
+        shell: bash
+        run: |
+          grep -E "^(randomx_vector|valdr_blob_bytes|valdr_randomx_hash|status)=" randomx-output.txt || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: randomx-prototype-${{ runner.os }}-${{ runner.arch }}
+          path: randomx-output.txt
