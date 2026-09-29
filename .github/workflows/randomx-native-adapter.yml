@@ -1,0 +1,60 @@
+name: VALDR RandomX Native Adapter
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "core/consensus/randomxnative/**"
+      - "core/consensus/randomx_native_integration_test.go"
+      - ".github/workflows/randomx-native-adapter.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build RandomX (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone --depth 1 --branch v1.2.3 https://github.com/tevador/RandomX.git .randomx-src
+          cmake -S .randomx-src -B .randomx-build -DCMAKE_BUILD_TYPE=Release
+          cmake --build .randomx-build --parallel
+          ctest --test-dir .randomx-build --output-on-failure
+          mkdir -p third_party/randomx/include third_party/randomx/lib
+          cp .randomx-src/src/randomx.h third_party/randomx/include/
+          cp .randomx-build/librandomx.a third_party/randomx/lib/
+
+      - name: Build RandomX (Windows MinGW)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          git clone --depth 1 --branch v1.2.3 https://github.com/tevador/RandomX.git .randomx-src
+          cmake -G "MinGW Makefiles" -S .randomx-src -B .randomx-build -DCMAKE_BUILD_TYPE=Release
+          cmake --build .randomx-build --parallel
+          ctest --test-dir .randomx-build --output-on-failure
+          New-Item -ItemType Directory -Force third_party/randomx/include | Out-Null
+          New-Item -ItemType Directory -Force third_party/randomx/lib | Out-Null
+          Copy-Item .randomx-src/src/randomx.h third_party/randomx/include/
+          Copy-Item .randomx-build/librandomx.a third_party/randomx/lib/
+
+      - name: Native adapter + consensus integration tests
+        env:
+          CGO_ENABLED: "1"
+        run: go test -tags randomx_native ./core/consensus/randomxnative ./core/consensus -count=1
