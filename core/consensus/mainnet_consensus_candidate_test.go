@@ -9,6 +9,12 @@ import (
 	"github.com/Sheff1981/valdr-core/core/block"
 )
 
+func lowIntegratedPoWHash() []byte {
+	out := make([]byte, 32)
+	out[31] = 1
+	return out
+}
+
 func integratedHistory(count int, interval int64, target *big.Int) []MainnetDAAHeader {
 	h := make([]MainnetDAAHeader, 0, count)
 	ts := int64(1800000000)
@@ -71,7 +77,7 @@ func TestValidateMainnetConsensusCandidateM3M4Integration(t *testing.T) {
 		expected,
 	)
 
-	h := &fixedRandomXHasher{hash: lowFixedHash()}
+	h := &fixedRandomXHasher{hash: lowIntegratedPoWHash()}
 	got, err := ValidateMainnetConsensusCandidate(
 		candidate,
 		history,
@@ -104,7 +110,7 @@ func TestValidateMainnetConsensusCandidateRejectsWrongTarget(t *testing.T) {
 		initial,
 	)
 
-	h := &fixedRandomXHasher{hash: lowFixedHash()}
+	h := &fixedRandomXHasher{hash: lowIntegratedPoWHash()}
 	_, err := ValidateMainnetConsensusCandidate(
 		candidate,
 		history,
@@ -138,7 +144,7 @@ func TestValidateMainnetConsensusCandidateRejectsMTPAndFuture(t *testing.T) {
 		history[5].Timestamp,
 		expected,
 	)
-	h := &fixedRandomXHasher{hash: lowFixedHash()}
+	h := &fixedRandomXHasher{hash: lowIntegratedPoWHash()}
 	if _, err := ValidateMainnetConsensusCandidate(
 		mtpCandidate, history, parent, initial, powLimit, local, nil, h,
 	); !errors.Is(err, ErrMainnetDAATimestamp) {
