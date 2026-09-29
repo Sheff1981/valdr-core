@@ -1,0 +1,29 @@
+name: VALDR Mainnet Consensus Candidate
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "core/consensus/mainnet_pow_candidate.go"
+      - "core/consensus/mainnet_pow_candidate_test.go"
+      - ".github/workflows/mainnet-consensus-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Consensus tests
+        run: go test ./core/consensus -count=1
