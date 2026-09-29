@@ -9,19 +9,37 @@ if [ ! -x "$BENCH" ]; then
   exit 2
 fi
 
+OS_NAME=$(uname -s 2>/dev/null || echo unknown)
+
 {
   echo "VALDR_RANDOMX_REAL_CPU_V1"
   echo "date_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "os=$(uname -a)"
-  if command -v sysctl >/dev/null 2>&1; then
-    sysctl -n machdep.cpu.brand_string 2>/dev/null | sed 's/^/cpu=/' || true
-    sysctl -n hw.memsize 2>/dev/null | sed 's/^/memory_bytes=/' || true
-    LOGICAL=$(sysctl -n hw.logicalcpu 2>/dev/null || echo 1)
-  else
-    grep -m1 'model name' /proc/cpuinfo 2>/dev/null | sed 's/^[^:]*: */cpu=/' || true
-    grep MemTotal /proc/meminfo 2>/dev/null | awk '{print "memory_kib="$2}' || true
-    LOGICAL=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
-  fi
+
+  case "$OS_NAME" in
+    Darwin)
+      CPU=$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo unknown)
+      MEM=$(sysctl -n hw.memsize 2>/dev/null || echo 0)
+      LOGICAL=$(sysctl -n hw.logicalcpu 2>/dev/null || echo 1)
+      echo "cpu=$CPU"
+      echo "memory_bytes=$MEM"
+      ;;
+    Linux)
+      CPU=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | sed 's/^[^:]*: *//' || true)
+      [ -n "$CPU" ] || CPU=$(lscpu 2>/dev/null | awk -F: '/Model name/ {sub(/^[ 	]+/, "", $2); print $2; exit}' || true)
+      [ -n "$CPU" ] || CPU=unknown
+      MEM=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0)
+      LOGICAL=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)
+      echo "cpu=$CPU"
+      echo "memory_kib=$MEM"
+      ;;
+    *)
+      CPU=unknown
+      LOGICAL=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
+      echo "cpu=$CPU"
+      ;;
+  esac
+
   echo "logical_cpus=$LOGICAL"
   echo
 
