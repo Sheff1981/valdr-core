@@ -350,33 +350,61 @@ func (bc *Blockchain) CalculateFees(transactions []*transaction.Transaction) (ui
 }
 
 // Append mines and appends a candidate on the current active tip.
+//
+// Proof-of-work is intentionally executed without holding bc.mu. Mining can
+// take seconds or minutes on Testnet2; holding the write lock during nonce
+// search would block status, balance, wallet and P2P reads and make the node
+// appear offline to VALDR Desktop. The chain lock is held only while taking a
+// consistent candidate snapshot and while atomically committing the result.
 func (bc *Blockchain) Append(
 	timestamp int64,
 	transactions []*transaction.Transaction,
 ) (*block.Block, error) {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
+	return bc.appendWithMiners(
+		timestamp,
+		transactions,
+		consensus.MineTarget,
+		consensus.Mine,
+	)
+}
 
+func (bc *Blockchain) appendWithMiners(
+	timestamp int64,
+	transactions []*transaction.Transaction,
+	mineTarget func(*block.Block, *big.Int) error,
+	mineLegacy func(*block.Block) error,
+) (*block.Block, error) {
+	bc.mu.RLock()
 	if bc.tip == nil {
+		bc.mu.RUnlock()
 		return nil, errors.New("blockchain has no genesis block")
 	}
 	tip := bc.tip.block
-	var candidate *block.Block
+	profile := bc.profile
+	now := bc.now
+	var history []consensus.V2DifficultyHeader
+	if profile.BlockVersion == block.VersionV2 {
+		history = v2DifficultyHistory(bc.tip)
+	}
+	bc.mu.RUnlock()
 
-	if bc.profile.BlockVersion == block.VersionV2 {
-		history := v2DifficultyHistory(bc.tip)
+	var candidate *block.Block
+	if profile.BlockVersion == block.VersionV2 {
+		if mineTarget == nil {
+			return nil, errors.New("v2 proof-of-work miner is unavailable")
+		}
 		if err := consensus.ValidateTimestampV2(
 			history,
 			timestamp,
-			bc.now().UTC().Unix(),
-			bc.profile,
+			now().UTC().Unix(),
+			profile,
 		); err != nil {
 			return nil, err
 		}
 		target, _, err := consensus.NextTargetV2(
 			history,
 			timestamp,
-			bc.profile,
+			profile,
 		)
 		if err != nil {
 			return nil, err
@@ -392,16 +420,19 @@ func (bc *Blockchain) Append(
 			targetHex,
 			0,
 			transactions,
-			bc.profile.ChainID,
+			profile.ChainID,
 			"",
 		)
 		if err != nil {
 			return nil, err
 		}
-		if err := consensus.MineTarget(candidate, target); err != nil {
+		if err := mineTarget(candidate, target); err != nil {
 			return nil, err
 		}
 	} else {
+		if mineLegacy == nil {
+			return nil, errors.New("legacy proof-of-work miner is unavailable")
+		}
 		difficulty := consensus.NextDifficulty(
 			tip.Difficulty,
 			tip.Timestamp,
@@ -416,11 +447,13 @@ func (bc *Blockchain) Append(
 			transactions,
 			"",
 		)
-		if err := consensus.Mine(candidate); err != nil {
+		if err := mineLegacy(candidate); err != nil {
 			return nil, err
 		}
 	}
 
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
 	if err := bc.addBlockLocked(candidate); err != nil {
 		return nil, err
 	}
