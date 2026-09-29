@@ -1083,6 +1083,8 @@ const clearSendStatus = (): void => {
 };
 
 let currentState: DesktopState | null = null;
+let firstRunGateInitialized = false;
+let firstRunGateActive = false;
 let currentView = "overview";
 let activeWalletAddress = "";
 let activeWalletName = "";
@@ -1980,6 +1982,13 @@ const refreshTransactionHistory = async (): Promise<void> => {
 
 const renderState = (state: DesktopState): void => {
   currentState = state;
+  if (!firstRunGateInitialized) {
+    firstRunGateInitialized = true;
+    firstRunGateActive = state.wallets.length === 0;
+  }
+  if (firstRunGateActive && state.wallets.length > 0 && state.initialization_ready) {
+    firstRunGateActive = false;
+  }
   const status = state.node_status;
   text("network-name", state.network.toUpperCase());
   text("chain-id", state.chain_id);
@@ -2064,6 +2073,7 @@ const renderState = (state: DesktopState): void => {
   if (startNodeButton) startNodeButton.disabled = state.node_running;
   if (stopNodeButton) stopNodeButton.disabled = !state.node_running;
   const firstRunRestartVisible =
+    firstRunGateActive &&
     state.wallets.length > 0 &&
     !state.initialization_ready &&
     (!state.node_running || Boolean(state.node_error));
@@ -2076,14 +2086,15 @@ const renderState = (state: DesktopState): void => {
   });
 
   const firstRun = document.getElementById("first-run");
-  firstRun?.classList.toggle("hidden", state.initialization_ready);
+  const showFirstRun = firstRunGateActive && !state.initialization_ready;
+  firstRun?.classList.toggle("hidden", !showFirstRun);
   document.getElementById("first-run-wallet-setup")?.classList.toggle(
     "hidden",
     state.wallets.length > 0,
   );
   document.getElementById("first-run-initializing")?.classList.toggle(
     "hidden",
-    state.wallets.length === 0 || state.initialization_ready,
+    !firstRunGateActive || state.wallets.length === 0 || state.initialization_ready,
   );
   const chooseData = document.getElementById("first-run-choose-data") as HTMLButtonElement | null;
   if (chooseData) chooseData.disabled = state.wallets.length > 0;
