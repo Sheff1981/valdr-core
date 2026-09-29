@@ -1,0 +1,15 @@
+[
+  {
+    "id": "REPLACE-WITH-REAL-ID",
+    "class": "low_power_laptop",
+    "source_type": "user_machine",
+    "user_owned": true,
+    "cpu": "REPLACE WITH REAL CPU MODEL",
+    "os": "REPLACE WITH REAL OS",
+    "memory_bytes": 0,
+    "logical_cpus": 0,
+    "one_thread_hs": "REPLACE WITH MEASURED H/S",
+    "all_threads_hs": "REPLACE WITH MEASURED H/S",
+    "raw_evidence": "path-or-reference-to-raw-benchmark-output"
+  }
+]
