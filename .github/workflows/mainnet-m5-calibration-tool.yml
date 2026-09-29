@@ -1,0 +1,30 @@
+name: VALDR Mainnet M5 Calibration Tool
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "experiments/mainnet-calibration/**"
+      - ".github/workflows/mainnet-m5-calibration-tool.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calibration-tool:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Calibration math tests
+        run: go test ./experiments/mainnet-calibration -count=1
+      - name: Reproduce sample candidate
+        run: go run ./experiments/mainnet-calibration -hashrate-hs 100 -seconds 600 -safety-num 9 -safety-den 10
