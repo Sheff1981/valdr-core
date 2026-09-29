@@ -1,0 +1,30 @@
+name: VALDR Mainnet M5 Evidence Gate
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "docs/evidence/m5/VALDR_M5_CPU_EVIDENCE_CANDIDATE.json"
+      - "docs/evidence/m5/VALDR_M5_CPU_EVIDENCE_CANDIDATE.md"
+      - "experiments/mainnet-m5-evidence/**"
+      - ".github/workflows/mainnet-m5-evidence-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-gate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Validate M5 evidence manifest
+        run: go run ./experiments/mainnet-m5-evidence -input docs/evidence/m5/VALDR_M5_CPU_EVIDENCE_CANDIDATE.json
