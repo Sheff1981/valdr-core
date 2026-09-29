@@ -111,6 +111,7 @@ func (m *MinerManager) Start(rewardAddress string) error {
 		return err
 	}
 	cmd := exec.Command(m.config.BinaryPath, args...)
+	configureManagedChildProcess(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
