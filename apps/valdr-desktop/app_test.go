@@ -944,6 +944,25 @@ func TestDesktopFrontendStage12B6AdvancedDiagnosticsContract(t *testing.T) {
 }
 
 
+func TestDesktopFrontendFirstRunGateDoesNotReopenAfterSetup(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, marker := range []string{
+		"firstRunGateInitialized",
+		"firstRunGateActive = state.wallets.length === 0",
+		"firstRunGateActive && state.wallets.length > 0 && state.initialization_ready",
+		"const showFirstRun = firstRunGateActive && !state.initialization_ready",
+	} {
+		if !strings.Contains(source, marker) {
+			t.Fatalf("first-run recovery gate missing %q", marker)
+		}
+	}
+}
+
+
 func TestDesktopFrontendStage12B7BuildIdentityContract(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
 	if err != nil {
