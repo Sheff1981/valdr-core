@@ -8,7 +8,8 @@ BUILD="$ROOT/build"
 
 mkdir -p "$DEPS"
 if [ ! -d "$RX/.git" ]; then
-  git clone --depth 1 --branch v1.2.3 https://github.com/tevador/RandomX.git "$RX"
+  git clone --no-checkout https://github.com/tevador/RandomX.git "$RX"
+  git -C "$RX" checkout 12f2c2ffe2108d6cf54c391fee33c8bc3646cdab
 fi
 
 cmake -S "$RX" -B "$RX/build" -DCMAKE_BUILD_TYPE=Release
