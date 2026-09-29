@@ -8,7 +8,8 @@ $Build = Join-Path $Root "build"
 New-Item -ItemType Directory -Force -Path $Deps | Out-Null
 
 if (-not (Test-Path (Join-Path $Rx ".git"))) {
-  git clone --depth 1 --branch v1.2.3 https://github.com/tevador/RandomX.git $Rx
+  git clone --no-checkout https://github.com/tevador/RandomX.git $Rx
+  git -C $Rx checkout 12f2c2ffe2108d6cf54c391fee33c8bc3646cdab
 }
 
 cmake -S $Rx -B (Join-Path $Rx "build") -DCMAKE_BUILD_TYPE=Release
