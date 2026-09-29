@@ -1,0 +1,54 @@
+[
+  {
+    "id": "user-i5-8265u-20260929",
+    "class": "low_power_laptop",
+    "source_type": "user_machine",
+    "user_owned": true,
+    "cpu": "Intel(R) Core(TM) i5-8265U CPU @ 1.60GHz",
+    "os": "Microsoft Windows NT 10.0.19045.0",
+    "memory_bytes": 8432963584,
+    "logical_cpus": 8,
+    "one_thread_hs": "304.515",
+    "all_threads_hs": "418.723",
+    "raw_evidence": "user-provided:valdr-randomx-real-cpu.txt:2026-09-29T19:13:38Z"
+  },
+  {
+    "id": "ci-macos-m1-virtual-run3",
+    "class": "mainstream_desktop",
+    "source_type": "controlled_ci_cloud",
+    "user_owned": false,
+    "cpu": "Apple M1 (Virtual)",
+    "os": "macOS ARM64 runner",
+    "memory_bytes": 7516192768,
+    "logical_cpus": 3,
+    "one_thread_hs": "145.113",
+    "all_threads_hs": "613.962",
+    "raw_evidence": "github-actions:run=36620080973:job=109582933042:artifact=11057023893"
+  },
+  {
+    "id": "ci-windows-epyc9v74-run3",
+    "class": "higher_performance_desktop",
+    "source_type": "controlled_ci_cloud",
+    "user_owned": false,
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "os": "Windows X64 runner",
+    "memory_bytes": 17174360064,
+    "logical_cpus": 4,
+    "one_thread_hs": "461.635",
+    "all_threads_hs": "1576.72",
+    "raw_evidence": "github-actions:run=36620080973:job=109582932715:artifact=11057992634"
+  },
+  {
+    "id": "ci-linux-epyc9v74-run3-reproduction",
+    "class": "higher_performance_desktop",
+    "source_type": "controlled_ci_cloud",
+    "user_owned": false,
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "os": "Linux X64 runner",
+    "memory_bytes": 16766410752,
+    "logical_cpus": 4,
+    "one_thread_hs": "457.458",
+    "all_threads_hs": "1504.99",
+    "raw_evidence": "github-actions:run=36620080973:job=109582932969:artifact=11058252512"
+  }
+]
