@@ -24,6 +24,15 @@ if errorlevel 1 (
   exit /b 1
 )
 
+if exist "%~dp0valdr-m5-ingest.exe" (
+  "%~dp0valdr-m5-ingest.exe" -input "%~dp0valdr-randomx-real-cpu.txt" -output "%~dp0valdr-m5-machine.json"
+  if errorlevel 1 (
+    echo.
+    echo WARNING: benchmark finished, but JSON normalization failed.
+    echo The TXT result is still valid and should be sent to the VALDR chat.
+  )
+)
+
 echo.
 echo ============================================
 echo BENCHMARK FINISHED
@@ -31,6 +40,8 @@ echo ============================================
 echo Result file:
 echo %~dp0valdr-randomx-real-cpu.txt
 echo.
-echo Send valdr-randomx-real-cpu.txt to the VALDR project chat.
+echo Send these files to the VALDR project chat:
+echo   valdr-randomx-real-cpu.txt
+echo   valdr-m5-machine.json  ^(if created^)
 echo.
 pause
