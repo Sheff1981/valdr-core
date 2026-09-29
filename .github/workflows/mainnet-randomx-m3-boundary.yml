@@ -1,0 +1,38 @@
+name: VALDR Mainnet PoW M3 Boundary Gate
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "core/consensus/mainnet_randomx_m3_boundary_test.go"
+      - "core/consensus/mainnet_randomx_seed.go"
+      - "core/consensus/mainnet_candidate_validation.go"
+      - "storage/randomx_ancestry.go"
+      - "storage/mainnet_randomx_validation.go"
+      - ".github/workflows/mainnet-randomx-m3-boundary.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  m3-boundary:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Consensus seed/reorg boundary tests
+        run: |
+          go test ./core/consensus -run "TestMainnetRandomXSeedBoundary|TestMainnetRandomXSeedHeightBoundaries|TestResolveMainnetRandomXSeedUsesCandidateAncestry|TestValidateMainnetRandomXCandidate" -count=1
+
+      - name: Stored branch ancestry tests
+        run: go test ./storage -run "TestRandomXAncestrySource" -count=1
