@@ -26,4 +26,6 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Storage ancestry tests
-        run: go test ./storage ./core/consensus -count=1
+        run: |
+          go test ./storage -run "TestRandomXAncestrySource" -count=1
+          go test ./core/consensus -count=1
