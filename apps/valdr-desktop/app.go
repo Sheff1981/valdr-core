@@ -656,12 +656,21 @@ func (a *App) GetWalletBalance(
 
 func (a *App) GetBuildIdentity() DesktopBuildIdentity {
 	profile, _ := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	sourceCommit := desktopSourceCommit()
+	if sourceCommit == "" && a.node != nil && a.node.Running() {
+		ctx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
+		status, err := a.node.Status(ctx)
+		cancel()
+		if err == nil {
+			sourceCommit = strings.TrimSpace(status.SourceCommit)
+		}
+	}
 	return DesktopBuildIdentity{
 		DesktopVersion:           config.Version,
 		CoreVersion:              config.Version,
 		Network:                  profile.Name,
 		ChainID:                  profile.ChainID,
-		SourceCommit:             desktopSourceCommit(),
+		SourceCommit:             sourceCommit,
 		OfficialWebsite:          "",
 		SourceRepository:         "https://github.com/Sheff1981/valdr-core",
 		License:                  "MIT",
