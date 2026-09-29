@@ -27,7 +27,8 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          git clone --depth 1 --branch v1.2.3 https://github.com/tevador/RandomX.git rx
+          git clone --no-checkout https://github.com/tevador/RandomX.git rx
+          git -C rx checkout 12f2c2ffe2108d6cf54c391fee33c8bc3646cdab
           cmake -S rx -B rx/build -DCMAKE_BUILD_TYPE=Release
           cmake --build rx/build --config Release --parallel
           mkdir -p pack
@@ -40,7 +41,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          git clone --depth 1 --branch v1.2.3 https://github.com/tevador/RandomX.git rx
+          git clone --no-checkout https://github.com/tevador/RandomX.git rx
+          git -C rx checkout 12f2c2ffe2108d6cf54c391fee33c8bc3646cdab
           cmake -S rx -B rx/build -DCMAKE_BUILD_TYPE=Release
           cmake --build rx/build --config Release --parallel
           New-Item -ItemType Directory -Force pack | Out-Null
