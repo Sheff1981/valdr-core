@@ -27,4 +27,8 @@ if (-not (Test-Path $Vector)) { $Vector = Join-Path $Build "valdr-randomx-vector
 
 $Bench = Join-Path $Rx "build/Release/randomx-benchmark.exe"
 if (-not (Test-Path $Bench)) { $Bench = Join-Path $Rx "build/randomx-benchmark.exe" }
+Write-Host "=== VALDR RandomX verification benchmark ==="
 & $Bench --verify --auto --nonces 2000
+
+Write-Host "=== VALDR RandomX full-memory mining benchmark (1 thread) ==="
+& $Bench --mine --auto --threads 1 --nonces 200
