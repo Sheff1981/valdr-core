@@ -33,6 +33,10 @@ type Hasher struct {
 	flags C.randomx_flags
 }
 
+// New allocates the RandomX cache only.
+//
+// RandomX requires the cache to be initialized with a seed key before the VM is
+// created. Therefore the VM is intentionally created lazily on the first Hash.
 func New() (*Hasher, error) {
 	flags := C.randomx_get_flags()
 	cache := C.randomx_alloc_cache(flags)
@@ -43,23 +47,7 @@ func New() (*Hasher, error) {
 			return nil, ErrInit
 		}
 	}
-
-	vm := C.randomx_create_vm(flags, cache, nil)
-	if vm == nil {
-		C.randomx_release_cache(cache)
-		flags = C.RANDOMX_FLAG_DEFAULT
-		cache = C.randomx_alloc_cache(flags)
-		if cache == nil {
-			return nil, ErrInit
-		}
-		vm = C.randomx_create_vm(flags, cache, nil)
-		if vm == nil {
-			C.randomx_release_cache(cache)
-			return nil, ErrInit
-		}
-	}
-
-	return &Hasher{cache: cache, vm: vm, flags: flags}, nil
+	return &Hasher{cache: cache, flags: flags}, nil
 }
 
 func (h *Hasher) Close() {
@@ -80,7 +68,7 @@ func (h *Hasher) Close() {
 }
 
 func (h *Hasher) Hash(key, input []byte) ([]byte, error) {
-	if h == nil || h.cache == nil || h.vm == nil {
+	if h == nil || h.cache == nil {
 		return nil, ErrInit
 	}
 	if len(key) == 0 {
@@ -99,7 +87,39 @@ func (h *Hasher) Hash(key, input []byte) ([]byte, error) {
 			unsafe.Pointer(&key[0]),
 			C.size_t(len(key)),
 		)
+
+		if h.vm == nil {
+			h.vm = C.randomx_create_vm(h.flags, h.cache, nil)
+			if h.vm == nil {
+				// Retry in the maximally portable mode. The cache must be
+				// recreated because its implementation flags must match.
+				C.randomx_release_cache(h.cache)
+				h.flags = C.RANDOMX_FLAG_DEFAULT
+				h.cache = C.randomx_alloc_cache(h.flags)
+				if h.cache == nil {
+					return nil, ErrInit
+				}
+				C.randomx_init_cache(
+					h.cache,
+					unsafe.Pointer(&key[0]),
+					C.size_t(len(key)),
+				)
+				h.vm = C.randomx_create_vm(h.flags, h.cache, nil)
+				if h.vm == nil {
+					return nil, ErrInit
+				}
+			}
+		} else {
+			// Required by the upstream RandomX API whenever a cache is
+			// reinitialized with a different seed key.
+			C.randomx_vm_set_cache(h.vm, h.cache)
+		}
+
 		h.key = append(h.key[:0], key...)
+	}
+
+	if h.vm == nil {
+		return nil, ErrInit
 	}
 
 	out := make([]byte, C.RANDOMX_HASH_SIZE)
