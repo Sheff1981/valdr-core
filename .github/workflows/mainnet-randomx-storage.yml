@@ -1,0 +1,29 @@
+name: VALDR Mainnet RandomX Storage Ancestry
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "storage/randomx_ancestry.go"
+      - "storage/randomx_ancestry_test.go"
+      - ".github/workflows/mainnet-randomx-storage.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Storage ancestry tests
+        run: go test ./storage ./core/consensus -count=1
