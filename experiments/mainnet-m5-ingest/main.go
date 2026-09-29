@@ -48,8 +48,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(2)
 	}
-	raw = append(raw, '
-')
+	raw = append(raw, '\n')
 	if err := os.WriteFile(*out, raw, 0644); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(2)
