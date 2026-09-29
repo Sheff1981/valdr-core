@@ -1,0 +1,54 @@
+name: VALDR RandomX Real CPU Pack
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "experiments/randomx-prototype/benchmark-real-cpu.*"
+      - "experiments/randomx-prototype/REAL_CPU_BENCHMARK.md"
+      - ".github/workflows/randomx-real-cpu-pack.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build RandomX
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          git clone --depth 1 --branch v1.2.3 https://github.com/tevador/RandomX.git rx
+          cmake -S rx -B rx/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build rx/build --config Release --parallel
+          mkdir -p pack
+          cp rx/build/randomx-benchmark pack/
+          cp experiments/randomx-prototype/benchmark-real-cpu.sh pack/
+          cp experiments/randomx-prototype/REAL_CPU_BENCHMARK.md pack/README.md
+          chmod +x pack/randomx-benchmark pack/benchmark-real-cpu.sh
+
+      - name: Build RandomX Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch v1.2.3 https://github.com/tevador/RandomX.git rx
+          cmake -S rx -B rx/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build rx/build --config Release --parallel
+          New-Item -ItemType Directory -Force pack | Out-Null
+          Copy-Item rx/build/Release/randomx-benchmark.exe pack/
+          Copy-Item experiments/randomx-prototype/benchmark-real-cpu.ps1 pack/
+          Copy-Item experiments/randomx-prototype/REAL_CPU_BENCHMARK.md pack/README.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: valdr-randomx-real-cpu-${{ runner.os }}-${{ runner.arch }}
+          path: pack/
