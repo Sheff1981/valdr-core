@@ -80,3 +80,16 @@ Risk:
 - the current v2 header serializes previous/Merkle hashes as length-prefixed hexadecimal strings rather than raw 32-byte values; this is less compact but already consensus-tested. Changing that purely for compactness is not justified.
 
 If accepted, the Mainnet Master-TZ must replace the earlier custom-field mining-blob proposal with this rule.
+
+
+## Cross-platform RandomX golden hash
+
+Workflow `VALDR RandomX Prototype #11` passed on Windows, Linux and macOS.
+
+All three platforms produced the same candidate Mainnet RandomX hash:
+
+`85c60db39d4d13caeeb2e3841da2ef26d2ce64c9659a48f843811ba6ea8560f2`
+
+This is now the prototype golden RandomX vector for the current candidate mining blob + epoch-0 seed.
+
+A pure-Go target-comparison validator is included in this experiment so RandomX execution and 256-bit consensus target comparison are tested as separate failure domains. Production Mainnet consensus is still disabled.
