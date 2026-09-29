@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/core/block"
+	badger "github.com/dgraph-io/badger/v4"
 )
 
 func putRandomXBranchBlock(t *testing.T, s *BadgerStore, b *block.Block) {
@@ -23,9 +24,7 @@ func putRandomXBranchBlock(t *testing.T, s *BadgerStore, b *block.Block) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.db.Update(func(txn interface {
-		Set([]byte, []byte) error
-	}) error {
+	if err := s.db.Update(func(txn *badger.Txn) error {
 		if err := txn.Set(blockKey(b.BlockHash), rawBlock); err != nil {
 			return err
 		}
