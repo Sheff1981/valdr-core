@@ -1,0 +1,30 @@
+name: VALDR Mainnet M5 Policy Candidate
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "experiments/mainnet-m5-policy/**"
+      - ".github/workflows/mainnet-m5-policy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Exact policy math tests
+        run: go test ./experiments/mainnet-m5-policy -count=1
+      - name: Reproduce baseline candidate
+        run: go run ./experiments/mainnet-m5-policy -hashrate-hs 418.723 -seconds 600 -safety-num 1 -safety-den 1 -powlimit-factor 4
