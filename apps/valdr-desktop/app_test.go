@@ -724,7 +724,8 @@ func TestDesktopFrontendStage12ScreenContract(t *testing.T) {
 			`id="detail-chainwork"`,
 			`id="detail-data"`,
 			`id="detail-storage-state"`,
-			`id="public-node-enabled"`,
+			"Network participation",
+			"Automatic bootstrap + remembered peers",
 		},
 		"mining": {
 			`id="start-mining"`,
@@ -751,6 +752,16 @@ func TestDesktopFrontendStage12ScreenContract(t *testing.T) {
 			if !strings.Contains(source, marker) {
 				t.Fatalf("Stage 12 %s UI missing required marker %q", screen, marker)
 			}
+		}
+	}
+
+	for _, forbidden := range []string{
+		`id="public-node-enabled"`,
+		`id="public-node-address"`,
+		`id="apply-public-node"`,
+	} {
+		if strings.Contains(source, forbidden) {
+			t.Fatalf("ordinary Desktop network UI must not expose manual public-node control %q", forbidden)
 		}
 	}
 
