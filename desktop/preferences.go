@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const DesktopPreferencesVersion = 1
+const DesktopPreferencesVersion = 2
 
 var ErrDesktopPreferences = errors.New("invalid VALDR Desktop preferences")
 
@@ -64,6 +64,7 @@ func (s *PreferenceStore) Load() (DesktopPreferences, error) {
 	if err := decoder.Decode(&prefs); err != nil {
 		return DesktopPreferences{}, ErrDesktopPreferences
 	}
+	prefs = migrateDesktopPreferences(prefs)
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		return DesktopPreferences{}, ErrDesktopPreferences
@@ -124,6 +125,18 @@ func (s *PreferenceStore) Save(prefs DesktopPreferences) error {
 		return err
 	}
 	return os.Chmod(s.Path, 0o600)
+}
+
+func migrateDesktopPreferences(prefs DesktopPreferences) DesktopPreferences {
+	if prefs.Version == 1 {
+		prefs.Version = DesktopPreferencesVersion
+		// v1 exposed public-node endpoint controls in the ordinary Desktop UI.
+		// Those values may be stale and must not override automatic PCP/NAT-PMP
+		// participation after the networking model upgrade.
+		prefs.PublicNode = false
+		prefs.PublicNodeAdvertiseAddress = ""
+	}
+	return prefs
 }
 
 func validateDesktopPreferences(prefs DesktopPreferences) error {
