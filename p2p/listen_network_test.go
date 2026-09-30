@@ -91,4 +91,11 @@ func TestWildcardListenerIsNotAdvertisedBeforeMapping(t *testing.T) {
 	if got := node.AdvertiseAddress(); got != "8.8.8.8:17333" {
 		t.Fatalf("mapped advertise address=%q", got)
 	}
+	node.ClearAdvertiseAddress()
+	if got := node.AdvertiseAddress(); got != "" {
+		t.Fatalf("cleared advertise address=%q", got)
+	}
+	if got := node.helloAddress(); got != outboundOnlyHelloAddress {
+		t.Fatalf("cleared hello address=%q want=%q", got, outboundOnlyHelloAddress)
+	}
 }
