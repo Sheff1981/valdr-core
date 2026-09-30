@@ -502,7 +502,6 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		"advertise_address": node.AdvertiseAddress(),
 		"outbound_only":     *outboundOnly,
 		"natpmp_enabled":    *autoPortMap && !*outboundOnly,
-		"advertise_address": node.AdvertiseAddress(),
 		"rpc_address":       httpServer.Addr,
 		"data":        *dataDir,
 		"blockchain_db": blockStore.Path(),
