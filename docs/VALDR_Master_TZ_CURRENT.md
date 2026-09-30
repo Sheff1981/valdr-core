@@ -2,7 +2,7 @@
 
 Current repository specification for ongoing VALDR development:
 
-- **Mainnet engineering:** [VALDR_Master_TZ_v0.3.9_MAINNET_DRAFT.md](./VALDR_Master_TZ_v0.3.8_MAINNET_DRAFT.md)
+- **Mainnet engineering:** [VALDR_Master_TZ_v0.3.9_MAINNET_DRAFT.md](./VALDR_Master_TZ_v0.3.9_MAINNET_DRAFT.md)
 - **Frozen active Testnet2 baseline:** [VALDR_Master_TZ_v0.2.14.md](./VALDR_Master_TZ_v0.2.14.md)
 
 Rules:
