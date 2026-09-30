@@ -184,3 +184,65 @@ func TestTestnet2MultiHopTransactionAndBlockRelay(t *testing.T) {
 		}
 	}
 }
+
+
+func TestTestnet2PeerKnowledgePropagatesBeyondDirectConnections(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := func(id string) *Node {
+		t.Helper()
+		node := mustStartNode(t, NodeConfig{
+			NodeID: id,
+			ListenAddress: "127.0.0.1:0",
+			NetworkProfile: &profile,
+			EnableV2: true,
+		})
+		t.Cleanup(func() { _ = node.Close() })
+		return node
+	}
+
+	a := start("discovery-a")
+	b := start("discovery-b")
+	cNode := start("discovery-c")
+	d := start("discovery-d")
+
+	connect := func(from *Node, to string) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := from.Connect(ctx, to); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	connect(b, a.Address())
+	connect(cNode, b.Address())
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, peer := range a.DiscoveredPeers() {
+			if peer.NodeID == cNode.NodeID() && peer.Address == cNode.Address() {
+				goto learned
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("node A did not learn node C through node B")
+
+learned:
+	connect(d, a.Address())
+
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, peer := range d.DiscoveredPeers() {
+			if peer.NodeID == cNode.NodeID() && peer.Address == cNode.Address() {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("node D did not learn node C from node A's learned-peer gossip")
+}
