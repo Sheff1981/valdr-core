@@ -796,23 +796,18 @@ root.innerHTML = `
           <div class="public-node-panel">
             <div class="section-head">
               <div>
-                <h3>Public full node</h3>
-                <p class="subtle">Advanced mode only. Normal Desktop P2P is automatic; use this only to advertise a known public endpoint.</p>
+                <h3>Network participation</h3>
+                <p class="subtle">VALDR joins the network automatically. No peer IP, seed, port or node address is required.</p>
               </div>
             </div>
-            <label class="settings-check public-node-toggle">
-              <input id="public-node-enabled" type="checkbox">
-              <span>Accept inbound Testnet P2P connections</span>
-            </label>
-            <label>
-              Advertised address
-              <input id="public-node-address" autocomplete="off" spellcheck="false" placeholder="node.example.org:17333">
-            </label>
-            <div class="actions">
-              <button class="secondary" id="apply-public-node" type="button">Apply &amp; restart node</button>
-            </div>
-            <p class="warning">Normal Desktop already listens for P2P where possible. This option additionally advertises an explicitly routable DNS/IP endpoint. RPC remains bound to localhost.</p>
-            <p id="public-node-status" class="subtle"></p>
+            <dl class="details compact">
+              <div><dt>Discovery</dt><dd>Automatic bootstrap + remembered peers</dd></div>
+              <div><dt>Peer exchange</dt><dd>Automatic</dd></div>
+              <div><dt>Inbound P2P</dt><dd>Automatic where the OS/network permits</dd></div>
+              <div><dt>Reconnect</dt><dd>Automatic</dd></div>
+              <div><dt>RPC</dt><dd>Local computer only</dd></div>
+            </dl>
+            <p class="subtle">Public-node endpoint configuration is operator tooling and is intentionally hidden from the ordinary Desktop workflow.</p>
           </div>
           <div class="network-peers">
             <div class="section-head">
@@ -835,7 +830,7 @@ root.innerHTML = `
             </div>
             <pre id="node-log-output" class="node-log-output">No node log output yet.</pre>
           </div>
-          <p class="subtle">Default mode uses automatic P2P listening plus outbound bootstrap. Public advertised-address mode is optional and never changes the localhost RPC boundary.</p>
+          <p class="subtle">VALDR networking is automatic: discover peers, synchronize, relay transactions and reconnect without manual network setup.</p>
         </article>
       </section>
 
