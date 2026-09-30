@@ -151,3 +151,14 @@ func TestValidateMainnetTimestampCandidateMTP11AndFuture30m(t *testing.T) {
 		t.Fatal("timestamp beyond +30m must fail")
 	}
 }
+
+
+func TestMainnetLWMARejectsDerivedZeroWork(t *testing.T) {
+	maxTarget := daaTarget(t, "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+	history := daaHistory(31, MainnetDAAMaxSolveSeconds, maxTarget)
+
+	_, err := MainnetNextTargetLWMA(history, maxTarget, maxTarget)
+	if !errors.Is(err, ErrMainnetDAAHistory) {
+		t.Fatalf("error=%v want ErrMainnetDAAHistory", err)
+	}
+}
