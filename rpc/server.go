@@ -1,6 +1,7 @@
 package rpc
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -97,7 +98,7 @@ func (s *Server) handleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.call(request.Method, request.Params)
+	result, err := s.call(r.Context(), request.Method, request.Params)
 	if err != nil {
 		status, code := http.StatusBadRequest, -32602
 		switch {
@@ -113,7 +114,7 @@ func (s *Server) handleRPC(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(Response{Result: result})
 }
 
-func (s *Server) call(method string, raw json.RawMessage) (any, error) {
+func (s *Server) call(ctx context.Context, method string, raw json.RawMessage) (any, error) {
 	switch method {
 	case MethodGetStatus:
 		if err := requireNoParams(raw); err != nil {
@@ -302,14 +303,14 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decodeParams(raw, &params); err != nil {
 			return nil, err
 		}
-		return s.mineBlock(params)
+		return s.mineBlock(ctx, params)
 
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrMethodNotFound, method)
 	}
 }
 
-func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
+func (s *Server) mineBlock(ctx context.Context, params MineBlockParams) (MineBlockResult, error) {
 	s.mineMu.Lock()
 	defer s.mineMu.Unlock()
 
@@ -332,7 +333,10 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 		params.RewardAddress,
 		timestamp,
 		transactions,
-		s.recordMiningProgress,
+		func(hashes uint64) error {
+			s.recordMiningProgress(hashes)
+			return ctx.Err()
+		},
 	)
 	miningDuration := time.Since(miningStarted)
 	if err != nil {

@@ -73,12 +73,18 @@ func TestDesktopMinerDefaultsIntervalAndSurfacesUnexpectedExit(t *testing.T) {
 
 	crashed := &exec.Cmd{}
 	manager.command = crashed
+	if _, err := manager.stderr.Write([]byte("Post \"http://127.0.0.1:17332/rpc\": context deadline exceeded\n")); err != nil {
+		t.Fatal(err)
+	}
 	manager.recordProcessExit(crashed, errors.New("exit status 2"))
 	if manager.Running() {
 		t.Fatal("manager still reports running after child exit")
 	}
 	if !errors.Is(manager.LastExitError(), ErrDesktopMinerExited) {
 		t.Fatalf("last exit error=%v want ErrDesktopMinerExited", manager.LastExitError())
+	}
+	if !strings.Contains(manager.LastExitError().Error(), "context deadline exceeded") {
+		t.Fatalf("last exit error missing stderr detail: %v", manager.LastExitError())
 	}
 
 	manager.lastExit = nil

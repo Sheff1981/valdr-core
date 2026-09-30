@@ -325,11 +325,15 @@ func MineTargetWithProgress(
 		candidate.BlockHash = candidate.CalculateHash()
 		hashes := nonce + 1
 		if progress != nil && hashes%miningProgressEveryHashes == 0 {
-			progress(hashes)
+			if err := progress(hashes); err != nil {
+				return err
+			}
 		}
 		if err := ValidatePoWTarget(candidate.BlockHash, target); err == nil {
 			if progress != nil && hashes%miningProgressEveryHashes != 0 {
-				progress(hashes)
+				if err := progress(hashes); err != nil {
+					return err
+				}
 			}
 			return nil
 		}

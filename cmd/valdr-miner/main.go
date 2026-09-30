@@ -19,10 +19,7 @@ import (
 	"github.com/Sheff1981/valdr-core/rpc"
 )
 
-const (
-	defaultNodeEndpoint = "http://127.0.0.1:17332"
-	mineBlockRPCTimeout = 5 * time.Minute
-)
+const defaultNodeEndpoint = "http://127.0.0.1:17332"
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
@@ -87,31 +84,34 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	}
 	defer releasePIDFile(resolvedPID)
 
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(signals)
+	runCtx, stopSignals := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stopSignals()
 
 	client := rpc.NewClient(*node)
 	var mined uint64
 
 	for {
-		select {
-		case sig := <-signals:
-			fmt.Fprintf(errOut, "miner stopping on signal %s\n", sig)
+		if err := runCtx.Err(); err != nil {
+			fmt.Fprintln(errOut, "miner stopping on signal")
 			return 0
-		default:
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), mineBlockRPCTimeout)
 		var result rpc.MineBlockResult
 		err := client.Call(
-			ctx,
+			runCtx,
 			rpc.MethodMineBlock,
 			rpc.MineBlockParams{RewardAddress: *rewardAddress},
 			&result,
 		)
-		cancel()
 		if err != nil {
+			if runCtx.Err() != nil {
+				fmt.Fprintln(errOut, "miner stopping on signal")
+				return 0
+			}
 			fmt.Fprintln(errOut, err)
 			return 1
 		}
@@ -130,14 +130,14 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		timer := time.NewTimer(*interval)
 		select {
 		case <-timer.C:
-		case sig := <-signals:
+		case <-runCtx.Done():
 			if !timer.Stop() {
 				select {
 				case <-timer.C:
 				default:
 				}
 			}
-			fmt.Fprintf(errOut, "miner stopping on signal %s\n", sig)
+			fmt.Fprintln(errOut, "miner stopping on signal")
 			return 0
 		}
 	}

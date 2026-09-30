@@ -1,6 +1,7 @@
 package consensus
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 
@@ -34,11 +35,12 @@ func TestMineTargetWithProgressReportsFinalHashCount(t *testing.T) {
 	if err := MineTargetWithProgress(
 		candidate,
 		target,
-		func(hashes uint64) {
+		func(hashes uint64) error {
 			if hashes < reported {
 				t.Fatalf("progress regressed: got=%d previous=%d", hashes, reported)
 			}
 			reported = hashes
+			return nil
 		},
 	); err != nil {
 		t.Fatal(err)
@@ -50,5 +52,41 @@ func TestMineTargetWithProgressReportsFinalHashCount(t *testing.T) {
 	}
 	if reported == 0 {
 		t.Fatal("progress callback did not report work")
+	}
+}
+
+func TestMineTargetWithProgressCanCancelLongAttempt(t *testing.T) {
+	target := big.NewInt(1)
+	targetHex, err := TargetHexV2(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := block.NewV2(
+		1,
+		"",
+		1,
+		targetHex,
+		0,
+		nil,
+		"cancel-test",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stop := errors.New("stop mining")
+	err = MineTargetWithProgress(
+		candidate,
+		target,
+		func(hashes uint64) error {
+			if hashes == 0 {
+				t.Fatal("cancellation callback saw zero hashes")
+			}
+			return stop
+		},
+	)
+	if !errors.Is(err, stop) {
+		t.Fatalf("MineTargetWithProgress error=%v want=%v", err, stop)
 	}
 }

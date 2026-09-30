@@ -56,6 +56,7 @@ type MinerStatus struct {
 type MinerManager struct {
 	mu                    sync.Mutex
 	config                MinerProcessConfig
+	stderr                 *LogBuffer
 	command               *exec.Cmd
 	waitCh                chan error
 	stopping              bool
@@ -91,7 +92,10 @@ func NewMinerManager(cfg MinerProcessConfig) (*MinerManager, error) {
 	if cfg.Stderr == nil {
 		cfg.Stderr = io.Discard
 	}
-	return &MinerManager{config: cfg}, nil
+	return &MinerManager{
+		config: cfg,
+		stderr: NewLogBuffer(8 * 1024),
+	}, nil
 }
 
 func (m *MinerManager) Start(rewardAddress string) error {
@@ -116,7 +120,12 @@ func (m *MinerManager) Start(rewardAddress string) error {
 	if err != nil {
 		return err
 	}
-	cmd.Stderr = m.config.Stderr
+	if m.stderr != nil {
+		m.stderr.Clear()
+		cmd.Stderr = io.MultiWriter(m.config.Stderr, m.stderr)
+	} else {
+		cmd.Stderr = m.config.Stderr
+	}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -324,5 +333,24 @@ func (m *MinerManager) recordProcessExit(cmd *exec.Cmd, waitErr error) {
 		m.lastExit = ErrDesktopMinerExited
 		return
 	}
+	detail := ""
+	if m.stderr != nil {
+		detail = lastNonEmptyLine(m.stderr.String())
+	}
+	if detail != "" {
+		m.lastExit = fmt.Errorf("%w: %v: %s", ErrDesktopMinerExited, waitErr, detail)
+		return
+	}
 	m.lastExit = fmt.Errorf("%w: %v", ErrDesktopMinerExited, waitErr)
+}
+
+func lastNonEmptyLine(value string) string {
+	lines := strings.Split(strings.TrimSpace(value), "\n")
+	for index := len(lines) - 1; index >= 0; index-- {
+		line := strings.TrimSpace(lines[index])
+		if line != "" {
+			return line
+		}
+	}
+	return ""
 }

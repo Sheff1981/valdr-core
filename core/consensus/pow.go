@@ -14,8 +14,9 @@ import (
 const miningProgressEveryHashes uint64 = 1 << 14
 
 // MiningProgressFunc receives a monotonic count of hashes tried by one PoW
-// attempt. It is telemetry-only and must never affect consensus decisions.
-type MiningProgressFunc func(hashes uint64)
+// attempt. Returning an error cancels only the local mining attempt; it does
+// not alter target calculation, validation or any other consensus rule.
+type MiningProgressFunc func(hashes uint64) error
 
 var (
 	ErrInvalidDifficulty = errors.New("difficulty must be greater than zero")
@@ -98,12 +99,16 @@ func MineWithProgress(b *block.Block, progress MiningProgressFunc) error {
 		b.BlockHash = b.CalculateHash()
 		hashes := nonce + 1
 		if progress != nil && hashes%miningProgressEveryHashes == 0 {
-			progress(hashes)
+			if err := progress(hashes); err != nil {
+				return err
+			}
 		}
 
 		if err := ValidatePoW(b); err == nil {
 			if progress != nil && hashes%miningProgressEveryHashes != 0 {
-				progress(hashes)
+				if err := progress(hashes); err != nil {
+					return err
+				}
 			}
 			return nil
 		}
