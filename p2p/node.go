@@ -278,6 +278,32 @@ func (n *Node) AdvertiseAddress() string {
 	return n.advertiseAddressLocked()
 }
 
+func (n *Node) SetAdvertiseAddress(address string) error {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return ErrInvalidPeerAddress
+	}
+	if _, _, err := net.SplitHostPort(address); err != nil {
+		return fmt.Errorf("%w: advertise address: %v", ErrInvalidPeerAddress, err)
+	}
+	if n.enableV2 && n.networkProfile.Public {
+		if err := validateDiscoveredAddress(address, true); err != nil {
+			return err
+		}
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.closed {
+		return ErrNodeClosed
+	}
+	if n.outboundOnly {
+		return fmt.Errorf("%w: outbound-only node cannot advertise", ErrInvalidConfig)
+	}
+	n.advertiseAddress = address
+	return nil
+}
+
 func (n *Node) NodeID() string {
 	return n.nodeID
 }
