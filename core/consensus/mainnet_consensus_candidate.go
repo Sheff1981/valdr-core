@@ -19,6 +19,7 @@ func ValidateMainnetConsensusCandidate(
 	candidate *block.Block,
 	history []MainnetDAAHeader,
 	parentHash string,
+	expectedChainID string,
 	initialTarget *big.Int,
 	powLimit *big.Int,
 	localSystemTime int64,
@@ -64,6 +65,7 @@ func ValidateMainnetConsensusCandidate(
 		candidate,
 		parent.Height,
 		parentHash,
+		expectedChainID,
 		source,
 		hasher,
 	)
