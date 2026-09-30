@@ -819,6 +819,7 @@ root.innerHTML = `
             </div>
             <div id="peer-list" class="peer-list"></div>
             <p id="peer-list-empty" class="subtle">No connected peers.</p>
+            <p id="peer-refresh-status" class="subtle">Not refreshed yet.</p>
           </div>
           <div class="node-log-panel">
             <div class="section-head">
@@ -829,6 +830,7 @@ root.innerHTML = `
               <button class="secondary" id="refresh-node-logs" type="button">Refresh logs</button>
             </div>
             <pre id="node-log-output" class="node-log-output">No node log output yet.</pre>
+            <p id="node-log-refresh-status" class="subtle">Not refreshed yet.</p>
           </div>
           <p class="subtle">VALDR networking is automatic: discover peers, synchronize, relay transactions and reconnect without manual network setup.</p>
         </article>
@@ -1788,30 +1790,56 @@ const renderPeers = (peers: PeerInfo[]): void => {
 };
 
 const refreshPeers = async (): Promise<void> => {
+  const button = document.getElementById("refresh-peers") as HTMLButtonElement | null;
+  if (button) button.disabled = true;
+  text("peer-refresh-status", "Refreshing peers…");
   if (!currentState?.node_running) {
     renderPeers([]);
+    text("peer-refresh-status", "Node is not running.");
+    if (button) button.disabled = false;
     return;
   }
   try {
-    renderPeers(await api().GetPeers());
-  } catch {
+    const peers = await api().GetPeers();
+    renderPeers(peers);
+    text(
+      "peer-refresh-status",
+      `Updated ${new Date().toLocaleTimeString()} · ${peers.length} peer${peers.length === 1 ? "" : "s"}`,
+    );
+  } catch (error) {
     renderPeers([]);
+    text(
+      "peer-refresh-status",
+      `Refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  } finally {
+    if (button) button.disabled = false;
   }
 };
 
 const refreshNodeLogs = async (): Promise<void> => {
   const output = document.getElementById("node-log-output") as HTMLPreElement | null;
+  const button = document.getElementById("refresh-node-logs") as HTMLButtonElement | null;
   if (!output) return;
+  if (button) button.disabled = true;
+  text("node-log-refresh-status", "Refreshing logs…");
   if (!currentState?.preferences.advanced) {
     output.textContent = "Advanced mode is required for node diagnostics.";
+    text("node-log-refresh-status", "Advanced mode required.");
+    if (button) button.disabled = false;
     return;
   }
   try {
     const logs = (await api().GetNodeLogs()).trim();
     output.textContent = logs || "No node log output yet.";
     output.scrollTop = output.scrollHeight;
+    text("node-log-refresh-status", `Updated ${new Date().toLocaleTimeString()}`);
   } catch (error) {
-    output.textContent = error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : String(error);
+    output.textContent = message;
+    text("node-log-refresh-status", `Refresh failed: ${message}`);
+  } finally {
+    if (button) button.disabled = false;
   }
 };
 
