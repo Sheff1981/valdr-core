@@ -344,6 +344,15 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	bootstrapCtx, bootstrapCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	bootstrapResult := node.BootstrapAndMaintain(bootstrapCtx, bootstrapPeers)
 	bootstrapCancel()
+	logging.Printf(
+		logging.CategoryP2P,
+		"bootstrap attempted=%d connected=%d dns_lookups=%d peer_cache_loaded=%d peers=%d",
+		bootstrapResult.Attempted,
+		bootstrapResult.Connected,
+		bootstrapResult.DNSLookups,
+		len(cachedBootstrapPeers),
+		node.PeerCount(),
+	)
 	for _, failure := range bootstrapResult.Failures {
 		logging.Printf(
 			logging.CategoryP2P,
@@ -376,6 +385,17 @@ func startCommand(args []string, out, errOut io.Writer) int {
 							result.Connected,
 							node.PeerCount(),
 						)
+					}
+					if result.Connected == 0 && len(result.Failures) > 0 {
+						for _, failure := range result.Failures {
+							logging.Printf(
+								logging.CategoryP2P,
+								"outbound maintenance failed address=%s error=%s peers=%d",
+								failure.Address,
+								failure.Error,
+								node.PeerCount(),
+							)
+						}
 					}
 				}
 			}
