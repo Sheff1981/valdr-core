@@ -305,6 +305,14 @@ func (n *Node) SetAdvertiseAddress(address string) error {
 	return nil
 }
 
+func (n *Node) ClearAdvertiseAddress() {
+	n.mu.Lock()
+	if !n.closed && !n.outboundOnly {
+		n.advertiseAddress = ""
+	}
+	n.mu.Unlock()
+}
+
 func (n *Node) NodeID() string {
 	return n.nodeID
 }
