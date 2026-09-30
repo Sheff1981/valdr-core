@@ -50,6 +50,37 @@ Section "VALDR Desktop" SecMain
   SetShellVarContext current
   SetOutPath "$INSTDIR"
 
+  ; Upgrade safety: do not overwrite running binaries or force-kill valdrd.
+  nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq VALDR.exe" /NH'
+  Pop $0
+  Pop $1
+  ${If} $1 != ""
+    ${If} $1 != "INFO: No tasks are running which match the specified criteria."
+      MessageBox MB_ICONEXCLAMATION|MB_OK "VALDR Desktop is still running. Close VALDR Desktop completely, then run this installer again. Wallet and blockchain data will be preserved."
+      Abort
+    ${EndIf}
+  ${EndIf}
+
+  nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq valdrd.exe" /NH'
+  Pop $0
+  Pop $1
+  ${If} $1 != ""
+    ${If} $1 != "INFO: No tasks are running which match the specified criteria."
+      MessageBox MB_ICONEXCLAMATION|MB_OK "The VALDR node is still shutting down. Wait a few seconds, then run this installer again. Do not force-close valdrd.exe because it may be writing blockchain data."
+      Abort
+    ${EndIf}
+  ${EndIf}
+
+  nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq valdr-miner.exe" /NH'
+  Pop $0
+  Pop $1
+  ${If} $1 != ""
+    ${If} $1 != "INFO: No tasks are running which match the specified criteria."
+      MessageBox MB_ICONEXCLAMATION|MB_OK "VALDR Miner is still running. Stop mining and close VALDR Desktop, then run this installer again."
+      Abort
+    ${EndIf}
+  ${EndIf}
+
   File /oname=VALDR.exe "${DESKTOP_EXE}"
   File /oname=valdrd.exe "${NODE_EXE}"
   File /oname=valdr-miner.exe "${MINER_EXE}"
