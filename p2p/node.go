@@ -896,6 +896,18 @@ func (n *Node) rememberDiscoveredPeerLocked(nodeID, address string) bool {
 func (n *Node) afterPeerConnected(peer Peer) {
 	if n.enableV2 {
 		_ = n.sendV2To(peer.NodeID, V2MessageGetPeers, struct{}{})
+
+		// A newly connected, routable node must become discoverable by peers
+		// that were already connected. Push the bounded current peer view to
+		// existing peers; receivers validate/filter addresses and do not
+		// rebroadcast the message, so this does not create gossip loops.
+		for _, existing := range n.Peers() {
+			if existing.NodeID == peer.NodeID {
+				continue
+			}
+			_ = n.handleGetPeersV2(existing.NodeID)
+		}
+
 		if n.shouldSyncV2(peer) {
 			_ = n.requestHeadersV2(peer.NodeID)
 		}
