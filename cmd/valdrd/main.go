@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -169,7 +170,8 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	nodeID := fs.String("node-id", "valdr-node", "P2P node id")
 	p2pHost := fs.String("p2p-host", "127.0.0.1", "P2P listen host")
 	advertiseAddress := fs.String("advertise-address", "", "P2P address advertised to peers; empty uses listen address")
-	outboundOnly := fs.Bool("outbound-only", false, "disable inbound P2P listener; intended for Desktop clients")
+	outboundOnly := fs.Bool("outbound-only", false, "disable inbound P2P listener")
+	autoPortMap := fs.Bool("natpmp", true, "use PCP or NAT-PMP to map the listening P2P port automatically")
 	managedStdinShutdown := fs.Bool("managed-stdin-shutdown", false, "stop gracefully when managed stdin closes")
 	p2pPort := fs.Uint("p2p-port", 0, "P2P listen port; 0 uses network default")
 	rpcHost := fs.String("rpc-host", "127.0.0.1", "RPC listen host")
@@ -294,6 +296,68 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		logging.Printf(logging.CategoryError, "P2P start failed node=%s error=%v", *nodeID, err)
 		return 1
 	}
+
+	var portMapCancel context.CancelFunc
+	var portMapWG sync.WaitGroup
+	if *autoPortMap &&
+		!*outboundOnly &&
+		strings.TrimSpace(*advertiseAddress) == "" &&
+		profile.ProtocolMax >= 2 {
+		portMapCtx, cancel := context.WithCancel(context.Background())
+		portMapCancel = cancel
+		mapper := p2p.NewAutoPortMapper(uint16(resolvedP2PPort))
+		portMapWG.Add(1)
+		go func() {
+			defer portMapWG.Done()
+			mapper.Run(portMapCtx, func(state p2p.PortMapState) {
+				if state.Active && state.ExternalEndpoint != "" {
+					if err := node.SetAdvertiseAddress(state.ExternalEndpoint); err != nil {
+						logging.Printf(
+							logging.CategoryP2P,
+							"port mapping advertise rejected protocol=%s endpoint=%s error=%v",
+							state.Protocol,
+							state.ExternalEndpoint,
+							err,
+						)
+						return
+					}
+					logging.Printf(
+						logging.CategoryP2P,
+						"port mapping active protocol=%s gateway=%s endpoint=%s lifetime=%ds",
+						state.Protocol,
+						state.Gateway,
+						state.ExternalEndpoint,
+						state.LifetimeSeconds,
+					)
+					return
+				}
+				if state.LastError != "" {
+					logging.Printf(
+						logging.CategoryP2P,
+						"port mapping unavailable gateway=%s error=%s",
+						state.Gateway,
+						state.LastError,
+					)
+				}
+			})
+		}()
+	}
+	if portMapCancel != nil {
+		defer func() {
+			portMapCancel()
+			done := make(chan struct{})
+			go func() {
+				portMapWG.Wait()
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+				logging.Printf(logging.CategoryP2P, "port mapping shutdown timed out")
+			}
+		}()
+	}
+
 	savePeerCache := func() {
 		if profile.ProtocolMax < 2 {
 			return
@@ -437,6 +501,8 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		"p2p_address":       node.Address(),
 		"advertise_address": node.AdvertiseAddress(),
 		"outbound_only":     *outboundOnly,
+		"natpmp_enabled":    *autoPortMap && !*outboundOnly,
+		"advertise_address": node.AdvertiseAddress(),
 		"rpc_address":       httpServer.Addr,
 		"data":        *dataDir,
 		"blockchain_db": blockStore.Path(),
