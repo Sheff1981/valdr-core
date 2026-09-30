@@ -359,9 +359,10 @@ func desktopNodeArgs(cfg NodeProcessConfig) ([]string, error) {
 			"--advertise-address", advertiseAddress,
 		)
 	} else {
-		// Ordinary Desktop clients are outbound-only. Public inbound capacity
-		// is provided by explicitly configured reachable full/bootstrap nodes.
-		args = append(args, "--outbound-only")
+		// Ordinary Desktop nodes listen locally and let valdrd attempt automatic
+		// PCP/NAT-PMP port mapping. If no mapping is available, outbound
+		// connectivity remains fully functional.
+		args = append(args, "--p2p-host", "0.0.0.0")
 	}
 	args = append(
 		args,
