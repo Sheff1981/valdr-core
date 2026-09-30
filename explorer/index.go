@@ -150,6 +150,58 @@ func (i *Index) Refresh(ctx context.Context) error {
 	return i.saveLocked()
 }
 
+// Rebuild discards the derived local index and reconstructs it from the
+// node's active blockchain. It is safe because the Explorer index contains no
+// wallet secrets and no consensus state.
+func (i *Index) Rebuild(ctx context.Context) error {
+	var status rpc.StatusResult
+	if err := i.client.Call(ctx, rpc.MethodGetStatus, nil, &status); err != nil {
+		return err
+	}
+	var genesis rpc.BlockResult
+	if err := i.client.Call(
+		ctx,
+		rpc.MethodGetBlock,
+		rpc.HeightParams{Height: 0},
+		&genesis,
+	); err != nil {
+		return err
+	}
+	if status.ChainID == "" || genesis.BlockHash == "" ||
+		genesis.ChainID != status.ChainID {
+		return ErrIndexChainMismatch
+	}
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.resetLocked(status.ChainID, genesis.BlockHash)
+	for height := uint64(1); height <= status.Height; height++ {
+		var candidate rpc.BlockResult
+		if err := i.client.Call(
+			ctx,
+			rpc.MethodGetBlock,
+			rpc.HeightParams{Height: height},
+			&candidate,
+		); err != nil {
+			return err
+		}
+		if err := i.applyBlockLocked(&candidate); err != nil {
+			return err
+		}
+	}
+	if i.state.Height != status.Height || i.state.TipHash != status.TipHash {
+		return fmt.Errorf(
+			"%w: rebuilt=%d/%s node=%d/%s",
+			ErrIndexLinkMismatch,
+			i.state.Height,
+			i.state.TipHash,
+			status.Height,
+			status.TipHash,
+		)
+	}
+	return i.saveLocked()
+}
+
 func (i *Index) Activities(address string) []AddressActivity {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
