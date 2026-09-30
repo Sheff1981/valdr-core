@@ -304,7 +304,7 @@ root.innerHTML = `
         VALDR Desktop runs a local validating node. The blockchain is stored on this device and disk usage grows as the network grows.
         This build connects to Testnet only; Testnet VDR has no promised monetary value.
       </p>
-      <p class="subtle">Requires local disk space and outbound network access. Inbound ports are not required in the default Desktop mode.</p>
+      <p class="subtle">Requires local disk space and network access. VALDR listens for P2P automatically where Windows/network policy permits; outbound connectivity is sufficient to participate.</p>
       <div class="first-run-network">
         <span>Node data<br><code id="first-run-data-path">—</code></span>
         <button class="secondary" id="first-run-choose-data" type="button">Choose folder</button>
@@ -797,7 +797,7 @@ root.innerHTML = `
             <div class="section-head">
               <div>
                 <h3>Public full node</h3>
-                <p class="subtle">Advanced mode only. Normal Desktop operation remains outbound-only.</p>
+                <p class="subtle">Advanced mode only. Normal Desktop P2P is automatic; use this only to advertise a known public endpoint.</p>
               </div>
             </div>
             <label class="settings-check public-node-toggle">
@@ -811,7 +811,7 @@ root.innerHTML = `
             <div class="actions">
               <button class="secondary" id="apply-public-node" type="button">Apply &amp; restart node</button>
             </div>
-            <p class="warning">This opens the P2P listener on all local interfaces. VALDR does not change your router or firewall. Use an explicitly routable DNS/IP endpoint. RPC remains bound to localhost.</p>
+            <p class="warning">Normal Desktop already listens for P2P where possible. This option additionally advertises an explicitly routable DNS/IP endpoint. RPC remains bound to localhost.</p>
             <p id="public-node-status" class="subtle"></p>
           </div>
           <div class="network-peers">
@@ -835,7 +835,7 @@ root.innerHTML = `
             </div>
             <pre id="node-log-output" class="node-log-output">No node log output yet.</pre>
           </div>
-          <p class="subtle">Default mode is outbound-only. Public Testnet P2P is opt-in above and never changes the localhost RPC boundary.</p>
+          <p class="subtle">Default mode uses automatic P2P listening plus outbound bootstrap. Public advertised-address mode is optional and never changes the localhost RPC boundary.</p>
         </article>
       </section>
 
