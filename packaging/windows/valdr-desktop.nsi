@@ -25,7 +25,7 @@ Unicode true
 Name "VALDR Desktop"
 OutFile "${OUTFILE}"
 InstallDir "$LOCALAPPDATA\Programs\VALDR Desktop"
-RequestExecutionLevel user
+RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 VIProductVersion "${APP_FILE_VERSION}"
@@ -54,6 +54,11 @@ Section "VALDR Desktop" SecMain
   File /oname=valdrd.exe "${NODE_EXE}"
   File /oname=valdr-miner.exe "${MINER_EXE}"
 
+  ; VALDR Testnet2 P2P must work after installation without PowerShell.
+  ; Allow only the bundled node executable on the native P2P TCP port.
+  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="VALDR Testnet2 P2P" program="$INSTDIR\valdrd.exe"'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="VALDR Testnet2 P2P" dir=in action=allow protocol=TCP localport=17333 program="$INSTDIR\valdrd.exe" profile=any enable=yes'
+
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   CreateDirectory "$SMPROGRAMS\VALDR"
@@ -78,6 +83,9 @@ Section "Uninstall"
   RMDir "$SMPROGRAMS\VALDR"
 
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VALDRDesktop"
+
+  ; Remove the inbound rule owned by this installation.
+  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="VALDR Testnet2 P2P" program="$INSTDIR\valdrd.exe"'
 
   ; Remove only files owned by VALDR. Never recursively delete a user-selected
   ; install directory because it may contain unrelated user files.
