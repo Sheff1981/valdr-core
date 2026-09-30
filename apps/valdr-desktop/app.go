@@ -1080,6 +1080,25 @@ func (a *App) GetTransactionHistory(
 	)
 }
 
+func (a *App) RescanTransactionHistory(
+	address string,
+) ([]desktopcore.TransactionHistoryItem, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		2*time.Minute,
+	)
+	defer cancel()
+	address = strings.TrimSpace(address)
+	if err := a.historyService.Rescan(ctx, address); err != nil {
+		return nil, err
+	}
+	return a.historyService.History(
+		ctx,
+		address,
+		desktopcore.DefaultHistoryLimit,
+	)
+}
+
 func (a *App) PreviewSend(
 	selector string,
 	recipient string,
