@@ -7,7 +7,6 @@ import (
 	"github.com/Sheff1981/valdr-core/core/block"
 )
 
-const MainnetCandidateChainID = "valdr-mainnet-1"
 
 var (
 	ErrMainnetCandidateChainID = errors.New("Mainnet candidate has wrong chain id")
@@ -25,14 +24,15 @@ func ValidateMainnetRandomXCandidate(
 	candidate *block.Block,
 	parentHeight uint64,
 	parentHash string,
+	expectedChainID string,
 	source MainnetSeedSource,
 	hasher RandomXHasher,
 ) ([]byte, error) {
 	if candidate == nil || candidate.Version != block.VersionV2 || candidate.Difficulty != 0 {
 		return nil, ErrMainnetPoWUnsupportedBlock
 	}
-	if candidate.ChainID != MainnetCandidateChainID {
-		return nil, fmt.Errorf("%w: got %q want %q", ErrMainnetCandidateChainID, candidate.ChainID, MainnetCandidateChainID)
+	if expectedChainID == "" || candidate.ChainID != expectedChainID {
+		return nil, fmt.Errorf("%w: got %q want %q", ErrMainnetCandidateChainID, candidate.ChainID, expectedChainID)
 	}
 	if candidate.PreviousBlockHash != parentHash || parentHash == "" {
 		return nil, fmt.Errorf("%w: got %q want %q", ErrMainnetCandidateParent, candidate.PreviousBlockHash, parentHash)
