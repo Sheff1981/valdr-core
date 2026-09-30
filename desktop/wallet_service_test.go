@@ -38,6 +38,17 @@ func (m *walletServiceRPCMock) Call(
 		return assignDesktopRPC(result, m.balance)
 	case rpc.MethodGetMempool:
 		return assignDesktopRPC(result, m.mempool)
+	case rpc.MethodEstimateFee:
+		profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+		if err != nil {
+			return err
+		}
+		return assignDesktopRPC(result, rpc.FeeEstimateResult{
+			FeeRateValPerByte: profile.MinRelayFeePerByte,
+			Source:            "relay-minimum",
+			SampleCount:       0,
+			SufficientData:    false,
+		})
 	case rpc.MethodSendTransaction:
 		p := params.(rpc.SendTransactionParams)
 		m.sent = p.Transaction
