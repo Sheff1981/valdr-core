@@ -310,6 +310,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		go func() {
 			defer portMapWG.Done()
 			mapper.Run(portMapCtx, func(state p2p.PortMapState) {
+				node.SetPortMapState(state)
 				if state.Active && state.ExternalEndpoint != "" {
 					if err := node.SetAdvertiseAddress(state.ExternalEndpoint); err != nil {
 						logging.Printf(
