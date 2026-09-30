@@ -332,6 +332,9 @@ func startCommand(args []string, out, errOut io.Writer) int {
 					)
 					return
 				}
+				if !state.Active {
+					node.ClearAdvertiseAddress()
+				}
 				if state.LastError != "" {
 					logging.Printf(
 						logging.CategoryP2P,
