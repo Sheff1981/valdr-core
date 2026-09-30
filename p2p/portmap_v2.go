@@ -16,8 +16,9 @@ import (
 	"time"
 )
 
+var portMapServerPort = 5351
+
 const (
-	portMapServerPort       = 5351
 	portMapRequestedLifetime = 40 * time.Minute
 	portMapRetryPeriod       = 5 * time.Minute
 	portMapRenewMax          = 20 * time.Minute
