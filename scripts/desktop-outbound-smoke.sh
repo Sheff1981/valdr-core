@@ -23,9 +23,9 @@ cd "$root"
 go build -o "$tmp/valdrd" ./cmd/valdrd
 go build -o "$tmp/valdr-miner" ./cmd/valdr-miner
 
-# Start a real listening Testnet peer with one mined block. The Desktop node
-# must discover it only through an outbound seed connection and synchronize
-# the block without opening its own inbound P2P listener.
+# Start a real listening Testnet peer with one mined block. The ordinary
+# Desktop-mode node must connect outbound, synchronize, and keep its own
+# listener available. NAT mapping is disabled in this hermetic CI fixture.
 "$tmp/valdrd" start \
   --network testnet2 \
   --data "$tmp/seed-data" \
@@ -79,9 +79,10 @@ mkfifo "$tmp/managed.stdin"
   --network testnet2 \
   --data "$tmp/desktop-data" \
   --node-id desktop-outbound-smoke \
-  --outbound-only \
-  --managed-stdin-shutdown \
+  --p2p-host 127.0.0.1 \
   --p2p-port 29333 \
+  --natpmp=false \
+  --managed-stdin-shutdown \
   --rpc-host 127.0.0.1 \
   --rpc-port 29332 \
   --seed 127.0.0.1:29433 \
@@ -109,7 +110,7 @@ if [[ "$desktop_ready" -ne 1 ]]; then
   exit 1
 fi
 
-# Verify the Desktop node is outbound-only at the socket boundary.
+# Verify the ordinary Desktop-mode node actually opened its inbound listener.
 python3 - <<'PY'
 import socket
 sock=socket.socket()
@@ -118,11 +119,11 @@ try:
     result=sock.connect_ex(("127.0.0.1", 29333))
 finally:
     sock.close()
-assert result != 0, "outbound-only Desktop node unexpectedly opened inbound P2P port"
+assert result == 0, "ordinary Desktop-mode node did not open inbound P2P listener"
 PY
 
 # Acceptance gate: a real Testnet block must synchronize from the listening
-# seed to the outbound-only Desktop node, with the same active tip.
+# seed to the ordinary Desktop-mode node, with the same active tip.
 synced=0
 for _ in $(seq 1 80); do
   "$tmp/valdrd" status --node http://127.0.0.1:29332 >"$tmp/desktop-status.json"
@@ -149,7 +150,7 @@ PY
   sleep 0.25
 done
 if [[ "$synced" -ne 1 ]]; then
-  echo "Desktop outbound-only Testnet synchronization did not converge" >&2
+  echo "Desktop automatic-listener Testnet synchronization did not converge" >&2
   cat "$tmp/desktop-status.json" >&2 || true
   cat "$tmp/desktop.err" >&2 || true
   exit 1
@@ -168,4 +169,4 @@ grep -q "stopping on managed stdin close" "$tmp/desktop.err"
 grep -q '"valid": true' "$tmp/verify.json"
 grep -q '"height": 1' "$tmp/verify.json"
 
-echo "VALDR Desktop outbound-only Testnet sync smoke: PASS"
+echo "VALDR Desktop automatic-listener Testnet sync smoke: PASS"
