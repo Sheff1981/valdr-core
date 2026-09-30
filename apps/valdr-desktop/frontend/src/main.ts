@@ -1881,18 +1881,19 @@ const refreshStorageDiagnostics = async (): Promise<void> => {
 
 const refreshExplorerStatus = async (): Promise<void> => {
   const openButton = document.getElementById("open-explorer") as HTMLButtonElement | null;
-  if (openButton) openButton.disabled = true;
+  if (openButton) {
+    openButton.disabled = !currentState?.preferences.advanced || !currentState?.node_running;
+  }
   if (!currentState?.preferences.advanced) return;
 
   text("explorer-status", "Checking local Explorer…");
   try {
     const status = await api().GetExplorerStatus();
-    if (openButton) openButton.disabled = !status.available;
     text(
       "explorer-status",
       status.available
         ? `Ready · Testnet height ${status.height ?? 0} · ${status.url}`
-        : (status.message || "Local Explorer is not running."),
+        : (status.message || "Local Explorer is not running. Open Explorer will start it."),
     );
   } catch (error) {
     text("explorer-status", error instanceof Error ? error.message : String(error));
