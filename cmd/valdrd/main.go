@@ -273,24 +273,23 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		logging.Printf(logging.CategoryError, "P2P start failed node=%s error=%v", *nodeID, err)
 		return 1
 	}
-	defer func() {
-		if profile.ProtocolMax >= 2 {
-			addresses := append([]string(nil), cachedBootstrapPeers...)
-			for _, peer := range node.Peers() {
-				addresses = append(addresses, peer.Address)
-			}
-			for _, peer := range node.DiscoveredPeers() {
-				addresses = append(addresses, peer.Address)
-			}
-			if err := p2p.SavePeerCacheV2(peerCachePath, profile.Public, addresses); err != nil {
-				logging.Printf(
-					logging.CategoryP2P,
-					"peer cache save failed path=%s error=%v",
-					peerCachePath,
-					err,
-				)
-			}
+	savePeerCache := func() {
+		if profile.ProtocolMax < 2 {
+			return
 		}
+		addresses := append([]string(nil), cachedBootstrapPeers...)
+		for _, peer := range node.Peers() {
+			addresses = append(addresses, peer.Address)
+		}
+		for _, peer := range node.DiscoveredPeers() {
+			addresses = append(addresses, peer.Address)
+		}
+		if err := p2p.SavePeerCacheV2(peerCachePath, profile.Public, addresses); err != nil {
+			logging.Printf(logging.CategoryP2P, "peer cache save failed path=%s error=%v", peerCachePath, err)
+		}
+	}
+	defer func() {
+		savePeerCache()
 		_ = node.Close()
 	}()
 	logging.Printf(
