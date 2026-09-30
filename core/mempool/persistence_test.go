@@ -20,7 +20,6 @@ func TestMempoolPersistenceRoundTrip(t *testing.T) {
 		Inputs: []transaction.Input{{
 			PreviousTransactionID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			OutputIndex:           0,
-			Signature:             "sig",
 		}},
 		Outputs: []transaction.Output{{
 			Recipient: "VDR1test",
