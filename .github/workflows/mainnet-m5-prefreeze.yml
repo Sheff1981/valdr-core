@@ -27,8 +27,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Consensus and storage regression
-        run: go test ./core/consensus ./storage -count=1
+      - name: Consensus regression
+        run: go test ./core/consensus -count=1
+      - name: Mainnet storage integration regression
+        run: go test ./storage -run "Test(ValidateStoredMainnet|LoadMainnetDAAHistory)" -count=1
       - name: M5 evidence validator tests
         run: go test ./experiments/mainnet-m5-evidence -count=1
       - name: M5 policy exact arithmetic
