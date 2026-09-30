@@ -251,12 +251,29 @@ func (s *WalletService) buildTransaction(
 		return nil, 0, err
 	}
 
+	feeRate := profile.MinRelayFeePerByte
+	var estimate rpc.FeeEstimateResult
+	if err := s.client.Call(
+		ctx,
+		rpc.MethodEstimateFee,
+		nil,
+		&estimate,
+	); err == nil && estimate.FeeRateValPerByte >= profile.MinRelayFeePerByte {
+		feeRate = estimate.FeeRateValPerByte
+	}
+	if profile.MinRelayFeePerByte > 0 {
+		maxRate := profile.MinRelayFeePerByte * 1000
+		if feeRate > maxRate {
+			feeRate = maxRate
+		}
+	}
+
 	tx, fee, err := source.CreateTransactionForChain(
 		profile.ChainID,
 		available,
 		recipient,
 		amount,
-		profile.MinRelayFeePerByte,
+		feeRate,
 		time.Now().UTC().Unix(),
 	)
 	if err != nil {
