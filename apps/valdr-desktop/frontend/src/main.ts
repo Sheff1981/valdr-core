@@ -611,6 +611,8 @@ root.innerHTML = `
             <option value="all">All statuses</option>
             <option value="pending">Pending</option>
             <option value="confirmed">Confirmed</option>
+            <option value="conflicted">Conflicted</option>
+            <option value="reorged">Reorged</option>
           </select>
           <select id="history-type" aria-label="Type">
             <option value="all">All types</option>
@@ -1694,7 +1696,7 @@ const renderHistory = (items: TransactionHistoryItem[]): void => {
     addDetail("Type", item.type === "mined" ? "Mined" : "Transfer");
     addDetail(
       "Confirmations",
-      item.status === "pending" ? "0" : String(item.confirmations),
+      item.status === "confirmed" ? String(item.confirmations) : "0",
     );
     if (item.fee_val > 0) addDetail("Network fee", privacyAmount(item.fee_vdr, " VDR"));
     if (item.block_height) addDetail("Block", String(item.block_height));
