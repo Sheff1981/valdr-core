@@ -19,6 +19,7 @@ const (
 	MethodSendTransaction = "sendTransaction"
 	MethodGetPeers        = "getPeers"
 	MethodGetMiningInfo   = "getMiningInfo"
+	MethodEstimateFee     = "estimateFee"
 	MethodMineBlock       = "mineBlock"
 
 	// MethodGetUTXOs is a Day 11 helper used by valdr-cli send so transaction
@@ -102,6 +103,13 @@ type TransactionResult struct {
 
 type SendTransactionResult struct {
 	TransactionID string `json:"transaction_id"`
+}
+
+type FeeEstimateResult struct {
+	FeeRateValPerByte uint64 `json:"fee_rate_val_per_byte"`
+	Source            string `json:"source"`
+	SampleCount       int    `json:"sample_count"`
+	SufficientData    bool   `json:"sufficient_data"`
 }
 
 type MiningInfoResult struct {
