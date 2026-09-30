@@ -1899,7 +1899,15 @@ func (n *Node) advertiseAddressLocked() string {
 	if n.advertiseAddress != "" {
 		return n.advertiseAddress
 	}
-	return n.listenerAddressLocked()
+	address := n.listenerAddressLocked()
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return ""
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsUnspecified() {
+		return ""
+	}
+	return address
 }
 
 func (n *Node) helloAddress() string {
@@ -1908,5 +1916,10 @@ func (n *Node) helloAddress() string {
 	if n.outboundOnly {
 		return outboundOnlyHelloAddress
 	}
-	return n.advertiseAddressLocked()
+	if address := n.advertiseAddressLocked(); address != "" {
+		return address
+	}
+	// Listening on 0.0.0.0/[::] without a validated external mapping is
+	// useful for inbound traffic but must never be gossiped as a peer address.
+	return outboundOnlyHelloAddress
 }
