@@ -803,11 +803,11 @@ root.innerHTML = `
             <dl class="details compact">
               <div><dt>Discovery</dt><dd>Automatic bootstrap + remembered peers</dd></div>
               <div><dt>Peer exchange</dt><dd>Automatic</dd></div>
-              <div><dt>Inbound P2P</dt><dd>Automatic where the OS/network permits</dd></div>
+              <div><dt>Inbound P2P</dt><dd>Disabled on ordinary Desktop clients</dd></div>
               <div><dt>Reconnect</dt><dd>Automatic</dd></div>
               <div><dt>RPC</dt><dd>Local computer only</dd></div>
             </dl>
-            <p class="subtle">Public-node endpoint configuration is operator tooling and is intentionally hidden from the ordinary Desktop workflow.</p>
+            <p class="subtle">Ordinary Desktop clients are outbound-only. Public/bootstrap nodes are configured separately by the operator.</p>
           </div>
           <div class="network-peers">
             <div class="section-head">
