@@ -94,6 +94,32 @@ func TestDesktopPreferencesLoadLegacyFileDefaultsAutoLock(t *testing.T) {
 }
 
 
+
+func TestDesktopPreferencesMigratesLegacyPublicNodeToAutomaticMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "desktop-settings.json")
+	if err := os.WriteFile(
+		path,
+		[]byte("{\"version\":1,\"language\":\"en\",\"theme\":\"dark\",\"start_node\":true,\"advanced\":true,\"wallet_auto_lock_minutes\":15,\"public_node\":true,\"public_node_advertise_address\":\"195.208.16.1:17333\"}\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	prefs, err := NewPreferenceStore(path).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prefs.Version != DesktopPreferencesVersion {
+		t.Fatalf("version=%d want=%d", prefs.Version, DesktopPreferencesVersion)
+	}
+	if prefs.PublicNode {
+		t.Fatal("legacy public-node mode survived automatic-NAT migration")
+	}
+	if prefs.PublicNodeAdvertiseAddress != "" {
+		t.Fatalf("legacy advertise address survived migration: %q", prefs.PublicNodeAdvertiseAddress)
+	}
+}
+
 func TestDesktopPreferencesRejectUnsafePublicNodeConfiguration(t *testing.T) {
 	store := NewPreferenceStore(filepath.Join(t.TempDir(), "desktop-settings.json"))
 
