@@ -93,11 +93,14 @@ func (m *AutoPortMapper) Run(ctx context.Context, update func(PortMapState)) {
 	}
 
 	var active *portMapping
+	defer func() {
+		if active != nil {
+			_ = removePortMapping(context.Background(), *active)
+		}
+	}()
+
 	for {
 		if ctx.Err() != nil {
-			if active != nil {
-				_ = removePortMapping(context.Background(), *active)
-			}
 			return
 		}
 
@@ -127,44 +130,40 @@ func (m *AutoPortMapper) Run(ctx context.Context, update func(PortMapState)) {
 		}
 		active = &mapping
 
-		state := PortMapState{
-			Protocol:         mapping.protocol,
-			Active:           true,
-			Gateway:          gateway.String(),
-			ExternalEndpoint: net.JoinHostPort(mapping.externalIP.String(), strconv.Itoa(int(mapping.externalPort))),
-			LifetimeSeconds:  mapping.lifetime,
-		}
-		m.setState(state, update)
+		for {
+			state := PortMapState{
+				Protocol:         mapping.protocol,
+				Active:           true,
+				Gateway:          gateway.String(),
+				ExternalEndpoint: net.JoinHostPort(mapping.externalIP.String(), strconv.Itoa(int(mapping.externalPort))),
+				LifetimeSeconds:  mapping.lifetime,
+			}
+			m.setState(state, update)
 
-		renewAfter := time.Duration(mapping.lifetime) * time.Second / 2
-		if renewAfter <= 0 || renewAfter > portMapRenewMax {
-			renewAfter = portMapRenewMax
-		}
-		if !waitPortMap(ctx, renewAfter) {
-			_ = removePortMapping(context.Background(), mapping)
-			return
-		}
-
-		renewed, err := renewPortMapping(ctx, mapping)
-		if err != nil {
-			m.setState(PortMapState{
-				Protocol:  mapping.protocol,
-				Gateway:   gateway.String(),
-				LastError: "renew failed: " + err.Error(),
-			}, update)
-			active = nil
-			if !waitPortMap(ctx, portMapRetryPeriod) {
+			renewAfter := time.Duration(mapping.lifetime) * time.Second / 2
+			if renewAfter <= 0 || renewAfter > portMapRenewMax {
+				renewAfter = portMapRenewMax
+			}
+			if !waitPortMap(ctx, renewAfter) {
 				return
 			}
-			continue
+
+			renewed, err := renewPortMapping(ctx, mapping)
+			if err != nil {
+				m.setState(PortMapState{
+					Protocol:  mapping.protocol,
+					Gateway:   gateway.String(),
+					LastError: "renew failed: " + err.Error(),
+				}, update)
+				active = nil
+				if !waitPortMap(ctx, portMapRetryPeriod) {
+					return
+				}
+				break
+			}
+			mapping = renewed
+			active = &mapping
 		}
-		active = &renewed
-		state.Protocol = renewed.protocol
-		state.Active = true
-		state.ExternalEndpoint = net.JoinHostPort(renewed.externalIP.String(), strconv.Itoa(int(renewed.externalPort)))
-		state.LifetimeSeconds = renewed.lifetime
-		state.LastError = ""
-		m.setState(state, update)
 	}
 }
 
