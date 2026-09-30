@@ -2077,10 +2077,10 @@ const renderState = (state: DesktopState): void => {
     : false;
   const syncLabel = !status
     ? "—"
-    : syncComplete
-      ? "Synced · 100%"
-      : status.peer_count === 0
-        ? "Waiting for peers"
+    : status.peer_count === 0
+      ? "Waiting for peers"
+      : syncComplete
+        ? "Synced · 100%"
         : `Syncing · ${Math.round(status.sync_progress * 100)}%`;
   text("sync-progress", syncLabel);
   text("peers", status ? String(status.peer_count) : "—");
@@ -2124,7 +2124,7 @@ const renderState = (state: DesktopState): void => {
   );
   text(
     "detail-sync-eta",
-    !status ? "—" : syncComplete ? "Synced" : status.peer_count === 0 ? "Unknown" : "Calculating…",
+    !status ? "—" : status.peer_count === 0 ? "Unknown" : syncComplete ? "Synced" : "Calculating…",
   );
   document.getElementById("sync-warning")?.classList.toggle(
     "hidden",
