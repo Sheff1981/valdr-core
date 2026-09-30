@@ -175,6 +175,24 @@ func TestHistoryServicePendingThenConfirmed(t *testing.T) {
 		t.Fatalf("unexpected confirmed receive: %+v", history[1])
 	}
 
+	recipientHistory, err := service.History(
+		context.Background(),
+		recipient.Address,
+		100,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recipientHistory) != 1 ||
+		recipientHistory[0].Status != "pending" ||
+		recipientHistory[0].Direction != "received" ||
+		recipientHistory[0].Type != "transfer" ||
+		recipientHistory[0].TransactionID != spend.TransactionID ||
+		recipientHistory[0].AmountVal != config.AtomicUnitsPerVDR/2 ||
+		recipientHistory[0].Confirmations != 0 {
+		t.Fatalf("recipient did not see pending incoming transfer: %+v", recipientHistory)
+	}
+
 	h2 := strings.Repeat("b", 64)
 	mock.blocks[2] = rpc.BlockResult{
 		Version:           2,
