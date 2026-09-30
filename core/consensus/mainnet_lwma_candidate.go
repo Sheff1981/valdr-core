@@ -27,7 +27,7 @@ type MainnetDAAHeader struct {
 	Target    *big.Int
 }
 
-// MainnetNextTargetLWMA implements the v0.3.6 Mainnet LWMA candidate.
+// MainnetNextTargetLWMA implements the v0.3.7 Mainnet LWMA candidate.
 // InitialTarget and PowLimit remain external inputs until M5 calibration freezes
 // exact values. Missing startup samples use target-time solve and InitialWork.
 func MainnetNextTargetLWMA(
@@ -136,7 +136,7 @@ func MainnetNextTargetLWMA(
 	den := new(big.Int).Mul(big.NewInt(200), L)
 	nextWork.Div(nextWork, den)
 	if nextWork.Sign() <= 0 {
-		nextWork.SetInt64(1)
+		return nil, fmt.Errorf("%w: derived nextWork is non-positive", ErrMainnetDAAHistory)
 	}
 
 	nextTarget := mainnetTargetForWork(nextWork)
