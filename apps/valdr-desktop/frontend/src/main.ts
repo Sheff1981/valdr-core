@@ -25,6 +25,14 @@ type NodeStatus = {
   tip_hash: string;
   chainwork: string;
   peer_count: number;
+  inbound_peer_count: number;
+  outbound_peer_count: number;
+  p2p_listen_address?: string;
+  advertise_address?: string;
+  port_map_protocol?: string;
+  port_map_active: boolean;
+  port_map_external_endpoint?: string;
+  port_map_last_error?: string;
   mempool_count: number;
   mempool_size_bytes: number;
   target_block_time_seconds: number;
@@ -759,6 +767,10 @@ root.innerHTML = `
             <div><dt>Last accepted block</dt><dd id="detail-last-block-time">—</dd></div>
             <div><dt>Sync ETA</dt><dd id="detail-sync-eta">—</dd></div>
             <div><dt>Connected peers</dt><dd id="detail-peer-count">—</dd></div>
+            <div><dt>Inbound / outbound peers</dt><dd id="detail-peer-directions">—</dd></div>
+            <div><dt>P2P listener</dt><dd><code id="detail-p2p-listener">—</code></dd></div>
+            <div><dt>NAT mapping</dt><dd id="detail-port-map">—</dd></div>
+            <div><dt>Public P2P endpoint</dt><dd><code id="detail-public-endpoint">—</code></dd></div>
             <div><dt>Mempool count</dt><dd id="detail-mempool-count">—</dd></div>
             <div><dt>Mempool size</dt><dd id="detail-mempool-size">—</dd></div>
             <div><dt>Tip</dt><dd><code id="detail-tip">—</code></dd></div>
@@ -2079,6 +2091,25 @@ const renderState = (state: DesktopState): void => {
   text("detail-tip", status?.tip_hash || "—");
   text("detail-chainwork", status?.chainwork || "—");
   text("detail-peer-count", status ? String(status.peer_count) : "—");
+  text(
+    "detail-peer-directions",
+    status ? `${status.inbound_peer_count} / ${status.outbound_peer_count}` : "—",
+  );
+  text("detail-p2p-listener", status?.p2p_listen_address || "—");
+  text(
+    "detail-port-map",
+    !status
+      ? "—"
+      : status.port_map_active
+        ? `Active · ${(status.port_map_protocol || "mapped").toUpperCase()}`
+        : status.port_map_last_error
+          ? `Unavailable · ${status.port_map_last_error}`
+          : "Checking / outbound fallback",
+  );
+  text(
+    "detail-public-endpoint",
+    status?.port_map_external_endpoint || status?.advertise_address || "—",
+  );
   text("detail-mempool-count", status ? String(status.mempool_count) : "—");
   text("detail-mempool-size", status ? formatBytes(status.mempool_size_bytes) : "—");
   text(
