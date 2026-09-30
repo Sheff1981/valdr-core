@@ -20,6 +20,7 @@ import (
 	"github.com/Sheff1981/valdr-core/config"
 	"github.com/Sheff1981/valdr-core/core/blockchain"
 	"github.com/Sheff1981/valdr-core/core/mempool"
+	"github.com/Sheff1981/valdr-core/core/transaction"
 	"github.com/Sheff1981/valdr-core/logging"
 	"github.com/Sheff1981/valdr-core/p2p"
 	"github.com/Sheff1981/valdr-core/rpc"
@@ -249,7 +250,27 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		logging.Printf(logging.CategoryError, "blockchain load failed data=%s error=%v", *dataDir, err)
 		return 1
 	}
-	pool := mempool.New()
+	pool := mempool.NewWithConfig(mempool.Config{
+		ChainID:            profile.ChainID,
+		MinRelayFeePerByte: profile.MinRelayFeePerByte,
+	})
+	mempoolPath := filepath.Join(*dataDir, "mempool-v2.json")
+	persistedMempool, err := mempool.LoadFile(mempoolPath, profile.ChainID)
+	if err != nil {
+		logging.Printf(logging.CategoryTX, "mempool load ignored path=%s error=%v", mempoolPath, err)
+		persistedMempool = nil
+	}
+	loadedMempool := 0
+	for _, tx := range persistedMempool {
+		fee, feeErr := chain.CalculateFees([]*transaction.Transaction{tx})
+		if feeErr != nil {
+			continue
+		}
+		if addErr := pool.AddWithFee(tx, fee); addErr != nil {
+			continue
+		}
+		loadedMempool++
+	}
 	p2pAddress := ""
 	if !*outboundOnly {
 		p2pAddress = joinHostPort(*p2pHost, resolvedP2PPort)
@@ -288,8 +309,14 @@ func startCommand(args []string, out, errOut io.Writer) int {
 			logging.Printf(logging.CategoryP2P, "peer cache save failed path=%s error=%v", peerCachePath, err)
 		}
 	}
+	saveMempool := func() {
+		if err := mempool.SaveFile(mempoolPath, profile.ChainID, pool.Transactions()); err != nil {
+			logging.Printf(logging.CategoryTX, "mempool save failed path=%s error=%v", mempoolPath, err)
+		}
+	}
 	defer func() {
 		savePeerCache()
+		saveMempool()
 		_ = node.Close()
 	}()
 	logging.Printf(
@@ -337,6 +364,8 @@ func startCommand(args []string, out, errOut io.Writer) int {
 				case <-maintenanceCtx.Done():
 					return
 				case <-ticker.C:
+					savePeerCache()
+					saveMempool()
 					ctx, cancel := context.WithTimeout(maintenanceCtx, 10*time.Second)
 					result := node.BootstrapAndMaintain(ctx, bootstrapPeers)
 					cancel()
@@ -397,6 +426,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 		"seed_connected": bootstrapResult.Connected,
 		"dns_seed_lookups": bootstrapResult.DNSLookups,
 		"peer_cache_loaded": len(cachedBootstrapPeers),
+		"mempool_loaded":     loadedMempool,
 	}, errOut); err != 0 {
 		return err
 	}
