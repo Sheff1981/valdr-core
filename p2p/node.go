@@ -217,6 +217,21 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 	}, nil
 }
 
+func listenNetwork(address string) string {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(address))
+	if err != nil {
+		return "tcp"
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return "tcp"
+	}
+	if ip.To4() != nil {
+		return "tcp4"
+	}
+	return "tcp6"
+}
+
 func (n *Node) Start() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -232,7 +247,7 @@ func (n *Node) Start() error {
 		return nil
 	}
 
-	listener, err := net.Listen("tcp", n.listenAddress)
+	listener, err := net.Listen(listenNetwork(n.listenAddress), n.listenAddress)
 	if err != nil {
 		return err
 	}
