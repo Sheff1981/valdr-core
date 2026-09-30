@@ -49,6 +49,7 @@ func (s *BadgerStore) ValidateStoredMainnetRandomXCandidate(
 		candidate,
 		parentHeight,
 		parentHash,
+		s.network,
 		source,
 		hasher,
 	)
