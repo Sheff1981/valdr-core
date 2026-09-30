@@ -9,7 +9,7 @@ import (
 	"github.com/Sheff1981/valdr-core/config"
 )
 
-func TestDesktopNodeArgsUseCanonicalOutboundNode(t *testing.T) {
+func TestDesktopNodeArgsUseCanonicalAutomaticP2PNode(t *testing.T) {
 	cfg := NodeProcessConfig{
 		Network: config.NetworkTestnetV029,
 		DataDir: "/tmp/valdr-desktop-testnet",
@@ -31,7 +31,7 @@ func TestDesktopNodeArgsUseCanonicalOutboundNode(t *testing.T) {
 		{"--network", "testnet2"},
 		{"--data", cfg.DataDir},
 		{"--node-id", cfg.NodeID},
-		{"--outbound-only"},
+		{"--p2p-host", "0.0.0.0"},
 		{"--managed-stdin-shutdown"},
 		{"--rpc-host", "127.0.0.1"},
 		{"--rpc-port", "28332"},
@@ -43,9 +43,11 @@ func TestDesktopNodeArgsUseCanonicalOutboundNode(t *testing.T) {
 			t.Fatalf("args=%v missing sequence %v", args, sequence)
 		}
 	}
-	if slices.Contains(args, "--advertise-address") ||
-		slices.Contains(args, "--p2p-host") {
-		t.Fatalf("Desktop node unexpectedly configures inbound P2P: %v", args)
+	if slices.Contains(args, "--advertise-address") {
+		t.Fatalf("ordinary Desktop node unexpectedly requires an advertised public address: %v", args)
+	}
+	if slices.Contains(args, "--outbound-only") {
+		t.Fatalf("ordinary Desktop node unexpectedly disables inbound P2P: %v", args)
 	}
 }
 
