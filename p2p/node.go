@@ -1556,8 +1556,13 @@ func (n *Node) handleInvV2(peerID string, payload V2InvPayload) error {
 
 func (n *Node) handleGetPeersV2(peerID string) error {
 	n.mu.RLock()
-	advertisements := make([]peerAdvertisement, 0, len(n.peers)+1)
+	advertisements := make([]peerAdvertisement, 0, len(n.peers)+len(n.discovered)+1)
+	seenNodeIDs := make(map[string]struct{}, len(n.peers)+len(n.discovered)+1)
+	seenAddresses := make(map[string]struct{}, len(n.peers)+len(n.discovered)+1)
 	add := func(nodeID, address string) {
+		if len(advertisements) >= maxPeerAdvertisementsV2 {
+			return
+		}
 		if nodeID == "" || address == "" {
 			return
 		}
@@ -1567,6 +1572,14 @@ func (n *Node) handleGetPeersV2(peerID string) error {
 		); err != nil {
 			return
 		}
+		if _, exists := seenNodeIDs[nodeID]; exists {
+			return
+		}
+		if _, exists := seenAddresses[address]; exists {
+			return
+		}
+		seenNodeIDs[nodeID] = struct{}{}
+		seenAddresses[address] = struct{}{}
 		advertisements = append(advertisements, peerAdvertisement{
 			NodeID:  nodeID,
 			Address: address,
@@ -1574,10 +1587,34 @@ func (n *Node) handleGetPeersV2(peerID string) error {
 	}
 
 	add(n.nodeID, n.advertiseAddressLocked())
+	connected := make([]peerAdvertisement, 0, len(n.peers))
 	for _, peer := range n.peers {
-		add(peer.NodeID, peer.Address)
+		connected = append(connected, peerAdvertisement{NodeID: peer.NodeID, Address: peer.Address})
+	}
+	discovered := make([]peerAdvertisement, 0, len(n.discovered))
+	for nodeID, address := range n.discovered {
+		discovered = append(discovered, peerAdvertisement{NodeID: nodeID, Address: address})
 	}
 	n.mu.RUnlock()
+
+	sort.Slice(connected, func(i, j int) bool {
+		if connected[i].NodeID == connected[j].NodeID {
+			return connected[i].Address < connected[j].Address
+		}
+		return connected[i].NodeID < connected[j].NodeID
+	})
+	sort.Slice(discovered, func(i, j int) bool {
+		if discovered[i].NodeID == discovered[j].NodeID {
+			return discovered[i].Address < discovered[j].Address
+		}
+		return discovered[i].NodeID < discovered[j].NodeID
+	})
+	for _, peer := range connected {
+		add(peer.NodeID, peer.Address)
+	}
+	for _, peer := range discovered {
+		add(peer.NodeID, peer.Address)
+	}
 
 	return n.sendV2To(peerID, V2MessagePeers, struct {
 		Peers []peerAdvertisement `json:"peers"`
