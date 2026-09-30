@@ -803,11 +803,11 @@ root.innerHTML = `
             <dl class="details compact">
               <div><dt>Discovery</dt><dd>Automatic bootstrap + remembered peers</dd></div>
               <div><dt>Peer exchange</dt><dd>Automatic</dd></div>
-              <div><dt>Inbound P2P</dt><dd>Disabled on ordinary Desktop clients</dd></div>
+              <div><dt>Inbound P2P</dt><dd>Automatic PCP/NAT-PMP where the router supports it</dd></div>
               <div><dt>Reconnect</dt><dd>Automatic</dd></div>
               <div><dt>RPC</dt><dd>Local computer only</dd></div>
             </dl>
-            <p class="subtle">Ordinary Desktop clients are outbound-only. Public/bootstrap nodes are configured separately by the operator.</p>
+            <p class="subtle">VALDR listens locally and automatically attempts PCP/NAT-PMP router mapping. If mapping is unavailable, outbound networking continues normally.</p>
           </div>
           <div class="network-peers">
             <div class="section-head">
