@@ -788,7 +788,7 @@ func TestDesktopFrontendStage12B1SyncDetailContract(t *testing.T) {
 		`"detail-blocks-remaining"`,
 		`"detail-last-block-time"`,
 		`"detail-sync-eta"`,
-		`status.peer_count === 0 ? "Unknown" : "Calculating…"`,
+		`status.peer_count === 0 ? "Unknown" : syncComplete ? "Synced" : "Calculating…"`,
 	} {
 		if !strings.Contains(source, marker) {
 			t.Fatalf("Stage 12B.1 sync detail missing %q", marker)
