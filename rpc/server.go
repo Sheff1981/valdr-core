@@ -143,6 +143,9 @@ func (s *Server) call(ctx context.Context, method string, raw json.RawMessage) (
 				mempoolSizeBytes += uint64(tx.SerializedSize())
 			}
 		}
+		inboundPeers, outboundPeers := s.node.PeerDirectionCounts()
+		portMap := s.node.PortMapState()
+
 		uptimeSeconds := uint64(0)
 		if !s.startedAt.IsZero() {
 			elapsed := time.Since(s.startedAt)
@@ -167,6 +170,14 @@ func (s *Server) call(ctx context.Context, method string, raw json.RawMessage) (
 			BlockVersion:           blockVersion,
 			Target:                 target,
 			PeerCount:              s.node.PeerCount(),
+			InboundPeerCount:       inboundPeers,
+			OutboundPeerCount:      outboundPeers,
+			P2PListenAddress:       s.node.Address(),
+			AdvertiseAddress:       s.node.AdvertiseAddress(),
+			PortMapProtocol:        string(portMap.Protocol),
+			PortMapActive:          portMap.Active,
+			PortMapExternalEndpoint: portMap.ExternalEndpoint,
+			PortMapLastError:       portMap.LastError,
 			MempoolCount:           s.node.MempoolLen(),
 			MempoolSizeBytes:       mempoolSizeBytes,
 			TargetBlockTimeSeconds: profile.TargetBlockTimeSeconds,
