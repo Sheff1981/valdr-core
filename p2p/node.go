@@ -367,6 +367,10 @@ func (n *Node) MempoolTransactionsForMining() []*transaction.Transaction {
 	return n.mempool.MiningTransactions()
 }
 
+func (n *Node) MempoolFeeRates() []uint64 {
+	return n.mempool.FeeRates()
+}
+
 func (n *Node) BroadcastTransaction(tx *transaction.Transaction) error {
 	if n.blockchain == nil {
 		return ErrDataLayerUnavailable
