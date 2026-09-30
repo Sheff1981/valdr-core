@@ -109,6 +109,7 @@ func (s *BadgerStore) ValidateStoredMainnetConsensusCandidate(
 		candidate,
 		history,
 		candidate.PreviousBlockHash,
+		s.network,
 		initialTarget,
 		powLimit,
 		localSystemTime,
