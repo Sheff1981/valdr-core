@@ -48,7 +48,7 @@ func buildIntegratedCandidate(
 		targetHex,
 		7,
 		nil,
-		MainnetCandidateChainID,
+		testMainnetChainID,
 		"",
 	)
 	if err != nil {
@@ -82,6 +82,7 @@ func TestValidateMainnetConsensusCandidateM3M4Integration(t *testing.T) {
 		candidate,
 		history,
 		parent,
+		testMainnetChainID,
 		initial,
 		powLimit,
 		candidateTimestamp,
@@ -115,6 +116,7 @@ func TestValidateMainnetConsensusCandidateRejectsWrongTarget(t *testing.T) {
 		candidate,
 		history,
 		parent,
+		testMainnetChainID,
 		initial,
 		powLimit,
 		candidateTimestamp,
@@ -146,7 +148,7 @@ func TestValidateMainnetConsensusCandidateRejectsMTPAndFuture(t *testing.T) {
 	)
 	h := &fixedRandomXHasher{hash: lowIntegratedPoWHash()}
 	if _, err := ValidateMainnetConsensusCandidate(
-		mtpCandidate, history, parent, initial, powLimit, local, nil, h,
+		mtpCandidate, history, parent, testMainnetChainID, initial, powLimit, local, nil, h,
 	); !errors.Is(err, ErrMainnetDAATimestamp) {
 		t.Fatalf("MTP error=%v", err)
 	}
@@ -159,7 +161,7 @@ func TestValidateMainnetConsensusCandidateRejectsMTPAndFuture(t *testing.T) {
 		expected,
 	)
 	if _, err := ValidateMainnetConsensusCandidate(
-		futureCandidate, history, parent, initial, powLimit, local, nil, h,
+		futureCandidate, history, parent, testMainnetChainID, initial, powLimit, local, nil, h,
 	); !errors.Is(err, ErrMainnetDAATimestamp) {
 		t.Fatalf("future error=%v", err)
 	}
