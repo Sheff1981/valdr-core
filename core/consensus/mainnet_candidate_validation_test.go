@@ -53,7 +53,7 @@ func TestValidateMainnetRandomXCandidateChecksIdentityAndLinkage(t *testing.T) {
 	badChain := *b
 	badChain.ChainID = "wrong"
 	badChain.BlockHash = badChain.CalculateHash()
-	if _, err := ValidateMainnetRandomXCandidate(&badChain, 9, parent, testMainnetChainID, nil, h); !errors.Is(err, ErrtestMainnetChainID) {
+	if _, err := ValidateMainnetRandomXCandidate(&badChain, 9, parent, testMainnetChainID, nil, h); !errors.Is(err, ErrMainnetCandidateChainID) {
 		t.Fatalf("wrong chain id error=%v", err)
 	}
 
