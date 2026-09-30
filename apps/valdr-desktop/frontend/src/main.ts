@@ -344,8 +344,9 @@ root.innerHTML = `
   <div class="shell">
     <aside class="sidebar">
       <div class="brand brand-sidebar">
+        <button class="sidebar-collapse" id="sidebar-collapse" type="button" aria-label="Collapse sidebar" aria-expanded="true">‹</button>
         <img class="brand-emblem brand-emblem-sidebar" src="/valdr-emblem.svg" alt="VALDR">
-        <div>
+        <div class="brand-copy">
           <strong>VALDR</strong>
           <span>Desktop · Testnet</span>
         </div>
@@ -363,6 +364,13 @@ root.innerHTML = `
       </nav>
 
       <div class="sidebar-foot">
+        <div class="sidebar-network-live" aria-live="polite">
+          <span class="sidebar-network-dot"></span>
+          <span class="sidebar-network-copy">
+            <strong id="sidebar-network-state">Connecting…</strong>
+            <small><span id="sidebar-peer-count">0</span> peers</small>
+          </span>
+        </div>
         <span class="testnet-pill">TESTNET</span>
         <small id="mainnet-status">Mainnet disabled</small>
       </div>
@@ -2037,6 +2045,7 @@ const renderState = (state: DesktopState): void => {
   text("mempool", status ? String(status.mempool_count) : "—");
   text("top-block", status ? String(status.height) : "—");
   text("top-peers", status ? String(status.peer_count) : "—");
+  text("sidebar-peer-count", status ? String(status.peer_count) : "0");
   text("detail-tip", status?.tip_hash || "—");
   text("detail-chainwork", status?.chainwork || "—");
   text("detail-peer-count", status ? String(status.peer_count) : "—");
@@ -2071,6 +2080,14 @@ const renderState = (state: DesktopState): void => {
 
   const badge = document.getElementById("node-badge");
   badge?.classList.toggle("healthy", healthy);
+  text(
+    "sidebar-network-state",
+    healthy ? (status && status.peer_count > 0 ? "VALDR network" : "Node online") : state.node_running ? "Starting…" : "Node stopped",
+  );
+  document.querySelector(".sidebar-network-live")?.classList.toggle(
+    "connected",
+    Boolean(healthy && status && status.peer_count > 0),
+  );
 
   const startNodeButton = document.getElementById("start-node") as HTMLButtonElement | null;
   const stopNodeButton = document.getElementById("stop-node") as HTMLButtonElement | null;
@@ -2186,6 +2203,17 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item[data-view]").forEach((bu
     const view = button.dataset.view;
     if (view) navigateToView(view);
   });
+});
+
+document.getElementById("sidebar-collapse")?.addEventListener("click", () => {
+  const shell = document.querySelector(".shell");
+  const collapsed = shell?.classList.toggle("sidebar-collapsed") ?? false;
+  const button = document.getElementById("sidebar-collapse");
+  if (button) {
+    button.textContent = collapsed ? "›" : "‹";
+    button.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    button.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+  }
 });
 
 document.querySelectorAll<HTMLButtonElement>(".view-shortcut[data-go-view]").forEach((button) => {
