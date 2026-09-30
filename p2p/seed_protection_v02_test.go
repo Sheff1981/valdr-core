@@ -67,6 +67,54 @@ func TestSeedBootstrapContinuesPastOfflineSeed(t *testing.T) {
 	}
 }
 
+
+func TestRememberedPeerPrecedesFixedSeed(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	remembered := mustStartNode(t, NodeConfig{
+		NodeID:         "remembered-peer",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer remembered.Close()
+
+	fixed := mustStartNode(t, NodeConfig{
+		NodeID:         "fixed-seed",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer fixed.Close()
+
+	targetProfile := profile
+	targetProfile.DefaultSeeds = []string{fixed.Address()}
+	target := mustStartNode(t, NodeConfig{
+		NodeID:         "returning-node",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &targetProfile,
+		EnableV2:       true,
+		Protection: ProtectionConfig{
+			OutboundTarget: 1,
+		},
+	})
+	defer target.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	result := target.Bootstrap(ctx, []string{remembered.Address()})
+	if result.Attempted != 1 || result.Connected != 1 {
+		t.Fatalf("result=%+v want one successful remembered-peer attempt", result)
+	}
+	peers := target.Peers()
+	if len(peers) != 1 || peers[0].NodeID != "remembered-peer" {
+		t.Fatalf("peers=%+v want remembered-peer only", peers)
+	}
+}
+
 func TestInboundReservationLimits(t *testing.T) {
 	profile, _ := config.ResolveNetworkProfile(config.NetworkDevnetV02)
 	node, err := NewNode(NodeConfig{
