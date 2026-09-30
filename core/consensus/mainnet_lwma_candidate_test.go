@@ -1,6 +1,7 @@
 package consensus
 
 import (
+	"errors"
 	"math/big"
 	"strings"
 	"testing"
