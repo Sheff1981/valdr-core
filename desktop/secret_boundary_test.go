@@ -73,6 +73,13 @@ func TestDesktopRPCWireExcludesWalletSecrets(t *testing.T) {
 				Network: profile.Name,
 				ChainID: profile.ChainID,
 			}
+		case rpc.MethodEstimateFee:
+			result = rpc.FeeEstimateResult{
+				FeeRateValPerByte: profile.MinRelayFeePerByte,
+				Source:            "relay-minimum",
+				SampleCount:       0,
+				SufficientData:    false,
+			}
 		case rpc.MethodGetUTXOs:
 			result = []utxo.UTXO{{
 				TransactionID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
