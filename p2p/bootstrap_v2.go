@@ -28,6 +28,8 @@ func (n *Node) Bootstrap(ctx context.Context, overrides []string) BootstrapResul
 	result := BootstrapResult{}
 	seen := make(map[string]struct{})
 
+	selfAdvertise := strings.TrimSpace(n.AdvertiseAddress())
+
 	connectCandidates := func(addresses []string) {
 		for _, address := range addresses {
 			if n.outboundCount() >= n.protection.OutboundTarget {
@@ -35,6 +37,9 @@ func (n *Node) Bootstrap(ctx context.Context, overrides []string) BootstrapResul
 			}
 			address = strings.TrimSpace(address)
 			if address == "" {
+				continue
+			}
+			if selfAdvertise != "" && address == selfAdvertise {
 				continue
 			}
 			if _, exists := seen[address]; exists {
