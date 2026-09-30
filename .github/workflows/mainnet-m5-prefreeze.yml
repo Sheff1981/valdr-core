@@ -1,0 +1,39 @@
+name: VALDR Mainnet M5 Pre-Freeze Gate
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "core/consensus/**"
+      - "storage/**"
+      - "experiments/mainnet-m5-*/**"
+      - "docs/evidence/m5/**"
+      - ".github/workflows/mainnet-m5-prefreeze.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prefreeze:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Consensus and storage regression
+        run: go test ./core/consensus ./storage -count=1
+      - name: M5 evidence validator tests
+        run: go test ./experiments/mainnet-m5-evidence -count=1
+      - name: M5 policy exact arithmetic
+        run: go test ./experiments/mainnet-m5-policy -count=1
+      - name: M5 DAA simulation tests
+        run: go test ./experiments/mainnet-m5-daa-sim -count=1
+      - name: Independent M5 exact reproduction
+        run: python experiments/mainnet-m5-independent-repro/reproduce.py
