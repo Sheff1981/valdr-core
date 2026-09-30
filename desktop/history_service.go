@@ -42,8 +42,9 @@ type TransactionHistoryItem struct {
 }
 
 type HistoryService struct {
-	client RPCClient
-	index  *explorer.Index
+	client  RPCClient
+	index   *explorer.Index
+	journal *historyJournal
 }
 
 func NewHistoryService(
@@ -57,9 +58,14 @@ func NewHistoryService(
 	if err != nil {
 		return nil, err
 	}
+	journal, err := newHistoryJournal(indexPath + ".wallet-history.json")
+	if err != nil {
+		return nil, err
+	}
 	return &HistoryService{
-		client: client,
-		index:  index,
+		client:  client,
+		index:   index,
+		journal: journal,
 	}, nil
 }
 
@@ -113,6 +119,12 @@ func (s *HistoryService) History(
 	}
 
 	result := append(pending, confirmed...)
+	if s.journal != nil {
+		result, err = s.journal.Merge(address, result)
+		if err != nil {
+			return nil, err
+		}
+	}
 	sort.SliceStable(result, func(i, j int) bool {
 		if result[i].Status != result[j].Status {
 			return result[i].Status == "pending"
