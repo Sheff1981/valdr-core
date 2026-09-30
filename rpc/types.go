@@ -83,6 +83,14 @@ type StatusResult struct {
 	BlockVersion           uint32 `json:"block_version"`
 	Target                 string `json:"target,omitempty"`
 	PeerCount              int    `json:"peer_count"`
+	InboundPeerCount       int    `json:"inbound_peer_count"`
+	OutboundPeerCount      int    `json:"outbound_peer_count"`
+	P2PListenAddress       string `json:"p2p_listen_address,omitempty"`
+	AdvertiseAddress       string `json:"advertise_address,omitempty"`
+	PortMapProtocol        string `json:"port_map_protocol,omitempty"`
+	PortMapActive          bool   `json:"port_map_active"`
+	PortMapExternalEndpoint string `json:"port_map_external_endpoint,omitempty"`
+	PortMapLastError       string `json:"port_map_last_error,omitempty"`
 	MempoolCount           int    `json:"mempool_count"`
 	MempoolSizeBytes       uint64 `json:"mempool_size_bytes"`
 	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
