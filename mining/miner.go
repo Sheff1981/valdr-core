@@ -36,6 +36,28 @@ func MineBlock(
 	timestamp int64,
 	transactions []*transaction.Transaction,
 ) (*block.Block, error) {
+	return mineBlock(chain, minerAddress, timestamp, transactions, nil)
+}
+
+// MineBlockWithProgress preserves MineBlock consensus behavior while exposing
+// bounded, non-consensus PoW progress for operator/Desktop telemetry.
+func MineBlockWithProgress(
+	chain *blockchain.Blockchain,
+	minerAddress string,
+	timestamp int64,
+	transactions []*transaction.Transaction,
+	progress consensus.MiningProgressFunc,
+) (*block.Block, error) {
+	return mineBlock(chain, minerAddress, timestamp, transactions, progress)
+}
+
+func mineBlock(
+	chain *blockchain.Blockchain,
+	minerAddress string,
+	timestamp int64,
+	transactions []*transaction.Transaction,
+	progress consensus.MiningProgressFunc,
+) (*block.Block, error) {
 	if chain == nil {
 		return nil, ErrNilBlockchain
 	}
@@ -110,7 +132,7 @@ func MineBlock(
 	blockTransactions = append(blockTransactions, coinbase)
 	blockTransactions = append(blockTransactions, selected...)
 
-	return chain.Append(timestamp, blockTransactions)
+	return chain.AppendWithProgress(timestamp, blockTransactions, progress)
 }
 
 func selectTransactions(

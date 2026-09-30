@@ -304,6 +304,16 @@ func ValidatePoWTarget(blockHash string, target *big.Int) error {
 }
 
 func MineTarget(candidate *block.Block, target *big.Int) error {
+	return MineTargetWithProgress(candidate, target, nil)
+}
+
+// MineTargetWithProgress is MineTarget with an optional bounded telemetry
+// callback. The callback is deliberately outside the consensus result.
+func MineTargetWithProgress(
+	candidate *block.Block,
+	target *big.Int,
+	progress MiningProgressFunc,
+) error {
 	if candidate == nil {
 		return ErrInvalidHash
 	}
@@ -313,7 +323,14 @@ func MineTarget(candidate *block.Block, target *big.Int) error {
 	for nonce := uint64(0); ; nonce++ {
 		candidate.Nonce = nonce
 		candidate.BlockHash = candidate.CalculateHash()
+		hashes := nonce + 1
+		if progress != nil && hashes%miningProgressEveryHashes == 0 {
+			progress(hashes)
+		}
 		if err := ValidatePoWTarget(candidate.BlockHash, target); err == nil {
+			if progress != nil && hashes%miningProgressEveryHashes != 0 {
+				progress(hashes)
+			}
 			return nil
 		}
 		if nonce == math.MaxUint64 {

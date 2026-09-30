@@ -360,11 +360,25 @@ func (bc *Blockchain) Append(
 	timestamp int64,
 	transactions []*transaction.Transaction,
 ) (*block.Block, error) {
+	return bc.AppendWithProgress(timestamp, transactions, nil)
+}
+
+// AppendWithProgress is Append with optional PoW telemetry. Progress reporting
+// does not participate in validation, target selection, chainwork, or storage.
+func (bc *Blockchain) AppendWithProgress(
+	timestamp int64,
+	transactions []*transaction.Transaction,
+	progress consensus.MiningProgressFunc,
+) (*block.Block, error) {
 	return bc.appendWithMiners(
 		timestamp,
 		transactions,
-		consensus.MineTarget,
-		consensus.Mine,
+		func(candidate *block.Block, target *big.Int) error {
+			return consensus.MineTargetWithProgress(candidate, target, progress)
+		},
+		func(candidate *block.Block) error {
+			return consensus.MineWithProgress(candidate, progress)
+		},
 	)
 }
 

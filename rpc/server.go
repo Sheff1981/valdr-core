@@ -35,6 +35,11 @@ type Server struct {
 	node      *p2p.Node
 	startedAt time.Time
 	mineMu    sync.Mutex
+
+	miningProgressMu sync.RWMutex
+	miningActive     bool
+	miningHashes     uint64
+	miningStartedAt  time.Time
 }
 
 func NewServer(chain *blockchain.Blockchain, node *p2p.Node) (*Server, error) {
@@ -269,6 +274,7 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 		}
 		nextHeight := tip.Height + 1
 		profile := s.chain.Profile()
+		active, hashes, elapsedMS, hashrateHPS := s.miningProgressSnapshot()
 		return MiningInfoResult{
 			Height:                 tip.Height,
 			NextHeight:             nextHeight,
@@ -278,6 +284,10 @@ func (s *Server) call(method string, raw json.RawMessage) (any, error) {
 			TargetBlockTimeSeconds: profile.TargetBlockTimeSeconds,
 			RetargetInterval:       profile.RetargetInterval,
 			BlocksUntilRetarget:    blocksUntilRetarget(nextHeight, profile.RetargetInterval),
+			MiningActive:           active,
+			MiningHashes:           hashes,
+			MiningElapsedMS:        elapsedMS,
+			MiningHashrateHPS:      hashrateHPS,
 		}, nil
 
 	case MethodGetUTXOs:
@@ -315,11 +325,14 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 
 	transactions := s.node.MempoolTransactionsForMining()
 	miningStarted := time.Now()
-	candidate, err := mining.MineBlock(
+	s.beginMiningProgress(miningStarted)
+	defer s.endMiningProgress()
+	candidate, err := mining.MineBlockWithProgress(
 		s.chain,
 		params.RewardAddress,
 		timestamp,
 		transactions,
+		s.recordMiningProgress,
 	)
 	miningDuration := time.Since(miningStarted)
 	if err != nil {
@@ -375,6 +388,52 @@ func (s *Server) mineBlock(params MineBlockParams) (MineBlockResult, error) {
 		MiningDurationMS: miningDurationMS,
 		HashrateHPS:      hashrateHPS,
 	}, nil
+}
+
+func (s *Server) beginMiningProgress(startedAt time.Time) {
+	s.miningProgressMu.Lock()
+	s.miningActive = true
+	s.miningHashes = 0
+	s.miningStartedAt = startedAt
+	s.miningProgressMu.Unlock()
+}
+
+func (s *Server) recordMiningProgress(hashes uint64) {
+	s.miningProgressMu.Lock()
+	if s.miningActive && hashes > s.miningHashes {
+		s.miningHashes = hashes
+	}
+	s.miningProgressMu.Unlock()
+}
+
+func (s *Server) endMiningProgress() {
+	s.miningProgressMu.Lock()
+	s.miningActive = false
+	s.miningHashes = 0
+	s.miningStartedAt = time.Time{}
+	s.miningProgressMu.Unlock()
+}
+
+func (s *Server) miningProgressSnapshot() (bool, uint64, float64, float64) {
+	s.miningProgressMu.RLock()
+	active := s.miningActive
+	hashes := s.miningHashes
+	startedAt := s.miningStartedAt
+	s.miningProgressMu.RUnlock()
+
+	if !active || startedAt.IsZero() {
+		return false, 0, 0, 0
+	}
+	elapsed := time.Since(startedAt)
+	if elapsed <= 0 {
+		return true, hashes, 0, 0
+	}
+	elapsedMS := float64(elapsed) / float64(time.Millisecond)
+	hashrateHPS := 0.0
+	if hashes > 0 {
+		hashrateHPS = float64(hashes) / elapsed.Seconds()
+	}
+	return true, hashes, elapsedMS, hashrateHPS
 }
 
 func buildSourceCommit() string {

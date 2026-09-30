@@ -11,6 +11,12 @@ import (
 	"github.com/Sheff1981/valdr-core/core/block"
 )
 
+const miningProgressEveryHashes uint64 = 1 << 14
+
+// MiningProgressFunc receives a monotonic count of hashes tried by one PoW
+// attempt. It is telemetry-only and must never affect consensus decisions.
+type MiningProgressFunc func(hashes uint64)
+
 var (
 	ErrInvalidDifficulty = errors.New("difficulty must be greater than zero")
 	ErrInvalidHash       = errors.New("invalid proof-of-work hash")
@@ -74,6 +80,12 @@ func ValidatePoW(b *block.Block) error {
 // Mine searches the uint64 nonce space until the block hash satisfies
 // the target for the block difficulty.
 func Mine(b *block.Block) error {
+	return MineWithProgress(b, nil)
+}
+
+// MineWithProgress is Mine with an optional bounded telemetry callback. The
+// callback observes work only; it cannot change candidate data or consensus.
+func MineWithProgress(b *block.Block, progress MiningProgressFunc) error {
 	if b == nil {
 		return ErrInvalidHash
 	}
@@ -84,8 +96,15 @@ func Mine(b *block.Block) error {
 	for nonce := uint64(0); ; nonce++ {
 		b.Nonce = nonce
 		b.BlockHash = b.CalculateHash()
+		hashes := nonce + 1
+		if progress != nil && hashes%miningProgressEveryHashes == 0 {
+			progress(hashes)
+		}
 
 		if err := ValidatePoW(b); err == nil {
+			if progress != nil && hashes%miningProgressEveryHashes != 0 {
+				progress(hashes)
+			}
 			return nil
 		}
 

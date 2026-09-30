@@ -200,10 +200,6 @@ func (m *MinerManager) Status(ctx context.Context) (MinerStatus, error) {
 		TotalHashes:            m.totalHashes,
 		TotalMiningDurationMS:  m.totalMiningDurationMS,
 	}
-	status.HashrateHPS = effectiveHashrate(
-		status.TotalHashes,
-		status.TotalMiningDurationMS,
-	)
 	if m.lastExit != nil {
 		status.LastError = m.lastExit.Error()
 	}
@@ -227,7 +223,28 @@ func (m *MinerManager) Status(ctx context.Context) (MinerStatus, error) {
 	status.TargetBlockTimeSeconds = info.TargetBlockTimeSeconds
 	status.RetargetInterval = info.RetargetInterval
 	status.BlocksUntilRetarget = info.BlocksUntilRetarget
+	mergeLiveMiningProgress(&status, info)
 	return status, nil
+}
+
+func mergeLiveMiningProgress(status *MinerStatus, info rpc.MiningInfoResult) {
+	if status == nil {
+		return
+	}
+	if status.Running && info.MiningActive {
+		if ^uint64(0)-status.TotalHashes < info.MiningHashes {
+			status.TotalHashes = ^uint64(0)
+		} else {
+			status.TotalHashes += info.MiningHashes
+		}
+		if info.MiningElapsedMS > 0 {
+			status.TotalMiningDurationMS += info.MiningElapsedMS
+		}
+	}
+	status.HashrateHPS = effectiveHashrate(
+		status.TotalHashes,
+		status.TotalMiningDurationMS,
+	)
 }
 
 func desktopMinerArgs(

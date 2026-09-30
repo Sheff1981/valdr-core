@@ -105,14 +105,18 @@ type SendTransactionResult struct {
 }
 
 type MiningInfoResult struct {
-	Height                 uint64 `json:"height"`
-	NextHeight             uint64 `json:"next_height"`
-	CurrentDifficulty      uint64 `json:"current_difficulty"`
-	CurrentTarget          string `json:"current_target,omitempty"`
-	BlockRewardVal         uint64 `json:"block_reward_val"`
-	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
-	RetargetInterval       uint64 `json:"retarget_interval"`
-	BlocksUntilRetarget    uint64 `json:"blocks_until_retarget"`
+	Height                 uint64  `json:"height"`
+	NextHeight             uint64  `json:"next_height"`
+	CurrentDifficulty      uint64  `json:"current_difficulty"`
+	CurrentTarget          string  `json:"current_target,omitempty"`
+	BlockRewardVal         uint64  `json:"block_reward_val"`
+	TargetBlockTimeSeconds int64   `json:"target_block_time_seconds"`
+	RetargetInterval       uint64  `json:"retarget_interval"`
+	BlocksUntilRetarget    uint64  `json:"blocks_until_retarget"`
+	MiningActive           bool    `json:"mining_active"`
+	MiningHashes           uint64  `json:"mining_hashes"`
+	MiningElapsedMS        float64 `json:"mining_elapsed_ms"`
+	MiningHashrateHPS      float64 `json:"mining_hashrate_hps"`
 }
 
 type MineBlockResult struct {
