@@ -191,6 +191,10 @@ func TestTestnet2PeerKnowledgePropagatesBeyondDirectConnections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// This is a local loopback harness. Production Testnet2 remains public and
+	// rejects loopback/private addresses from gossip; disable only that filter
+	// here so the peer-propagation mechanism itself can be exercised.
+	profile.Public = false
 
 	start := func(id string) *Node {
 		t.Helper()
