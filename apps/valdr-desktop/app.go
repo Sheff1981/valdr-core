@@ -191,11 +191,15 @@ func NewApp() (*App, error) {
 	}
 
 	nodeLogs := desktopcore.NewLogBuffer(desktopcore.DefaultDesktopLogBytes)
+	nodeID, err := desktopcore.LoadOrCreateNodeID(filepath.Join(paths.Root, "node-id"))
+	if err != nil {
+		return nil, err
+	}
 	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
 		BinaryPath: strings.TrimSpace(os.Getenv("VALDRD_PATH")),
 		Network:    config.NetworkTestnetV029,
 		DataDir:    paths.NodeData,
-		NodeID:     "valdr-desktop",
+		NodeID:     nodeID,
 		Seeds:            desktopSeedsFromEnv(),
 		PublicNode:       preferences.PublicNode,
 		AdvertiseAddress: preferences.PublicNodeAdvertiseAddress,
