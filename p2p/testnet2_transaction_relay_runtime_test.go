@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -121,6 +122,34 @@ func TestTestnet2PendingRelayThenAnyMinerConfirmation(t *testing.T) {
 	if !poolA.Contains(payment.TransactionID) {
 		t.Fatal("sender mempool lost locally broadcast transaction")
 	}
+
+	// Persist the receiver mempool exactly while the payment is unconfirmed,
+	// reload it into a fresh pool and revalidate against the active chain.
+	mempoolPath := filepath.Join(t.TempDir(), "mempool-v2.json")
+	if err := mempool.SaveFile(mempoolPath, profile.ChainID, poolB.Transactions()); err != nil {
+		t.Fatal(err)
+	}
+	persisted, err := mempool.LoadFile(mempoolPath, profile.ChainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restartedPool := mempool.NewWithConfig(mempool.Config{
+		ChainID:            profile.ChainID,
+		MinRelayFeePerByte: profile.MinRelayFeePerByte,
+	})
+	for _, candidate := range persisted {
+		candidateFee, feeErr := chainB.CalculateFees([]*transaction.Transaction{candidate})
+		if feeErr != nil {
+			t.Fatalf("persisted pending tx failed active-chain revalidation: %v", feeErr)
+		}
+		if err := restartedPool.AddWithFee(candidate, candidateFee); err != nil {
+			t.Fatalf("persisted pending tx failed mempool admission: %v", err)
+		}
+	}
+	if !restartedPool.Contains(payment.TransactionID) {
+		t.Fatal("pending transaction did not survive persistence/revalidation")
+	}
+
 	if chainB.Height() != 1 {
 		t.Fatalf("receiver chain advanced before mining: height=%d", chainB.Height())
 	}
@@ -158,6 +187,15 @@ func TestTestnet2PendingRelayThenAnyMinerConfirmation(t *testing.T) {
 	if after != amount {
 		t.Fatalf("confirmed recipient balance=%d want=%d", after, amount)
 	}
+
+	// The old pre-confirmation snapshot must not be blindly restored after the
+	// transaction is already in the active chain.
+	for _, candidate := range persisted {
+		if _, feeErr := chainB.CalculateFees([]*transaction.Transaction{candidate}); feeErr == nil {
+			t.Fatal("confirmed transaction remained valid for mempool reload")
+		}
+	}
+
 	location, ok := chainB.TransactionByID(payment.TransactionID)
 	if !ok || location.Transaction == nil || location.BlockHeight != 2 {
 		t.Fatalf("receiver did not index confirmed txid=%s", payment.TransactionID)
