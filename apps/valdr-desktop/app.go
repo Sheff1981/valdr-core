@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -159,6 +161,7 @@ type App struct {
 	mu          sync.Mutex
 	nodeError   string
 	preferences desktopcore.DesktopPreferences
+	explorerCmd *exec.Cmd
 }
 
 func NewApp() (*App, error) {
@@ -282,6 +285,7 @@ func (a *App) shutdown(context.Context) {
 		_ = a.miner.Stop(ctx)
 		cancel()
 	}
+	a.stopLocalExplorer()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = a.node.Stop(ctx)
@@ -724,18 +728,96 @@ func (a *App) OpenExplorer() error {
 	if !a.preferencesSnapshot().Advanced {
 		return ErrDesktopAdvancedModeRequired
 	}
+	if a.ctx == nil {
+		return errors.New("VALDR Desktop is not started")
+	}
+	if err := a.ensureLocalExplorer(); err != nil {
+		return err
+	}
+	wailsruntime.BrowserOpenURL(a.ctx, localExplorerURL+"/")
+	return nil
+}
+
+func (a *App) ensureLocalExplorer() error {
 	status, err := a.GetExplorerStatus()
 	if err != nil {
 		return err
 	}
-	if !status.Available {
-		return ErrDesktopExplorerUnavailable
+	if status.Available {
+		return nil
 	}
-	if a.ctx == nil {
-		return errors.New("VALDR Desktop is not started")
+	if a.node == nil || !a.node.Running() {
+		return ErrDesktopNodeRequired
 	}
-	wailsruntime.BrowserOpenURL(a.ctx, localExplorerURL+"/")
-	return nil
+
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	name := "valdr-explorer"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	binary := filepath.Join(filepath.Dir(executable), name)
+	if _, err := os.Stat(binary); err != nil {
+		return fmt.Errorf("%w: %s", ErrDesktopExplorerUnavailable, binary)
+	}
+
+	indexDir := filepath.Join(a.pathsSnapshot().Root, "explorer")
+	if err := os.MkdirAll(indexDir, 0o700); err != nil {
+		return err
+	}
+	indexFile := filepath.Join(indexDir, "index.json")
+
+	a.mu.Lock()
+	if a.explorerCmd != nil {
+		a.mu.Unlock()
+	} else {
+		cmd := exec.Command(
+			binary,
+			"--listen", "127.0.0.1:8080",
+			"--node", a.node.Endpoint(),
+			"--index-file", indexFile,
+		)
+		cmd.Stdout = io.Discard
+		cmd.Stderr = a.nodeLogs
+		if err := cmd.Start(); err != nil {
+			a.mu.Unlock()
+			return err
+		}
+		a.explorerCmd = cmd
+		a.mu.Unlock()
+		go func() {
+			_ = cmd.Wait()
+			a.mu.Lock()
+			if a.explorerCmd == cmd {
+				a.explorerCmd = nil
+			}
+			a.mu.Unlock()
+		}()
+	}
+
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+		status, probeErr := probeDesktopExplorer(ctx, localExplorerURL)
+		cancel()
+		if probeErr == nil && status.Available {
+			return nil
+		}
+		time.Sleep(120 * time.Millisecond)
+	}
+	return ErrDesktopExplorerUnavailable
+}
+
+func (a *App) stopLocalExplorer() {
+	a.mu.Lock()
+	cmd := a.explorerCmd
+	a.explorerCmd = nil
+	a.mu.Unlock()
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
 }
 
 func probeDesktopExplorer(
