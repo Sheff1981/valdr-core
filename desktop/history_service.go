@@ -63,6 +63,13 @@ func NewHistoryService(
 	}, nil
 }
 
+func (s *HistoryService) Rescan(ctx context.Context, address string) error {
+	if !valdrcrypto.ValidateAddress(address) {
+		return ErrInvalidHistoryAddress
+	}
+	return s.index.Rebuild(ctx)
+}
+
 func (s *HistoryService) History(
 	ctx context.Context,
 	address string,
