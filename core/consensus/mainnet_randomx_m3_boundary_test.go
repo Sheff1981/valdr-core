@@ -24,7 +24,7 @@ func boundaryCandidate(t *testing.T, height uint64, parent string) *block.Block 
 		strings.Repeat("ff", 32),
 		height+1,
 		nil,
-		MainnetCandidateChainID,
+		testMainnetChainID,
 		"",
 	)
 	if err != nil {
@@ -47,7 +47,7 @@ func TestMainnetRandomXSeedBoundaryBeforeEpochSwitch(t *testing.T) {
 	h := &fixedRandomXHasher{hash: lowFixedHash()}
 	b := boundaryCandidate(t, 2111, parent)
 
-	if _, err := ValidateMainnetRandomXCandidate(b, 2110, parent, src, h); err != nil {
+	if _, err := ValidateMainnetRandomXCandidate(b, 2110, parent, testMainnetChainID, src, h); err != nil {
 		t.Fatal(err)
 	}
 	if string(h.key) != string(block0[:]) {
@@ -69,6 +69,7 @@ func TestMainnetRandomXSeedBoundaryAtEpochSwitchUsesBranch2048(t *testing.T) {
 		candidateA,
 		2111,
 		parentA,
+		testMainnetChainID,
 		boundarySeedSource{2048: seedA},
 		hA,
 	); err != nil {
@@ -80,6 +81,7 @@ func TestMainnetRandomXSeedBoundaryAtEpochSwitchUsesBranch2048(t *testing.T) {
 		candidateB,
 		2111,
 		parentB,
+		testMainnetChainID,
 		boundarySeedSource{2048: seedB},
 		hB,
 	); err != nil {
@@ -104,7 +106,7 @@ func TestMainnetRandomXSeedBoundaryAtNextEpochSwitch(t *testing.T) {
 	h := &fixedRandomXHasher{hash: lowFixedHash()}
 	b := boundaryCandidate(t, 4160, parent)
 
-	if _, err := ValidateMainnetRandomXCandidate(b, 4159, parent, src, h); err != nil {
+	if _, err := ValidateMainnetRandomXCandidate(b, 4159, parent, testMainnetChainID, src, h); err != nil {
 		t.Fatal(err)
 	}
 	if string(h.key) != string(seed4096[:]) {
