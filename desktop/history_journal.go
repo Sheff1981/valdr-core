@@ -41,10 +41,12 @@ func newHistoryJournal(path string) (*historyJournal, error) {
 	}
 	var loaded historyJournalState
 	if err := json.Unmarshal(raw, &loaded); err != nil {
-		return nil, err
+		// The journal is derived wallet metadata, not consensus or key
+		// material. A corrupt journal must not prevent Desktop startup.
+		return j, nil
 	}
 	if loaded.Version != historyJournalVersion || loaded.Items == nil {
-		return nil, errors.New("invalid wallet history journal")
+		return j, nil
 	}
 	j.state = loaded
 	return j, nil
