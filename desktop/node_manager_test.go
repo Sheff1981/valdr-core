@@ -49,6 +49,31 @@ func TestDesktopNodeArgsUseCanonicalOutboundNode(t *testing.T) {
 	}
 }
 
+func TestDesktopZeroConfigUsesCompiledTestnetBootstrap(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(profile.DefaultSeeds) == 0 && len(profile.DNSSeeds) == 0 {
+		t.Fatal("testnet2 has no compiled bootstrap contacts for zero-config Desktop startup")
+	}
+
+	args, err := desktopNodeArgs(NodeProcessConfig{
+		Network: config.NetworkTestnetV029,
+		DataDir: "/tmp/valdr-desktop-zero-config",
+		NodeID:  "desktop-zero-config",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(args, "--peer") || slices.Contains(args, "--seed") {
+		t.Fatalf("ordinary zero-config Desktop unexpectedly requires manual peer/seed arguments: %v", args)
+	}
+	if !containsSequence(args, []string{"--network", "testnet2"}) {
+		t.Fatalf("Desktop did not start the active Testnet2 profile: %v", args)
+	}
+}
+
 func TestDesktopNodeRejectsLegacyAndMainnet(t *testing.T) {
 	for _, network := range []string{
 		config.NetworkLegacyV01,
