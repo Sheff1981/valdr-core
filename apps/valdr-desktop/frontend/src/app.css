@@ -1903,3 +1903,211 @@ html[data-theme="classic"] button.primary {
     flex-direction: column;
   }
 }
+
+
+/* Interactive sidebar refinement — Stage 14 UI pass */
+.shell,
+.sidebar,
+.nav-item,
+.brand-emblem-sidebar,
+.sidebar-collapse,
+.sidebar-network-live {
+  transition:
+    width .22s ease,
+    grid-template-columns .22s ease,
+    padding .22s ease,
+    background .18s ease,
+    border-color .18s ease,
+    color .18s ease,
+    transform .18s ease,
+    opacity .18s ease,
+    box-shadow .18s ease;
+}
+
+.brand-sidebar {
+  position: relative;
+}
+
+.sidebar-collapse {
+  position: absolute;
+  top: 0;
+  right: -28px;
+  z-index: 4;
+  width: 30px;
+  height: 42px;
+  border: 1px solid rgba(229,179,77,.22);
+  border-left: 0;
+  border-radius: 0 9px 9px 0;
+  color: #d6b56d;
+  background: rgba(8,11,14,.96);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.sidebar-collapse:hover,
+.sidebar-collapse:focus-visible {
+  color: #ffe3a0;
+  border-color: rgba(229,179,77,.50);
+  box-shadow: 0 0 22px rgba(229,179,77,.10);
+  outline: none;
+}
+
+.nav-item {
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.nav-item::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: linear-gradient(90deg, rgba(229,179,77,.17), transparent);
+  transition: width .2s ease;
+  z-index: -1;
+}
+
+.nav-item:hover:not(:disabled) {
+  transform: translateX(3px);
+}
+
+.nav-item:hover:not(:disabled)::after,
+.nav-item.active::after {
+  width: 100%;
+}
+
+.nav-item.active::before {
+  transform: translateY(-50%) scale(1.08);
+  color: #ffd978;
+  text-shadow: 0 0 14px rgba(229,179,77,.45);
+}
+
+.sidebar-network-live {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 10px 11px;
+  border: 1px solid rgba(229,179,77,.14);
+  border-radius: 11px;
+  background: rgba(255,255,255,.018);
+}
+
+.sidebar-network-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #76645e;
+  box-shadow: 0 0 0 4px rgba(118,100,94,.08);
+}
+
+.sidebar-network-live.connected .sidebar-network-dot {
+  background: #4bea92;
+  box-shadow:
+    0 0 0 4px rgba(75,234,146,.08),
+    0 0 16px rgba(75,234,146,.55);
+  animation: valdr-network-pulse 1.8s ease-in-out infinite;
+}
+
+.sidebar-network-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sidebar-network-copy strong {
+  color: #e9dfcd;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .04em;
+}
+
+.sidebar-network-copy small {
+  color: #81786d;
+  font-size: 10px;
+}
+
+.view.active {
+  animation: valdr-view-in .18s ease-out;
+}
+
+@keyframes valdr-view-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes valdr-network-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.18); opacity: .78; }
+}
+
+.shell.sidebar-collapsed {
+  grid-template-columns: 78px 1fr;
+}
+
+.shell.sidebar-collapsed .sidebar {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.shell.sidebar-collapsed .brand-sidebar {
+  padding-bottom: 18px;
+}
+
+.shell.sidebar-collapsed .brand-emblem-sidebar {
+  width: 54px;
+  height: 54px;
+}
+
+.shell.sidebar-collapsed .brand-copy,
+.shell.sidebar-collapsed .sidebar-network-copy,
+.shell.sidebar-collapsed .sidebar-foot > small,
+.shell.sidebar-collapsed .testnet-pill {
+  display: none;
+}
+
+.shell.sidebar-collapsed nav {
+  gap: 8px;
+}
+
+.shell.sidebar-collapsed .nav-item {
+  min-height: 48px;
+  padding: 12px;
+  font-size: 0;
+  text-align: center;
+}
+
+.shell.sidebar-collapsed .nav-item::before {
+  left: 50%;
+  width: 24px;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+}
+
+.shell.sidebar-collapsed .nav-item.active::before {
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+.shell.sidebar-collapsed .sidebar-network-live {
+  justify-content: center;
+  min-height: 46px;
+  padding: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-network-live.connected .sidebar-network-dot,
+  .view.active {
+    animation: none;
+  }
+
+  .shell,
+  .sidebar,
+  .nav-item,
+  .brand-emblem-sidebar,
+  .sidebar-collapse,
+  .sidebar-network-live {
+    transition: none;
+  }
+}
