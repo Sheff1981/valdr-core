@@ -460,7 +460,7 @@ root.innerHTML = `
           <div>
             <span>Local VALDR node</span>
             <strong id="node-state">Starting…</strong>
-            <p id="node-detail" class="subtle">Desktop uses outbound-only P2P by default.</p>
+            <p id="node-detail" class="subtle">Desktop P2P is automatic; inbound listening is enabled where the network permits.</p>
           </div>
           <div class="actions">
             <button class="secondary" id="start-node">Start node</button>
@@ -2157,7 +2157,7 @@ const renderState = (state: DesktopState): void => {
       "node-detail",
       state.preferences.public_node
         ? "Public Testnet P2P mode configured."
-        : "Desktop uses outbound-only P2P by default.",
+        : "Desktop P2P is automatic; inbound listening is enabled where the network permits.",
     );
   }
 
@@ -2869,7 +2869,7 @@ document.getElementById("apply-public-node")?.addEventListener("click", async ()
   const button = document.getElementById("apply-public-node") as HTMLButtonElement | null;
 
   if (button) button.disabled = true;
-  text("public-node-status", enabled ? "Applying public-node mode…" : "Applying outbound-only mode…");
+  text("public-node-status", enabled ? "Applying public-node mode…" : "Applying automatic Desktop P2P mode…");
   try {
     const preferences = await api().SetPublicNodeMode(enabled, advertiseAddress);
     publicNodeDraftDirty = false;
@@ -2879,7 +2879,7 @@ document.getElementById("apply-public-node")?.addEventListener("click", async ()
       "public-node-status",
       preferences.public_node
         ? `Public Testnet P2P enabled · advertising ${preferences.public_node_advertise_address}`
-        : "Outbound-only Desktop P2P enabled.",
+        : "Automatic Desktop P2P enabled.",
     );
   } catch (error) {
     text("public-node-status", error instanceof Error ? error.message : String(error));
