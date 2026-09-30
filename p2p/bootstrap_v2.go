@@ -97,13 +97,16 @@ func (n *Node) seedCandidates(overrides []string) []string {
 		seeds = append(seeds, address)
 	}
 
+	// Bitcoin-Core-derived priority: try remembered/operator peers before
+	// compiled fixed seeds. A healthy returning node should reconnect to the
+	// live graph without needlessly hammering bootstrap infrastructure.
+	for _, address := range overrides {
+		appendUnique(address)
+	}
 	if n.enableV2 {
 		for _, address := range n.networkProfile.DefaultSeeds {
 			appendUnique(address)
 		}
-	}
-	for _, address := range overrides {
-		appendUnique(address)
 	}
 	return seeds
 }
