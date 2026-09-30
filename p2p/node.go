@@ -104,9 +104,10 @@ type Node struct {
 	peers      map[string]Peer
 	conns      map[string]*peerConnection
 	discovered map[string]string
-	syncV2     map[string]*v2SyncState
-	closed     bool
-	wg         sync.WaitGroup
+	syncV2       map[string]*v2SyncState
+	portMapState PortMapState
+	closed       bool
+	wg           sync.WaitGroup
 }
 
 func NewNode(cfg NodeConfig) (*Node, error) {
@@ -394,6 +395,31 @@ func (n *Node) PeerCount() int {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return len(n.peers)
+}
+
+func (n *Node) PeerDirectionCounts() (inbound int, outbound int) {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	for _, peer := range n.peers {
+		if peer.Inbound {
+			inbound++
+		} else {
+			outbound++
+		}
+	}
+	return inbound, outbound
+}
+
+func (n *Node) SetPortMapState(state PortMapState) {
+	n.mu.Lock()
+	n.portMapState = state
+	n.mu.Unlock()
+}
+
+func (n *Node) PortMapState() PortMapState {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.portMapState
 }
 
 func (n *Node) MempoolLen() int {
