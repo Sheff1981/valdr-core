@@ -256,6 +256,30 @@ func (p *Pool) Transactions() []*transaction.Transaction {
 	return txs
 }
 
+// FeeRates returns a stable snapshot of current transaction fee rates in
+// val/byte. It is used only for local fee estimation; consensus does not
+// depend on these values.
+func (p *Pool) FeeRates() []uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.expireLocked(p.now())
+
+	rates := make([]uint64, 0, len(p.txs))
+	for _, candidate := range p.txs {
+		if candidate.size <= 0 {
+			continue
+		}
+		size := uint64(candidate.size)
+		rate := candidate.fee / size
+		if candidate.fee%size != 0 {
+			rate++
+		}
+		rates = append(rates, rate)
+	}
+	sort.Slice(rates, func(i, j int) bool { return rates[i] < rates[j] })
+	return rates
+}
+
 // MiningTransactions returns a deterministic miner template order:
 // highest fee-rate first, then txid ascending.
 func (p *Pool) MiningTransactions() []*transaction.Transaction {
