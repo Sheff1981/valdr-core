@@ -359,7 +359,11 @@ func desktopNodeArgs(cfg NodeProcessConfig) ([]string, error) {
 			"--advertise-address", advertiseAddress,
 		)
 	} else {
-		args = append(args, "--outbound-only")
+		// Ordinary Desktop nodes listen automatically so a fresh installation
+		// can participate in the same P2P network without manual networking
+		// configuration. If NAT/firewall prevents inbound reachability, outbound
+		// bootstrap and relay still work normally.
+		args = append(args, "--p2p-host", "0.0.0.0")
 	}
 	args = append(
 		args,
