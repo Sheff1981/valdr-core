@@ -64,6 +64,28 @@ func TestV02NetworkProfiles(t *testing.T) {
 	}
 }
 
+
+func TestTestnet2HasPublicBootstrapSeed(t *testing.T) {
+	profile, err := ResolveNetworkProfile(NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "195.208.16.1:17333"
+	if len(profile.DefaultSeeds) == 0 {
+		t.Fatal("testnet2 has no default bootstrap seeds")
+	}
+	found := false
+	for _, seed := range profile.DefaultSeeds {
+		if seed == want {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("testnet2 default seeds=%v want %s", profile.DefaultSeeds, want)
+	}
+}
+
 func TestUnknownNetworkProfileRejected(t *testing.T) {
 	_, err := ResolveNetworkProfile("mainnet")
 	if !errors.Is(err, ErrUnknownNetworkProfile) {
