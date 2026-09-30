@@ -1086,6 +1086,7 @@ let currentState: DesktopState | null = null;
 let firstRunGateInitialized = false;
 let firstRunGateActive = false;
 let currentView = "overview";
+let publicNodeDraftDirty = false;
 let activeWalletAddress = "";
 let activeWalletName = "";
 let renderedReceiveQRAddress = "";
@@ -1252,10 +1253,12 @@ const renderDesktopPreferences = (): void => {
 
   const publicNode = document.getElementById("public-node-enabled") as HTMLInputElement | null;
   const publicAddress = document.getElementById("public-node-address") as HTMLInputElement | null;
-  if (publicNode) publicNode.checked = prefs.public_node;
-  if (publicAddress) {
-    publicAddress.value = prefs.public_node_advertise_address || "";
-    publicAddress.disabled = !prefs.public_node;
+  if (!publicNodeDraftDirty) {
+    if (publicNode) publicNode.checked = prefs.public_node;
+    if (publicAddress) {
+      publicAddress.value = prefs.public_node_advertise_address || "";
+      publicAddress.disabled = !prefs.public_node;
+    }
   }
 
   applyDesktopTheme(prefs.theme);
@@ -2795,9 +2798,13 @@ document.getElementById("history-time")?.addEventListener("change", (event) => {
 document.getElementById("export-history-csv")?.addEventListener("click", exportVisibleHistoryCSV);
 
 document.getElementById("public-node-enabled")?.addEventListener("change", (event) => {
+  publicNodeDraftDirty = true;
   const enabled = (event.currentTarget as HTMLInputElement).checked;
   const address = document.getElementById("public-node-address") as HTMLInputElement | null;
   if (address) address.disabled = !enabled;
+});
+document.getElementById("public-node-address")?.addEventListener("input", () => {
+  publicNodeDraftDirty = true;
 });
 
 document.getElementById("apply-public-node")?.addEventListener("click", async () => {
@@ -2810,6 +2817,7 @@ document.getElementById("apply-public-node")?.addEventListener("click", async ()
   text("public-node-status", enabled ? "Applying public-node mode…" : "Applying outbound-only mode…");
   try {
     const preferences = await api().SetPublicNodeMode(enabled, advertiseAddress);
+    publicNodeDraftDirty = false;
     if (currentState) currentState.preferences = preferences;
     await refresh();
     text(
@@ -2820,7 +2828,6 @@ document.getElementById("apply-public-node")?.addEventListener("click", async ()
     );
   } catch (error) {
     text("public-node-status", error instanceof Error ? error.message : String(error));
-    if (currentState) renderDesktopPreferences();
   } finally {
     if (button) button.disabled = false;
   }
