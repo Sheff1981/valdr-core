@@ -1,0 +1,63 @@
+name: VALDR Mainnet M0 Testnet2 Replacement Gate
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "core/**"
+      - "p2p/**"
+      - "rpc/**"
+      - "wallet/**"
+      - "storage/**"
+      - "scripts/run-3-node-testnet.sh"
+      - "scripts/stage14a-**"
+      - ".github/workflows/mainnet-m0-testnet2-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-cross-platform:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      - name: Test core packages
+        run: go test ./core/... ./p2p/... ./rpc/... ./wallet/... ./storage/... -count=1
+
+  testnet2-multinode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Three-node Testnet2 smoke
+        run: bash scripts/run-3-node-testnet.sh
+      - name: Stage14A tooling syntax
+        run: |
+          bash -n scripts/stage14a-soak-observe.sh
+          bash -n scripts/stage14a-session-validate.sh
+          python3 -m py_compile scripts/stage14a-evidence-verify.py scripts/stage14a-event.py
+      - name: Stage14A tooling self-test
+        run: bash scripts/stage14a-session-validate-test.sh
+
+  testnet2-race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Race regression
+        run: go test -race ./core/... ./p2p/... ./rpc/... ./wallet/... ./storage/... -count=1
