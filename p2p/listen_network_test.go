@@ -34,9 +34,7 @@ func TestBootstrapSkipsOwnAdvertisedSeed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(profile.DefaultSeeds) == 0 {
-		t.Fatal("testnet2 has no default seed")
-	}
+	profile.DefaultSeeds = []string{"8.8.8.8:17333"}
 
 	node, err := NewNode(NodeConfig{
 		NodeID:           "self-seed-test",
@@ -59,5 +57,38 @@ func TestBootstrapSkipsOwnAdvertisedSeed(t *testing.T) {
 	}
 	if result.Connected != 0 {
 		t.Fatalf("self bootstrap connected=%d want 0", result.Connected)
+	}
+}
+
+func TestWildcardListenerIsNotAdvertisedBeforeMapping(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "wildcard-listener-test",
+		ListenAddress:  "0.0.0.0:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := node.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer node.Close()
+
+	if got := node.AdvertiseAddress(); got != "" {
+		t.Fatalf("wildcard listener advertised as %q", got)
+	}
+	if got := node.helloAddress(); got != outboundOnlyHelloAddress {
+		t.Fatalf("hello address=%q want=%q", got, outboundOnlyHelloAddress)
+	}
+	if err := node.SetAdvertiseAddress("8.8.8.8:17333"); err != nil {
+		t.Fatal(err)
+	}
+	if got := node.AdvertiseAddress(); got != "8.8.8.8:17333" {
+		t.Fatalf("mapped advertise address=%q", got)
 	}
 }
