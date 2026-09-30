@@ -201,6 +201,7 @@ type AppAPI = {
   BackupWallet(selector: string): Promise<string>;
   RestoreWallet(passphrase: string): Promise<WalletMetadata>;
   GetTransactionHistory(address: string): Promise<TransactionHistoryItem[]>;
+  RescanTransactionHistory(address: string): Promise<TransactionHistoryItem[]>;
   SetDesktopPreferences(
     language: "en" | "ru",
     theme: "dark" | "classic",
@@ -593,7 +594,10 @@ root.innerHTML = `
             <h2>Transactions</h2>
             <p class="subtle">Confirmed history is reorg-safe. Pending transactions come from the local node mempool.</p>
           </div>
-          <button class="secondary" id="refresh-history">Refresh</button>
+          <div class="actions">
+            <button class="secondary" id="rescan-history" type="button">Rescan blockchain</button>
+            <button class="secondary" id="refresh-history" type="button">Refresh</button>
+          </div>
         </div>
         <div class="card history-filters">
           <input id="history-search" autocomplete="off" spellcheck="false" placeholder="Search txid or address">
@@ -624,6 +628,7 @@ root.innerHTML = `
           <input id="history-to" class="hidden" type="date" aria-label="To date">
           <button class="secondary" id="export-history-csv" type="button">Export visible CSV</button>
         </div>
+        <p id="history-rescan-status" class="subtle"></p>
         <p id="history-filter-summary" class="subtle"></p>
         <div id="history-empty" class="card subtle">Select a wallet to view transactions.</div>
         <div id="history-list" class="history-list"></div>
@@ -2813,6 +2818,27 @@ document.addEventListener("visibilitychange", () => {
 
 document.getElementById("refresh-history")?.addEventListener("click", async () => {
   await refreshTransactionHistory();
+});
+
+document.getElementById("rescan-history")?.addEventListener("click", async () => {
+  const wallet = activeWallet();
+  if (!wallet) {
+    text("history-rescan-status", "Select a wallet first.");
+    return;
+  }
+  const button = document.getElementById("rescan-history") as HTMLButtonElement | null;
+  if (button) button.disabled = true;
+  text("history-rescan-status", "Rebuilding wallet history from the local blockchain…");
+  try {
+    const items = await api().RescanTransactionHistory(wallet.address);
+    currentHistoryItems = items;
+    applyHistoryFilters();
+    text("history-rescan-status", "Wallet history rebuilt from the active chain.");
+  } catch (error) {
+    text("history-rescan-status", error instanceof Error ? error.message : String(error));
+  } finally {
+    if (button) button.disabled = false;
+  }
 });
 
 ["history-search", "history-direction", "history-status", "history-type", "history-from", "history-to"].forEach((id) => {
