@@ -1078,7 +1078,7 @@ const openTransactionDetail = (item: TransactionHistoryItem): void => {
   );
   text(
     "transaction-detail-confirmations",
-    item.status === "pending" ? "0" : String(item.confirmations),
+    item.status === "confirmed" ? String(item.confirmations) : "0",
   );
   text(
     "transaction-detail-height",
