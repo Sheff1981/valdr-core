@@ -400,18 +400,34 @@ func (n *Node) BroadcastBlock(candidate *block.Block) error {
 		return ErrUnknownBlock
 	}
 
-	local, ok := n.blockchain.BlockAt(candidate.Height)
-	if !ok || local.BlockHash != candidate.BlockHash {
+	// A locally-mined block may be a valid side-branch block when another peer
+	// advances the active tip while PoW is still running. Side branches are
+	// intentionally persisted by Blockchain and must remain relayable so peers
+	// can compare cumulative chainwork and converge without manual repair.
+	//
+	// Always relay the canonical object already accepted into local storage.
+	local, ok := n.blockchain.BlockByHash(candidate.BlockHash)
+	if !ok || local.Height != candidate.Height {
 		return ErrUnknownBlock
 	}
+	candidate = local
 
-	n.mempool.RemoveBlockTransactions(candidate.Transactions)
-	n.revalidateMempool()
+	// Only an active-chain block confirms transactions locally. Relaying a
+	// known side-branch block must not evict transactions from the active
+	// mempool merely because that competing branch contains them.
+	active, activeAtHeight := n.blockchain.BlockAt(candidate.Height)
+	isActive := activeAtHeight && active.BlockHash == candidate.BlockHash
+	if isActive {
+		n.mempool.RemoveBlockTransactions(candidate.Transactions)
+		n.revalidateMempool()
+	}
+
 	logging.Printf(
 		logging.CategoryBlock,
-		"broadcast height=%d hash=%s",
+		"broadcast height=%d hash=%s active=%t",
 		candidate.Height,
 		candidate.BlockHash,
+		isActive,
 	)
 	if n.enableV2 {
 		return n.broadcastV2Except("", V2MessageInv, V2InvPayload{
