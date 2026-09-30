@@ -9,7 +9,7 @@ import (
 	"github.com/Sheff1981/valdr-core/config"
 )
 
-func TestDesktopNodeArgsUseOutboundOnlyOrdinaryClient(t *testing.T) {
+func TestDesktopNodeArgsUseAutomaticListeningOrdinaryClient(t *testing.T) {
 	cfg := NodeProcessConfig{
 		Network: config.NetworkTestnetV029,
 		DataDir: "/tmp/valdr-desktop-testnet",
@@ -31,7 +31,7 @@ func TestDesktopNodeArgsUseOutboundOnlyOrdinaryClient(t *testing.T) {
 		{"--network", "testnet2"},
 		{"--data", cfg.DataDir},
 		{"--node-id", cfg.NodeID},
-		{"--outbound-only"},
+		{"--p2p-host", "0.0.0.0"},
 		{"--managed-stdin-shutdown"},
 		{"--rpc-host", "127.0.0.1"},
 		{"--rpc-port", "28332"},
@@ -46,8 +46,8 @@ func TestDesktopNodeArgsUseOutboundOnlyOrdinaryClient(t *testing.T) {
 	if slices.Contains(args, "--advertise-address") {
 		t.Fatalf("ordinary Desktop node unexpectedly requires an advertised public address: %v", args)
 	}
-	if slices.Contains(args, "--p2p-host") {
-		t.Fatalf("ordinary Desktop node unexpectedly opens an inbound P2P listener: %v", args)
+	if slices.Contains(args, "--outbound-only") {
+		t.Fatalf("ordinary Desktop node unexpectedly disables automatic inbound participation: %v", args)
 	}
 }
 
@@ -74,8 +74,11 @@ func TestDesktopZeroConfigDoesNotUseUnverifiedTestnetBootstrap(t *testing.T) {
 	if !containsSequence(args, []string{"--network", "testnet2"}) {
 		t.Fatalf("Desktop did not start the active Testnet2 profile: %v", args)
 	}
-	if !slices.Contains(args, "--outbound-only") {
-		t.Fatalf("ordinary Desktop must remain outbound-only: %v", args)
+	if !containsSequence(args, []string{"--p2p-host", "0.0.0.0"}) {
+		t.Fatalf("ordinary Desktop must listen for automatic PCP/NAT-PMP mapping: %v", args)
+	}
+	if slices.Contains(args, "--outbound-only") {
+		t.Fatalf("ordinary Desktop unexpectedly forced outbound-only: %v", args)
 	}
 }
 
