@@ -265,6 +265,33 @@ func (s *Server) call(ctx context.Context, method string, raw json.RawMessage) (
 		}
 		return s.node.Peers(), nil
 
+	case MethodEstimateFee:
+		if err := requireNoParams(raw); err != nil {
+			return nil, err
+		}
+		profile := s.chain.Profile()
+		rates := s.node.MempoolFeeRates()
+		result := FeeEstimateResult{
+			FeeRateValPerByte: profile.MinRelayFeePerByte,
+			Source:            "relay-minimum",
+			SampleCount:       len(rates),
+			SufficientData:    false,
+		}
+		if len(rates) >= 5 {
+			median := rates[len(rates)/2]
+			if median < profile.MinRelayFeePerByte {
+				median = profile.MinRelayFeePerByte
+			}
+			maxRate := profile.MinRelayFeePerByte * 1000
+			if maxRate > 0 && median > maxRate {
+				median = maxRate
+			}
+			result.FeeRateValPerByte = median
+			result.Source = "mempool-median"
+			result.SufficientData = true
+		}
+		return result, nil
+
 	case MethodGetMiningInfo:
 		if err := requireNoParams(raw); err != nil {
 			return nil, err
