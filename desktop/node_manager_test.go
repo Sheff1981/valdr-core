@@ -9,7 +9,7 @@ import (
 	"github.com/Sheff1981/valdr-core/config"
 )
 
-func TestDesktopNodeArgsUseCanonicalAutomaticP2PNode(t *testing.T) {
+func TestDesktopNodeArgsUseOutboundOnlyOrdinaryClient(t *testing.T) {
 	cfg := NodeProcessConfig{
 		Network: config.NetworkTestnetV029,
 		DataDir: "/tmp/valdr-desktop-testnet",
@@ -31,7 +31,7 @@ func TestDesktopNodeArgsUseCanonicalAutomaticP2PNode(t *testing.T) {
 		{"--network", "testnet2"},
 		{"--data", cfg.DataDir},
 		{"--node-id", cfg.NodeID},
-		{"--p2p-host", "0.0.0.0"},
+		{"--outbound-only"},
 		{"--managed-stdin-shutdown"},
 		{"--rpc-host", "127.0.0.1"},
 		{"--rpc-port", "28332"},
@@ -46,18 +46,18 @@ func TestDesktopNodeArgsUseCanonicalAutomaticP2PNode(t *testing.T) {
 	if slices.Contains(args, "--advertise-address") {
 		t.Fatalf("ordinary Desktop node unexpectedly requires an advertised public address: %v", args)
 	}
-	if slices.Contains(args, "--outbound-only") {
-		t.Fatalf("ordinary Desktop node unexpectedly disables inbound P2P: %v", args)
+	if slices.Contains(args, "--p2p-host") {
+		t.Fatalf("ordinary Desktop node unexpectedly opens an inbound P2P listener: %v", args)
 	}
 }
 
-func TestDesktopZeroConfigUsesCompiledTestnetBootstrap(t *testing.T) {
+func TestDesktopZeroConfigDoesNotUseUnverifiedTestnetBootstrap(t *testing.T) {
 	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(profile.DefaultSeeds) == 0 && len(profile.DNSSeeds) == 0 {
-		t.Fatal("testnet2 has no compiled bootstrap contacts for zero-config Desktop startup")
+	if len(profile.DefaultSeeds) != 0 || len(profile.DNSSeeds) != 0 {
+		t.Fatalf("testnet2 contains unverified bootstrap contacts: fixed=%v dns=%v", profile.DefaultSeeds, profile.DNSSeeds)
 	}
 
 	args, err := desktopNodeArgs(NodeProcessConfig{
@@ -73,6 +73,9 @@ func TestDesktopZeroConfigUsesCompiledTestnetBootstrap(t *testing.T) {
 	}
 	if !containsSequence(args, []string{"--network", "testnet2"}) {
 		t.Fatalf("Desktop did not start the active Testnet2 profile: %v", args)
+	}
+	if !slices.Contains(args, "--outbound-only") {
+		t.Fatalf("ordinary Desktop must remain outbound-only: %v", args)
 	}
 }
 
