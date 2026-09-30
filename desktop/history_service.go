@@ -15,8 +15,12 @@ import (
 )
 
 const (
-	DefaultHistoryLimit = 100
-	MaxHistoryLimit     = 200
+	// Desktop history must not let frequent mining rewards hide ordinary
+	// wallet transfers from the Transactions view. 500 items is still small
+	// enough for the current local Testnet explorer path while covering
+	// substantially more than the previous 100-entry window.
+	DefaultHistoryLimit = 500
+	MaxHistoryLimit     = 2000
 )
 
 var ErrInvalidHistoryAddress = errors.New("invalid history address")
