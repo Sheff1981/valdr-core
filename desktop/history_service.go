@@ -135,7 +135,41 @@ func (s *HistoryService) History(
 		return result[i].TransactionID > result[j].TransactionID
 	})
 	if len(result) > limit {
-		result = result[:limit]
+		// Mining rewards can be frequent on Testnet. Never let coinbase rows
+		// crowd ordinary wallet transfers out of the visible history window.
+		// Keep the newest non-mined activity first, then use the remaining
+		// budget for mined rewards while preserving the already-sorted order.
+		nonMined := 0
+		for _, item := range result {
+			if item.Type != "mined" {
+				nonMined++
+			}
+		}
+		if nonMined > limit {
+			nonMined = limit
+		}
+		minedBudget := limit - nonMined
+		keptNonMined := 0
+		keptMined := 0
+		trimmed := make([]TransactionHistoryItem, 0, limit)
+		for _, item := range result {
+			if item.Type == "mined" {
+				if keptMined >= minedBudget {
+					continue
+				}
+				keptMined++
+			} else {
+				if keptNonMined >= nonMined {
+					continue
+				}
+				keptNonMined++
+			}
+			trimmed = append(trimmed, item)
+			if len(trimmed) == limit {
+				break
+			}
+		}
+		result = trimmed
 	}
 	return result, nil
 }
