@@ -15,10 +15,11 @@ type BootstrapFailure struct {
 }
 
 type BootstrapResult struct {
-	Attempted  int
-	Connected  int
-	DNSLookups int
-	Failures   []BootstrapFailure
+	Attempted          int
+	Connected          int
+	ConnectedAddresses []string
+	DNSLookups         int
+	Failures           []BootstrapFailure
 }
 
 // Bootstrap connects to compiled fixed seeds plus operator/cache overrides.
@@ -67,6 +68,7 @@ func (n *Node) Bootstrap(ctx context.Context, overrides []string) BootstrapResul
 				continue
 			}
 			result.Connected++
+			result.ConnectedAddresses = append(result.ConnectedAddresses, address)
 		}
 	}
 
@@ -197,6 +199,7 @@ func (n *Node) MaintainOutbound(ctx context.Context) BootstrapResult {
 			continue
 		}
 		result.Connected++
+		result.ConnectedAddresses = append(result.ConnectedAddresses, peer.Address)
 	}
 	return result
 }
@@ -227,6 +230,7 @@ func (n *Node) BootstrapAndMaintain(ctx context.Context, overrides []string) Boo
 		next := n.MaintainOutbound(ctx)
 		result.Attempted += next.Attempted
 		result.Connected += next.Connected
+		result.ConnectedAddresses = append(result.ConnectedAddresses, next.ConnectedAddresses...)
 		result.Failures = append(result.Failures, next.Failures...)
 		if next.Attempted == 0 {
 			break
