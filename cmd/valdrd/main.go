@@ -215,10 +215,11 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	}
 
 	peerCachePath := ""
+	var peerBook *p2p.PeerAddressBook
 	cachedBootstrapPeers := []string(nil)
 	if profile.ProtocolMax >= 2 {
 		peerCachePath = filepath.Join(*dataDir, "peers-v2.json")
-		cachedBootstrapPeers, err = p2p.LoadPeerCacheV2(peerCachePath, profile.Public)
+		peerBook, err = p2p.LoadPeerAddressBook(peerCachePath, profile.Public)
 		if err != nil {
 			logging.Printf(
 				logging.CategoryP2P,
@@ -226,8 +227,9 @@ func startCommand(args []string, out, errOut io.Writer) int {
 				peerCachePath,
 				err,
 			)
-			cachedBootstrapPeers = nil
+			peerBook = p2p.NewPeerAddressBook(profile.Public, nil)
 		}
+		cachedBootstrapPeers = peerBook.Addresses()
 	}
 
 	if err := rejectUnmigratedLegacy(*dataDir); err != nil {
@@ -363,18 +365,30 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	}
 
 	savePeerCache := func() {
-		if profile.ProtocolMax < 2 {
+		if profile.ProtocolMax < 2 || peerBook == nil {
 			return
 		}
-		addresses := append([]string(nil), cachedBootstrapPeers...)
+		now := time.Now().UTC()
 		for _, peer := range node.Peers() {
-			addresses = append(addresses, peer.Address)
+			peerBook.Observe(peer.Address, now)
 		}
 		for _, peer := range node.DiscoveredPeers() {
-			addresses = append(addresses, peer.Address)
+			peerBook.Observe(peer.Address, now)
 		}
-		if err := p2p.SavePeerCacheV2(peerCachePath, profile.Public, addresses); err != nil {
+		if err := peerBook.Save(peerCachePath); err != nil {
 			logging.Printf(logging.CategoryP2P, "peer cache save failed path=%s error=%v", peerCachePath, err)
+		}
+	}
+	recordBootstrapResult := func(result p2p.BootstrapResult) {
+		if peerBook == nil {
+			return
+		}
+		now := time.Now().UTC()
+		for _, address := range result.ConnectedAddresses {
+			peerBook.RecordAttempt(address, true, now)
+		}
+		for _, failure := range result.Failures {
+			peerBook.RecordAttempt(failure.Address, false, now)
 		}
 	}
 	saveMempool := func() {
@@ -412,6 +426,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	bootstrapCtx, bootstrapCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	bootstrapResult := node.BootstrapAndMaintain(bootstrapCtx, bootstrapPeers)
 	bootstrapCancel()
+	recordBootstrapResult(bootstrapResult)
 	logging.Printf(
 		logging.CategoryP2P,
 		"bootstrap attempted=%d connected=%d dns_lookups=%d peer_cache_loaded=%d peers=%d",
@@ -443,9 +458,14 @@ func startCommand(args []string, out, errOut io.Writer) int {
 				case <-ticker.C:
 					savePeerCache()
 					saveMempool()
+					maintenancePeers := append([]string(nil), seeds...)
+					if peerBook != nil {
+						maintenancePeers = append(peerBook.Addresses(), maintenancePeers...)
+					}
 					ctx, cancel := context.WithTimeout(maintenanceCtx, 10*time.Second)
-					result := node.BootstrapAndMaintain(ctx, bootstrapPeers)
+					result := node.BootstrapAndMaintain(ctx, maintenancePeers)
 					cancel()
+					recordBootstrapResult(result)
 					if result.Connected > 0 {
 						logging.Printf(
 							logging.CategoryP2P,
