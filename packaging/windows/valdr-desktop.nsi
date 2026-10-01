@@ -2,6 +2,7 @@ Unicode true
 
 !include "MUI2.nsh"
 !include "x64.nsh"
+!include "FileFunc.nsh"
 
 !ifndef APP_VERSION
   !error "APP_VERSION define is required"
@@ -106,10 +107,14 @@ miner_running_silent:
   Pop $0
   Pop $1
   ${If} $0 != "0"
-    IfSilent firewall_failed_silent
-    MessageBox MB_ICONSTOP|MB_OK "VALDR could not create its Windows Firewall rule for TCP port 17333.$\r$\n$\r$\nWithout this rule the node may be unable to accept inbound peers.$\r$\n$\r$\nInstallation will stop so this networking problem is not hidden."
+    ${GetParameters} $R0
+    ${GetOptions} "$R0" "/SKIPFIREWALL=" $R1
+    ${If} $R1 != "1"
+      IfSilent firewall_failed_silent
+      MessageBox MB_ICONSTOP|MB_OK "VALDR could not create its Windows Firewall rule for TCP port 17333.$\r$\n$\r$\nWithout this rule the node may be unable to accept inbound peers.$\r$\n$\r$\nInstallation will stop so this networking problem is not hidden."
 firewall_failed_silent:
-    Abort
+      Abort
+    ${EndIf}
   ${EndIf}
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
