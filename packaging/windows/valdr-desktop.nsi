@@ -51,40 +51,35 @@ Section "VALDR Desktop" SecMain
   SetOutPath "$INSTDIR"
 
   ; Upgrade safety: do not overwrite running binaries or force-kill valdrd.
-  nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq VALDR.exe" /NH'
+  ; Use the command exit code rather than comparing localized tasklist text.
+  nsExec::ExecToStack 'cmd /C tasklist /FI "IMAGENAME eq VALDR.exe" /NH ^| find /I "VALDR.exe" ^>nul'
   Pop $0
   Pop $1
-  ${If} $1 != ""
-    ${If} $1 != "INFO: No tasks are running which match the specified criteria."
-      IfSilent valdr_running_silent
-      MessageBox MB_ICONEXCLAMATION|MB_OK "VALDR Desktop is still running. Close VALDR Desktop completely, then run this installer again. Wallet and blockchain data will be preserved."
+  ${If} $0 == "0"
+    IfSilent valdr_running_silent
+    MessageBox MB_ICONEXCLAMATION|MB_OK "VALDR Desktop is still running. Close VALDR Desktop completely, then run this installer again. Wallet and blockchain data will be preserved."
 valdr_running_silent:
-      Abort
-    ${EndIf}
+    Abort
   ${EndIf}
 
-  nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq valdrd.exe" /NH'
+  nsExec::ExecToStack 'cmd /C tasklist /FI "IMAGENAME eq valdrd.exe" /NH ^| find /I "valdrd.exe" ^>nul'
   Pop $0
   Pop $1
-  ${If} $1 != ""
-    ${If} $1 != "INFO: No tasks are running which match the specified criteria."
-      IfSilent valdrd_running_silent
-      MessageBox MB_ICONEXCLAMATION|MB_OK "The VALDR node is still shutting down. Wait a few seconds, then run this installer again. Do not force-close valdrd.exe because it may be writing blockchain data."
+  ${If} $0 == "0"
+    IfSilent valdrd_running_silent
+    MessageBox MB_ICONEXCLAMATION|MB_OK "The VALDR node is still shutting down. Wait a few seconds, then run this installer again. Do not force-close valdrd.exe because it may be writing blockchain data."
 valdrd_running_silent:
-      Abort
-    ${EndIf}
+    Abort
   ${EndIf}
 
-  nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq valdr-miner.exe" /NH'
+  nsExec::ExecToStack 'cmd /C tasklist /FI "IMAGENAME eq valdr-miner.exe" /NH ^| find /I "valdr-miner.exe" ^>nul'
   Pop $0
   Pop $1
-  ${If} $1 != ""
-    ${If} $1 != "INFO: No tasks are running which match the specified criteria."
-      IfSilent miner_running_silent
-      MessageBox MB_ICONEXCLAMATION|MB_OK "VALDR Miner is still running. Stop mining and close VALDR Desktop, then run this installer again."
+  ${If} $0 == "0"
+    IfSilent miner_running_silent
+    MessageBox MB_ICONEXCLAMATION|MB_OK "VALDR Miner is still running. Stop mining and close VALDR Desktop, then run this installer again."
 miner_running_silent:
-      Abort
-    ${EndIf}
+    Abort
   ${EndIf}
 
   File /oname=VALDR.exe "${DESKTOP_EXE}"
