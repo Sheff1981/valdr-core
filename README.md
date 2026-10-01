@@ -7,7 +7,7 @@ VALDR is a standalone cryptocurrency and blockchain project.
 **Brand policy:** VALDR source code is MIT open source. The VALDR name and official logo do not automatically make any third-party fork an official VALDR project — see [BRAND_POLICY.md](BRAND_POLICY.md).
 
 The frozen working baseline is **VALDR Devnet v0.1** at `release/valdr-devnet-v0.1`.
-Active development on branch `valdr-v0.2` follows the current consolidated baseline `docs/VALDR_Master_TZ_v0.2.26.md`. Earlier Master-TZ revisions remain preserved as historical specifications; v0.2.26 is the active working baseline and requires zero-configuration automatic P2P participation for ordinary Desktop users. Fixed-duration 2-3 hour distributed sessions are not a v0.2 release gate; acceptance is functional and currently focused on real peer bootstrap/discovery.
+Active development on branch `valdr-v0.2` follows the current consolidated baseline `docs/VALDR_Master_TZ_v0.2.27.md`. Earlier Master-TZ revisions remain preserved as historical specifications; v0.2.27 is the active working baseline and requires zero-configuration automatic P2P participation for ordinary Desktop users. Fixed-duration 2-3 hour distributed sessions are not a v0.2 release gate; acceptance is functional and currently focused on real peer bootstrap/discovery.
 
 ## v0.2 development status
 
