@@ -55,6 +55,8 @@ func run(args []string, out, errOut io.Writer) int {
 		return initCommand(args[1:], out, errOut)
 	case "status":
 		return statusCommand(args[1:], out, errOut)
+	case "probe-peer":
+		return probePeerCommand(args[1:], out, errOut)
 	case "start":
 		return startCommand(args[1:], out, errOut)
 	case "migrate":
@@ -159,6 +161,74 @@ func statusCommand(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 	return writeJSON(out, result, errOut)
+}
+
+func probePeerCommand(args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("probe-peer", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	networkName := fs.String("network", config.NetworkTestnetV029, "VALDR network profile")
+	address := fs.String("address", "", "candidate VALDR P2P endpoint host:port")
+	timeout := fs.Duration("timeout", 5*time.Second, "probe timeout")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*address) == "" || *timeout <= 0 {
+		fmt.Fprintln(errOut, "usage: valdrd probe-peer --address HOST:PORT [--network PROFILE] [--timeout DURATION]")
+		return 2
+	}
+	profile, err := config.ResolveNetworkProfile(*networkName)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 2
+	}
+	candidate := strings.TrimSpace(*address)
+	if _, _, err := net.SplitHostPort(candidate); err != nil {
+		fmt.Fprintln(errOut, "invalid peer address")
+		return 2
+	}
+
+	node, err := p2p.NewNode(p2p.NodeConfig{
+		NodeID:           "valdr-peer-probe",
+		OutboundOnly:     true,
+		NetworkProfile:   &profile,
+		EnableV2:         profile.ProtocolMax >= 2,
+		HandshakeTimeout: *timeout,
+	})
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	if err := node.Start(); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	defer node.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	err = node.Connect(ctx, candidate)
+	cancel()
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+
+	peers := node.Peers()
+	if len(peers) != 1 {
+		fmt.Fprintln(errOut, "peer handshake did not produce exactly one connected peer")
+		return 1
+	}
+	peer := peers[0]
+	return writeJSON(out, map[string]any{
+		"reachable":        true,
+		"network":          profile.Name,
+		"chain_id":         profile.ChainID,
+		"address":          candidate,
+		"peer_node_id":     peer.NodeID,
+		"protocol_version": peer.ProtocolVersion,
+		"peer_height":      peer.Height,
+		"peer_chainwork":   peer.CumulativeChainwork,
+		"inbound":          peer.Inbound,
+	}, errOut)
 }
 
 func startCommand(args []string, out, errOut io.Writer) int {
