@@ -65,16 +65,17 @@ func TestV02NetworkProfiles(t *testing.T) {
 }
 
 
-func TestTestnet2HasNoUnverifiedBootstrapSeed(t *testing.T) {
+func TestTestnet2UsesVerifiedBootstrapSeed(t *testing.T) {
 	profile, err := ResolveNetworkProfile(NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(profile.DefaultSeeds) != 0 {
-		t.Fatalf("testnet2 has unverified fixed seeds: %v", profile.DefaultSeeds)
+	want := []string{"195.208.16.1:48759"}
+	if len(profile.DefaultSeeds) != len(want) || profile.DefaultSeeds[0] != want[0] {
+		t.Fatalf("testnet2 fixed seeds=%v want=%v", profile.DefaultSeeds, want)
 	}
 	if len(profile.DNSSeeds) != 0 {
-		t.Fatalf("testnet2 has unverified DNS seeds: %v", profile.DNSSeeds)
+		t.Fatalf("testnet2 has unexpected DNS seeds: %v", profile.DNSSeeds)
 	}
 }
 

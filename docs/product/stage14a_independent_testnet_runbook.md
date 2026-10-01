@@ -1,6 +1,6 @@
 # VALDR Stage 14A independent Testnet runbook
 
-**Master baseline:** `docs/VALDR_Master_TZ_v0.2.27.md`  
+**Master baseline:** `docs/VALDR_Master_TZ_v0.2.28.md`  
 **Network:** `testnet2` / `valdr-testnet-2`  
 **Status:** ACTIVE NEXT GATE. Automated/local evidence does not complete Stage 14A.
 
@@ -8,7 +8,7 @@
 
 Use two genuinely independent computers/clients:
 
-- **A — reachable/bootstrap candidate:** VALDR node listening on TCP/17333.
+- **A — reachable/bootstrap candidate:** VALDR node reachable on a real public TCP endpoint. The current verified development route is `195.208.16.1:48759` forwarded to the Testnet2 node.
 - **B — cold ordinary client:** separate machine and separate VALDR data directory.
 
 Two containers or two processes on one computer do not satisfy this gate. RPC remains localhost-only on TCP/17332.
@@ -35,12 +35,12 @@ Use the exact same accepted source/build commit on both systems.
 Before claiming automatic bootstrap, prove that B can reach A with the real VALDR P2P v2 protocol:
 
 ```text
-valdrd.exe probe-peer --network testnet2 --address REAL_A_HOST_OR_IP:17333
+valdrd.exe probe-peer --network testnet2 --address REAL_A_HOST_OR_IP:REAL_EXTERNAL_PORT
 ```
 
 A successful probe proves:
 
-- TCP/17333 is reachable from B;
+- the advertised external TCP route is reachable from B;
 - the remote endpoint speaks VALDR P2P v2;
 - Testnet2 network identity and protocol handshake succeed.
 
@@ -48,14 +48,16 @@ It does **not** by itself prove ordinary-user automatic bootstrap. Manual addres
 
 ## Step 2 — real bootstrap configuration
 
-Only after A has a genuinely reachable stable route may that real endpoint be added to the active Testnet2 bootstrap configuration.
+Only after A has a genuinely reachable route and a successful real VALDR P2P v2 preflight may that endpoint be added to the active Testnet2 bootstrap configuration.
 
 Rules:
 
 - no placeholder or invented seed;
 - no private/loopback address in the public compiled list;
 - ordinary Desktop onboarding must not require the user to type the route;
-- remembered peers and peer exchange remain normal reconnect/discovery mechanisms after the first contact.
+- remembered peers and peer exchange remain normal reconnect/discovery mechanisms after the first contact;
+- on 2026-10-01 the route `195.208.16.1:48759` passed an independent `probe-peer` from the home Windows client with `reachable: true`, `network: testnet2`, `chain_id: valdr-testnet-2`, protocol version 2 and remote node ID `gpudc-bootstrap-1`;
+- that GPUDC endpoint is acceptable for the current development Stage 14A cold-start test, but it is temporary provider infrastructure and must not be treated as the only durable public-release bootstrap route.
 
 ## Step 3 — distributed functional sequence
 
@@ -91,7 +93,7 @@ bash scripts/stage14a-session-validate.sh \
   --machine-id node-a \
   --operator operator-a \
   --source-commit EXACT_40_CHAR_COMMIT \
-  --bootstrap-route REAL_A_HOST_OR_IP:17333 \
+  --bootstrap-route REAL_A_HOST_OR_IP:REAL_EXTERNAL_PORT \
   --node http://127.0.0.1:17332 \
   --data ./valdr-testnet2-a \
   --duration-seconds 300 \

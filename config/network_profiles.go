@@ -167,7 +167,7 @@ func ResolveNetworkProfile(name string) (NetworkProfile, error) {
 			MaxFutureBlockSeconds:  2 * 60 * 60,
 			MinDifficultyAfterSeconds: 10 * 60,
 			MinRelayFeePerByte:     1,
-			DefaultSeeds:           nil,
+			DefaultSeeds:           []string{"195.208.16.1:48759"},
 			Public:                 true,
 		}, nil
 	default:

@@ -51,13 +51,16 @@ func TestDesktopNodeArgsUseAutomaticListeningOrdinaryClient(t *testing.T) {
 	}
 }
 
-func TestDesktopZeroConfigDoesNotUseUnverifiedTestnetBootstrap(t *testing.T) {
+func TestDesktopZeroConfigUsesCompiledVerifiedTestnetBootstrap(t *testing.T) {
 	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(profile.DefaultSeeds) != 0 || len(profile.DNSSeeds) != 0 {
-		t.Fatalf("testnet2 contains unverified bootstrap contacts: fixed=%v dns=%v", profile.DefaultSeeds, profile.DNSSeeds)
+	if len(profile.DefaultSeeds) != 1 || profile.DefaultSeeds[0] != "195.208.16.1:48759" {
+		t.Fatalf("testnet2 verified bootstrap contact missing: fixed=%v", profile.DefaultSeeds)
+	}
+	if len(profile.DNSSeeds) != 0 {
+		t.Fatalf("testnet2 has unexpected DNS bootstrap contacts: %v", profile.DNSSeeds)
 	}
 
 	args, err := desktopNodeArgs(NodeProcessConfig{
