@@ -14,12 +14,18 @@ COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 HASH256_RE = re.compile(r"^[0-9a-f]{64}$")
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 EVENT_TYPES = {
+    "automatic_join",
+    "peer_handshake",
     "peer_exchange",
     "bootstrap_loss",
     "restart",
+    "peer_cache_reconnect",
     "db_verify",
     "mining",
     "transaction",
+    "pending_relay",
+    "block_propagation",
+    "installer_upgrade",
     "mempool",
     "desktop_sync",
     "package_start",
@@ -371,28 +377,34 @@ def main():
             })
 
         required_passed_scenarios = {
+            "automatic_join",
+            "peer_handshake",
             "peer_exchange",
-            "restart",
-            "db_verify",
-            "mining",
             "transaction",
+            "pending_relay",
+            "mining",
+            "block_propagation",
+            "restart",
+            "peer_cache_reconnect",
+            "db_verify",
+            "installer_upgrade",
         }
         checks = {
-            "at_least_three_distributed_sessions": len(group_results) >= 3,
-            "each_session_has_at_least_two_independent_machine_labels": all_groups_have_two_machines,
+            "at_least_one_distributed_evidence_group": len(group_results) >= 1,
+            "each_group_has_at_least_two_independent_machine_labels": all_groups_have_two_machines,
             "single_exact_source_commit": len(commits) == 1,
-            "bootstrap_route_recorded_each_session": all_groups_have_bootstrap,
-            "common_tip_observed_each_session": all_groups_have_common_tip,
-            "same_final_tip_and_chainwork_each_session": all_groups_end_converged,
+            "bootstrap_route_recorded_each_group": all_groups_have_bootstrap,
+            "common_tip_observed_each_group": all_groups_have_common_tip,
+            "same_final_tip_and_chainwork_each_group": all_groups_end_converged,
             "no_operator_recorded_failures": no_operator_recorded_failures,
-            "required_operator_scenarios_passed": required_passed_scenarios <= all_passed_event_types,
-            "mining_passed_on_at_least_two_machine_labels": len(mining_pass_machines) >= 2,
+            "required_functional_scenarios_passed": required_passed_scenarios <= all_passed_event_types,
+            "mining_passed_on_at_least_one_machine_label": len(mining_pass_machines) >= 1,
             "all_integrity_checks_passed": True,
         }
         ready = all(checks.values())
         machines = sorted({s["machine_id"] for s in evidence})
         result = {
-            "schema": "valdr-stage14a-consolidated-check-v3",
+            "schema": "valdr-stage14a-consolidated-check-v4",
             "network": EXPECTED_NETWORK,
             "chain_id": EXPECTED_CHAIN_ID,
             "session_count": len(group_results),
@@ -408,13 +420,13 @@ def main():
             "automated_evidence_ready": ready,
             "stage14a_pass": False,
             "human_review_required": True,
-            "duration_and_scenario_acceptance_checked": False,
+            "functional_acceptance_checked": False,
             "note": (
                 "Automated evidence readiness is not Stage 14A acceptance. "
-                "Human review must confirm that machine labels represent genuinely independent clients, "
-                "bootstrap routes were really reachable, session duration was approximately 2-3 hours, "
-                "required mining/transaction/restart/recovery scenarios were exercised, and no unresolved "
-                "consensus or critical blockers remain."
+                "Human review must confirm that machine labels represent two genuinely independent clients, "
+                "the bootstrap route was really reachable, the cold client joined without manual peer/seed/IP/port entry, "
+                "the required transaction/mining/block/restart/cache/DB/upgrade scenarios were exercised, and no unresolved "
+                "consensus or critical blockers remain. Stage 14A has no minimum session-duration or session-count quota."
             ),
             "evidence": [public_session(s) for s in evidence],
         }
