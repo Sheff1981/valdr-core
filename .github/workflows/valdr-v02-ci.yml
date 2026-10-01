@@ -960,6 +960,21 @@ jobs:
           if (-not $portable) { throw "development portable archive not found" }
 
           $installDir = Join-Path $env:LOCALAPPDATA "Programs\VALDR Desktop"
+
+          # Earlier Windows integration/smoke steps may leave a child process for
+          # a short time after the parent exits. The production installer must
+          # refuse to overwrite a running VALDR process, so make the CI package
+          # test start from a genuinely clean process state instead of weakening
+          # the installer safety check.
+          Get-Process -Name "VALDR","valdrd","valdr-miner" -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Milliseconds 500
+          $lingering = Get-Process -Name "VALDR","valdrd","valdr-miner" -ErrorAction SilentlyContinue
+          if ($lingering) {
+            $lingering | Format-Table -AutoSize Id,ProcessName,Path
+            throw "VALDR process survived CI pre-install cleanup"
+          }
+
           Remove-Item $installDir -Recurse -Force -ErrorAction SilentlyContinue
 
           $install = Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait -PassThru
