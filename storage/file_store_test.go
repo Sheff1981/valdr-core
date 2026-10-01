@@ -2,6 +2,7 @@ package storage
 
 import (
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/Sheff1981/valdr-core/config"
@@ -38,7 +39,7 @@ func TestFileStoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm()&0o077 != 0 {
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("blockchain file permissions = %o, want no group/other access", info.Mode().Perm())
 	}
 }
