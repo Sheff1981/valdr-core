@@ -104,10 +104,11 @@ type Node struct {
 	peers      map[string]Peer
 	conns      map[string]*peerConnection
 	discovered map[string]string
-	syncV2       map[string]*v2SyncState
-	portMapState PortMapState
-	closed       bool
-	wg           sync.WaitGroup
+	syncV2            map[string]*v2SyncState
+	portMapState      PortMapState
+	lastDNSSeedLookup time.Time
+	closed            bool
+	wg                sync.WaitGroup
 }
 
 func NewNode(cfg NodeConfig) (*Node, error) {
