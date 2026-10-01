@@ -675,7 +675,16 @@ jobs:
             exit 1
           fi
 
-          kill "$DESKTOP_PID"
+          kill "$DESKTOP_PID" 2>/dev/null || true
+          for _ in {1..20}; do
+            if ! kill -0 "$DESKTOP_PID" 2>/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          if kill -0 "$DESKTOP_PID" 2>/dev/null; then
+            kill -9 "$DESKTOP_PID" 2>/dev/null || true
+          fi
           wait "$DESKTOP_PID" 2>/dev/null || true
           trap - EXIT
 
