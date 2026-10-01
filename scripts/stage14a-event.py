@@ -8,12 +8,18 @@ import re
 import sys
 
 ALLOWED = {
+    "automatic_join",
+    "peer_handshake",
     "peer_exchange",
     "bootstrap_loss",
     "restart",
+    "peer_cache_reconnect",
     "db_verify",
     "mining",
     "transaction",
+    "pending_relay",
+    "block_propagation",
+    "installer_upgrade",
     "mempool",
     "desktop_sync",
     "package_start",
