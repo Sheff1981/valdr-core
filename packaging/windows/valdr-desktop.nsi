@@ -85,10 +85,24 @@ Section "VALDR Desktop" SecMain
   File /oname=valdrd.exe "${NODE_EXE}"
   File /oname=valdr-miner.exe "${MINER_EXE}"
 
-  ; VALDR Testnet2 P2P must work after installation without PowerShell.
-  ; Allow only the bundled node executable on the native P2P TCP port.
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="VALDR Testnet2 P2P" program="$INSTDIR\valdrd.exe"'
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="VALDR Testnet2 P2P" dir=in action=allow protocol=TCP localport=17333 program="$INSTDIR\valdrd.exe" profile=any enable=yes'
+  ; VALDR Testnet2 P2P must be allowed through Windows Defender Firewall.
+  ; Bitcoin Core normally causes Windows to offer a firewall prompt on first
+  ; listen. VALDR installs the equivalent inbound exception explicitly so
+  ; ordinary users do not have to notice or correctly answer that prompt.
+  ;
+  ; The actual network listener is valdrd.exe, not VALDR.exe, therefore the
+  ; firewall rule must be bound to the bundled node process itself.
+  nsExec::ExecToStack 'netsh advfirewall firewall delete rule name="VALDR Testnet2 P2P" program="$INSTDIR\valdrd.exe"'
+  Pop $0
+  Pop $1
+
+  nsExec::ExecToStack 'netsh advfirewall firewall add rule name="VALDR Testnet2 P2P" dir=in action=allow protocol=TCP localport=17333 program="$INSTDIR\valdrd.exe" profile=private,public enable=yes'
+  Pop $0
+  Pop $1
+  ${If} $0 != "0"
+    MessageBox MB_ICONSTOP|MB_OK "VALDR could not create its Windows Firewall rule for TCP port 17333.$\r$\n$\r$\nWithout this rule the node may be unable to accept inbound peers.$\r$\n$\r$\nInstallation will stop so this networking problem is not hidden."
+    Abort
+  ${EndIf}
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
