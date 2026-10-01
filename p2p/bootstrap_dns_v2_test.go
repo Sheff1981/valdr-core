@@ -127,3 +127,43 @@ func TestDNSSeedQueryDisabledWhenProfileHasNoDNSSeeds(t *testing.T) {
 		t.Fatal("DNS query enabled without configured DNS seeds")
 	}
 }
+
+func TestBootstrapDiagnosticsExposeAttemptDNSAndFailure(t *testing.T) {
+	now := time.Unix(2_100_000_300, 0).UTC()
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile.DNSSeeds = []string{"seed.example.org"}
+
+	node, err := NewNode(NodeConfig{
+		NodeID:         "bootstrap-diag",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Protection: ProtectionConfig{
+			Now: func() time.Time { return now },
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	node.lastDNSSeedLookup = now.Add(-time.Minute)
+	node.recordBootstrapDiagnostics(BootstrapResult{
+		Failures: []BootstrapFailure{{
+			Address: "seed.example.org:7333",
+			Error:   "dial failed",
+		}},
+	})
+	got := node.BootstrapDiagnostics()
+	if got.LastAttemptUTC != now.Unix() {
+		t.Fatalf("last attempt=%d want=%d", got.LastAttemptUTC, now.Unix())
+	}
+	if got.LastDNSSeedUTC != now.Add(-time.Minute).Unix() {
+		t.Fatalf("last dns=%d want=%d", got.LastDNSSeedUTC, now.Add(-time.Minute).Unix())
+	}
+	if got.LastFailure != "seed.example.org:7333: dial failed" {
+		t.Fatalf("last failure=%q", got.LastFailure)
+	}
+}
