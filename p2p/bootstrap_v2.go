@@ -27,9 +27,48 @@ type BootstrapResult struct {
 	Failures           []BootstrapFailure
 }
 
+type BootstrapDiagnostics struct {
+	LastAttemptUTC int64  `json:"last_attempt_utc,omitempty"`
+	LastDNSSeedUTC int64  `json:"last_dns_seed_utc,omitempty"`
+	LastFailure    string `json:"last_failure,omitempty"`
+}
+
 // Bootstrap connects to compiled fixed seeds plus operator/cache overrides.
 // If the outbound target is still not met, optional DNS seeds are resolved.
 // Individual bootstrap failures are non-fatal.
+func (n *Node) BootstrapDiagnostics() BootstrapDiagnostics {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	result := BootstrapDiagnostics{
+		LastFailure: n.lastBootstrapFailure,
+	}
+	if !n.lastBootstrapAttempt.IsZero() {
+		result.LastAttemptUTC = n.lastBootstrapAttempt.UTC().Unix()
+	}
+	if !n.lastDNSSeedLookup.IsZero() {
+		result.LastDNSSeedUTC = n.lastDNSSeedLookup.UTC().Unix()
+	}
+	return result
+}
+
+func (n *Node) recordBootstrapDiagnostics(result BootstrapResult) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.lastBootstrapAttempt = n.protection.Now().UTC()
+	if len(result.Failures) == 0 {
+		n.lastBootstrapFailure = ""
+		return
+	}
+	last := result.Failures[len(result.Failures)-1]
+	if strings.TrimSpace(last.Address) == "" {
+		n.lastBootstrapFailure = last.Error
+		return
+	}
+	n.lastBootstrapFailure = last.Address + ": " + last.Error
+}
+
 func (n *Node) Bootstrap(ctx context.Context, overrides []string) BootstrapResult {
 	result := BootstrapResult{}
 	seen := make(map[string]struct{})
@@ -244,7 +283,10 @@ func (n *Node) MaintainOutbound(ctx context.Context) BootstrapResult {
 	return result
 }
 
-func (n *Node) BootstrapAndMaintain(ctx context.Context, overrides []string) BootstrapResult {
+func (n *Node) BootstrapAndMaintain(ctx context.Context, overrides []string) (result BootstrapResult) {
+	defer func() {
+		n.recordBootstrapDiagnostics(result)
+	}()
 	// Frozen v0.1 keeps its historical manual topology: without explicit seed
 	// candidates it must not expand via discovered peers. V2 networks use the
 	// persistent/discovered peer model introduced by v0.2.6.
@@ -252,7 +294,7 @@ func (n *Node) BootstrapAndMaintain(ctx context.Context, overrides []string) Boo
 		return BootstrapResult{}
 	}
 
-	result := n.Bootstrap(ctx, overrides)
+	result = n.Bootstrap(ctx, overrides)
 
 	// Discovery can expand after each new outbound peer. Keep the bootstrap
 	// work bounded while allowing several waves toward the outbound target.
