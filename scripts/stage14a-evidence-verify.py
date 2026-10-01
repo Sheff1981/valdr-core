@@ -312,7 +312,7 @@ def main():
         all_recorded_event_types = set()
         all_passed_event_types = set()
         mining_pass_machines = set()
-        all_groups_have_three_machines = True
+        all_groups_have_two_machines = True
         all_groups_have_bootstrap = True
         all_groups_have_common_tip = True
         all_groups_end_converged = True
@@ -342,14 +342,14 @@ def main():
             if group_failed_events:
                 no_operator_recorded_failures = False
 
-            has_three = len(machines) >= 3
+            has_two = len(machines) >= 2
             has_bootstrap = bool(routes)
             has_common_tip = bool(common_tips)
             end_heights = sorted({x["end_height"] for x in items})
             end_tips = sorted({x["end_tip_hash"] for x in items})
             end_chainworks = sorted({x["end_chainwork"] for x in items})
             end_converged = len(end_heights) == 1 and len(end_tips) == 1 and len(end_chainworks) == 1
-            all_groups_have_three_machines &= has_three
+            all_groups_have_two_machines &= has_two
             all_groups_have_bootstrap &= has_bootstrap
             all_groups_have_common_tip &= has_common_tip
             all_groups_end_converged &= end_converged
@@ -372,7 +372,6 @@ def main():
 
         required_passed_scenarios = {
             "peer_exchange",
-            "bootstrap_loss",
             "restart",
             "db_verify",
             "mining",
@@ -380,7 +379,7 @@ def main():
         }
         checks = {
             "at_least_three_distributed_sessions": len(group_results) >= 3,
-            "each_session_has_at_least_three_independent_machine_labels": all_groups_have_three_machines,
+            "each_session_has_at_least_two_independent_machine_labels": all_groups_have_two_machines,
             "single_exact_source_commit": len(commits) == 1,
             "bootstrap_route_recorded_each_session": all_groups_have_bootstrap,
             "common_tip_observed_each_session": all_groups_have_common_tip,
@@ -393,7 +392,7 @@ def main():
         ready = all(checks.values())
         machines = sorted({s["machine_id"] for s in evidence})
         result = {
-            "schema": "valdr-stage14a-consolidated-check-v2",
+            "schema": "valdr-stage14a-consolidated-check-v3",
             "network": EXPECTED_NETWORK,
             "chain_id": EXPECTED_CHAIN_ID,
             "session_count": len(group_results),

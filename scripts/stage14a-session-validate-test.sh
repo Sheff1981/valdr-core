@@ -52,9 +52,9 @@ chmod +x "$tmp/bin/valdrd" "$tmp/bin/valdr-cli"
 
 commit=0123456789abcdef0123456789abcdef01234567
 
-# Three distributed validation sessions, each with three independent machine labels.
+# Three distributed validation sessions, each with two independent machine labels.
 for group in 1 2 3; do
-  for machine in 1 2 3; do
+  for machine in 1 2; do
     evidence_id="ci-g${group}-m${machine}"
     PATH="$tmp/bin:$PATH" bash "$target"       --session-id "$evidence_id"       --session-group "ci-group-$group"       --operator ci       --machine-id "ci-machine-$machine"       --source-commit "$commit"       --bootstrap-route ci-fake-bootstrap       --node http://127.0.0.1:17332       --data "$tmp/data"       --duration-seconds 0       --interval-seconds 1       --output-dir "$tmp/out"
   done
@@ -90,26 +90,25 @@ PY
 
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m1" peer_exchange --result pass --note "CI synthetic operator event" >/dev/null
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m2" mining --result pass >/dev/null
-python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m3" transaction --result pass >/dev/null
+python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g1-m1" transaction --result pass >/dev/null
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g3-m1" mining --result pass >/dev/null
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g2-m1" restart --result pass >/dev/null
 python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g2-m2" db_verify --result pass >/dev/null
-python3 "$repo_root/scripts/stage14a-event.py" "$tmp/out/ci-g2-m3" bootstrap_loss --result pass >/dev/null
 
 python3 "$verifier" "$tmp/out" >"$tmp/consolidated.json"
 
 python3 - "$tmp/consolidated.json" <<'PY'
 import json, sys
 result = json.load(open(sys.argv[1], encoding="utf-8"))
-assert result["schema"] == "valdr-stage14a-consolidated-check-v2"
+assert result["schema"] == "valdr-stage14a-consolidated-check-v3"
 assert result["automated_evidence_ready"] is True
 assert result["stage14a_pass"] is False
 assert result["human_review_required"] is True
 assert result["session_count"] == 3
-assert result["evidence_count"] == 9
-assert result["machine_count"] == 3
+assert result["evidence_count"] == 6
+assert result["machine_count"] == 2
 assert result["checks"]["at_least_three_distributed_sessions"] is True
-assert result["checks"]["each_session_has_at_least_three_independent_machine_labels"] is True
+assert result["checks"]["each_session_has_at_least_two_independent_machine_labels"] is True
 assert result["checks"]["single_exact_source_commit"] is True
 assert result["checks"]["bootstrap_route_recorded_each_session"] is True
 assert result["checks"]["common_tip_observed_each_session"] is True
@@ -121,8 +120,8 @@ assert all(item["common_tip_observed"] for item in result["distributed_sessions"
 assert all(item["observed_duration_seconds"] >= 0 for item in result["evidence"])
 coverage = set(result["operator_recorded_scenario_coverage"])
 passed = set(result["operator_recorded_passed_scenarios"])
-assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "bootstrap_loss"} <= coverage
-assert {"peer_exchange", "mining", "transaction", "restart", "db_verify", "bootstrap_loss"} <= passed
+assert {"peer_exchange", "mining", "transaction", "restart", "db_verify"} <= coverage
+assert {"peer_exchange", "mining", "transaction", "restart", "db_verify"} <= passed
 assert len(result["mining_pass_machine_labels"]) >= 2
 PY
 
@@ -151,7 +150,7 @@ if python3 "$verifier" "$tmp/bad-hash-format" >/dev/null 2>&1; then
 fi
 
 cp -R "$tmp/out" "$tmp/divergent-final-out"
-python3 - "$tmp/divergent-final-out/ci-g2-m3" <<'PY'
+python3 - "$tmp/divergent-final-out/ci-g2-m2" <<'PY'
 import hashlib, json, pathlib, sys
 root=pathlib.Path(sys.argv[1])
 snapshots_path=root/"snapshots.jsonl"
@@ -215,12 +214,12 @@ assert result["automated_evidence_ready"] is False
 assert result["checks"]["mining_passed_on_at_least_two_machine_labels"] is False
 PY
 
-# Guard against the previous weak interpretation: one machine per distributed
-# session is not enough even if three different machines exist overall.
+# Guard against the weak interpretation: one machine per distributed
+# session is not enough even if two different machine labels exist overall.
 mkdir -p "$tmp/weak"
-for group in 1 2 3; do
-  cp -R "$tmp/out/ci-g${group}-m${group}" "$tmp/weak/"
-done
+cp -R "$tmp/out/ci-g1-m1" "$tmp/weak/"
+cp -R "$tmp/out/ci-g2-m2" "$tmp/weak/"
+cp -R "$tmp/out/ci-g3-m1" "$tmp/weak/"
 if python3 "$verifier" "$tmp/weak" >"$tmp/weak.json"; then
   echo "weak Stage14A evidence unexpectedly passed" >&2
   exit 1
@@ -229,7 +228,7 @@ python3 - "$tmp/weak.json" <<'PY'
 import json, sys
 result = json.load(open(sys.argv[1], encoding="utf-8"))
 assert result["automated_evidence_ready"] is False
-assert result["checks"]["each_session_has_at_least_three_independent_machine_labels"] is False
+assert result["checks"]["each_session_has_at_least_two_independent_machine_labels"] is False
 assert result["stage14a_pass"] is False
 PY
 
@@ -289,7 +288,7 @@ assert any(e["component"] == "valdrd-status" and e["exit_code"] == 7 for e in er
 assert any(r.get("status", {}).get("height") == 43 for r in records), records
 PY
 
-cp -R "$tmp/out/ci-g3-m3" "$tmp/tampered"
+cp -R "$tmp/out/ci-g3-m2" "$tmp/tampered"
 printf '\n' >>"$tmp/tampered/manifest.json"
 if python3 "$verifier" "$tmp/tampered" >/dev/null 2>&1; then
   echo "tampered Stage14A evidence unexpectedly verified" >&2
@@ -390,4 +389,4 @@ assert any(x["operator_recorded_failed_event_count"] > 0 for x in result["distri
 assert result["stage14a_pass"] is False
 PY
 
-echo "Stage14A grouped multi-machine evidence tooling smoke passed"
+echo "Stage14A grouped two-machine evidence tooling smoke passed"

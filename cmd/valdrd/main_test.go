@@ -1,12 +1,16 @@
 package main
 
 import (
-	"time"
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/Sheff1981/valdr-core/config"
+	"github.com/Sheff1981/valdr-core/p2p"
 )
 
 func TestVersionCommand(t *testing.T) {
@@ -94,5 +98,71 @@ func TestPrivilegedRPCWriteTimeoutCoversMiningDeadline(t *testing.T) {
 			"privileged RPC write timeout=%s must exceed valdr-miner mineBlock deadline",
 			privilegedRPCWriteTimeout,
 		)
+	}
+}
+
+func TestProbePeerCommandConnectsTestnet2(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := p2p.NewNode(p2p.NodeConfig{
+		NodeID:         "probe-target",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		HeightProvider: func() uint64 { return 42 },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := target.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+
+	var out, errOut bytes.Buffer
+	code := run([]string{
+		"probe-peer",
+		"--network", config.NetworkTestnetV029,
+		"--address", target.Address(),
+		"--timeout", "2s",
+	}, &out, &errOut)
+	if code != 0 {
+		t.Fatalf("probe-peer exit=%d stderr=%s", code, errOut.String())
+	}
+
+	var got struct {
+		Reachable       bool   `json:"reachable"`
+		Network         string `json:"network"`
+		ChainID         string `json:"chain_id"`
+		Address         string `json:"address"`
+		PeerNodeID      string `json:"peer_node_id"`
+		ProtocolVersion uint32 `json:"protocol_version"`
+		PeerHeight      uint64 `json:"peer_height"`
+		Inbound         bool   `json:"inbound"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("decode probe output: %v output=%s", err, out.String())
+	}
+	if !got.Reachable ||
+		got.Network != config.NetworkTestnetV029 ||
+		got.ChainID != profile.ChainID ||
+		got.Address != target.Address() ||
+		got.PeerNodeID != "probe-target" ||
+		got.ProtocolVersion != uint32(profile.ProtocolMax) ||
+		got.PeerHeight != 42 ||
+		got.Inbound {
+		t.Fatalf("unexpected probe result: %+v", got)
+	}
+}
+
+func TestProbePeerCommandRequiresAddress(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := run([]string{"probe-peer"}, &out, &errOut); code != 2 {
+		t.Fatalf("probe-peer exit=%d want=2 stdout=%s stderr=%s", code, out.String(), errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "usage: valdrd probe-peer") {
+		t.Fatalf("unexpected stderr: %s", errOut.String())
 	}
 }

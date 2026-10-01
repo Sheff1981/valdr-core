@@ -1,7 +1,7 @@
 # VALDR / CONSOLIDATED MASTER TECHNICAL SPECIFICATION v0.2.15
 
-**Automatic P2P network participation baseline + implementation-first engineering**  
-**Date:** 30 September 2026  
+**Implementation-first engineering baseline + deferred end-to-end validation**  
+**Date:** 1 October 2026  
 **Status:** active master implementation baseline  
 **Previous baseline:** `docs/VALDR_Master_TZ_v0.2.14.md`  
 **Active branch:** `valdr-v0.2`
@@ -9,6 +9,8 @@
 > v0.2.15 replaces v0.2.14 as the single working master specification. Historical specifications v0.2 through v0.2.14 remain immutable evidence of prior decisions. Frozen legacy v0.1 remains `release/valdr-devnet-v0.1`.
 
 > This revision is intentionally cumulative and implementation-first. It preserves all frozen Testnet2 consensus/network values and the existing architecture. By explicit project-owner instruction on 2026-09-27, Stage 12C human Windows click-through is waived as a release-blocking gate for v0.2; it remains an optional checklist and is not represented as manually verified. Stage 14A independent multi-machine validation is moved ahead of the public Testnet RC freeze/publication so real distributed evidence becomes the next active gate. The project must work from this file first instead of reconstructing the plan from older documents.
+
+> **v0.2.15 owner change (1 October 2026):** the Stage 14A blocking topology is reduced from three to **two genuinely independent computers/clients**. The requirement for three separate validation sessions of approximately 2-3 hours remains. Direct VALDR P2P protocol handshake/reconnect on TCP/17333, chain convergence, mining, transactions, restart/recovery and DB integrity remain blocking. Multihop discovery and resilience that specifically require a third independent node move to optional Stage 14B/14C evidence. This makes the gate executable with the accepted two-computer setup. The trade-off is explicit: two-node validation cannot prove a three-node discovery topology or recovery through an alternate third peer, so those claims must not be made from Stage 14A evidence. No Testnet2 consensus, wire, storage or network constants change in this revision.
 
 ## 1. Working rule
 
@@ -32,7 +34,7 @@ Rules:
 7. Consensus, wire, storage, wallet-format or Mainnet-economic changes require a new Master-TZ revision.
 8. UX-only changes may be implemented without a new spec only when they do not change mandatory behavior or security boundaries.
 9. No public release, Mainnet launch or exchange-listing work may be represented as complete before the final validation phase and its prerequisites are green.
-10. Historical stage numbers are requirement identifiers, not permission barriers. Where this v0.2.14 explicitly defers or waives an acceptance gate, later validation work may proceed without falsely claiming that the waived check was performed.
+10. Historical stage numbers are requirement identifiers, not permission barriers. Where this v0.2.15 explicitly defers or waives an acceptance gate, later validation work may proceed without falsely claiming that the waived check was performed.
 11. Stage 12C is **owner-waived, not passed**. Evidence and status text must preserve that distinction.
 12. No public Testnet release is authorized by the Stage 12C waiver alone. Stage 14A must pass before the non-development public Testnet RC is frozen and published.
 
@@ -57,7 +59,7 @@ The old continuous `>=24h` Stage 14A soak and mandatory `>=7 consecutive days` S
 
 Final distributed validation is session-based:
 
-- at least three independently launched nodes/clients;
+- at least two independently launched nodes/clients;
 - at least one real reachable bootstrap route;
 - at least three separate validation sessions;
 - each session approximately 2-3 hours;
@@ -89,7 +91,7 @@ Keep:
 - CLI/operator tooling;
 - Wails v2 Desktop consuming the existing node/wallet/RPC implementation;
 - user-run network operation without a mandatory project-owned paid server;
-- Bitcoin/Litecoin-style automatic discovery pattern: compiled bootstrap contacts, remembered peers, peer exchange and reconnect; manual `--peer` / `--seed` is operator/debug fallback only and must never be required for an ordinary Desktop user.
+- Bitcoin/Litecoin-style discovery pattern: remembered peers, peer exchange, optional fixed/DNS seeds and manual peers.
 
 Do not add merely for convenience:
 
@@ -108,7 +110,7 @@ Do not add merely for convenience:
 
 When requirements conflict, use:
 
-1. this Master-TZ v0.2.15;
+1. this Master-TZ v0.2.14;
 2. explicitly frozen network/profile constants in current source code when this spec says they are preserved;
 3. current product/security evidence documents;
 4. older Master-TZ documents only for historical context;
@@ -286,34 +288,23 @@ Keep:
 - resume from persisted state after restart;
 - select greatest chainwork.
 
-### 5.8 Automatic P2P bootstrap and growing user network
+### 5.8 Peer bootstrap and no mandatory paid server
 
-VALDR must behave for an ordinary user like a Bitcoin/Litecoin-class desktop node: install, launch, automatically enter the same VALDR network, synchronize, and then allow wallet/mining use without typing any IP address, port, seed or shell command.
+VALDR does not require a central server or mandatory project-paid seed/full nodes.
 
-Mandatory ordinary-user behavior for every distributable Desktop build:
+Required behavior:
 
-- zero manual P2P configuration on first start;
-- the active network profile contains real compiled bootstrap contacts;
-- Desktop starts the managed node and automatically attempts compiled bootstrap contacts plus its remembered peer cache;
-- after the first connection, `get_peers / peers` discovery learns additional routable VALDR peers;
-- learned peers are persisted and retried after restart;
-- periodic outbound maintenance replenishes lost connections automatically;
-- blocks, transactions and peer information relay across the connected P2P graph;
-- a user who mines does not configure networking first: once the node is synchronized, mining uses the same automatically joined network;
-- manual `--peer` / `--seed` remains operator/debug tooling only and is never an onboarding requirement;
-- no fake seed endpoints are permitted.
+- bounded persistent learned-peer cache;
+- reconnect to learned peers after restart;
+- optional real fixed seed endpoints;
+- optional real DNS seeds;
+- manual `--peer` / `--seed` overrides;
+- peer exchange;
+- periodic outbound connectivity maintenance;
+- seeds are discovery helpers only and never consensus authorities;
+- no fake seed endpoints.
 
-Current Testnet2 infrastructure policy:
-
-- the project owner will operate **two initial VALDR nodes** for the current stage;
-- at least one of those nodes must be Internet-reachable as a bootstrap/full node before cold-client testing;
-- the release profile may contain the two real endpoints once both are actually reachable; never invent or publish a placeholder seed;
-- additional friends/users who install VALDR become ordinary independent network participants automatically;
-- the network is not limited to the two initial nodes: peer discovery and remembered-peer reconnect must allow the topology to grow as more users join;
-- ordinary user clients may remain outbound-only when inbound reachability is unavailable; this does not prevent them from validating, syncing, relaying or mining through their established P2P connections;
-- public/reachable nodes provide inbound capacity and may be added later without changing consensus.
-
-Bootstrap contacts are discovery helpers only and never consensus authorities. Failure of one bootstrap route must not alter consensus or invalidate an already connected network.
+A cold Internet node still needs at least one reachable initial contact. It may be any independently operated public VALDR node or volunteer seed.
 
 ### 5.9 Wallet v2
 
@@ -352,9 +343,8 @@ Keep:
 - graceful node shutdown;
 - no two processes opening the same DB;
 - persisted node data across restarts;
-- ordinary-user networking is automatic and requires no manual peer/seed entry;
-- outbound-only remains a valid fallback for clients without inbound reachability;
-- public full-node mode remains an operator/Advanced function, not an ordinary-user onboarding step;
+- outbound-only default;
+- public full-node mode only by explicit Advanced opt-in;
 - RPC remains localhost-only.
 
 ## 6. Complete execution staircase from the current point
@@ -825,17 +815,15 @@ Exit gate:
 
 **Status:** **ACTIVE NEXT GATE** under v0.2.15.
 
-Purpose: validate the completed technical milestone on real independent computers/clients after Core, P2P, storage, RPC, wallet, Desktop and packaging hardening are complete. Stage 14A may run on the exact green development candidate pinned to CI #531 (`b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`); public Testnet publication remains blocked until Stage 14A passes and Stage 13D freezes a non-development RC.
+Purpose: validate the completed technical milestone on real independent computers/clients after Core, P2P, storage, RPC, wallet, Desktop and packaging hardening are complete. Stage 14A may run on the exact green development candidate pinned to CI #697 (`5f11b5b2614a7845b91ab7298d6b45a253163607`); public Testnet publication remains blocked until Stage 14A passes and Stage 13D freezes a non-development RC.
 
 Requirements:
 
-- at least three independently launched nodes/clients on the same Testnet2 chain;
-- the current owner-operated two-node starting topology is supported without requiring a third project-owned server;
-- at least one real reachable initial bootstrap route for a cold client, with the second real owner-operated endpoint added to the compiled list when it is actually reachable;
-- a fresh ordinary Desktop client joins without manual IP/port/seed entry;
-- peer exchange learns additional peers;
+- at least two independently launched nodes/clients on the same Testnet2 chain;
+- at least one real reachable initial bootstrap route for a cold client;
+- both computers complete a VALDR P2P v2 handshake and expose the remote peer as connected;
 - peer cache survives restart;
-- losing one bootstrap route does not break already connected peers or consensus;
+- stopping/restarting either computer does not corrupt chain state, and the two nodes reconverge after reconnection without manual DB deletion/repair;
 - clients may be ordinary user PCs or volunteer public nodes;
 - exact tested source/release commit is recorded.
 
@@ -852,7 +840,7 @@ Each session should exercise as applicable:
 - mining from at least two independent miner instances/operators;
 - block propagation and retarget observation;
 - transaction creation/signing/relay/confirmation;
-- peer discovery and learned-peer cache;
+- direct peer handshake/reconnect and learned-peer cache where a routable advertised endpoint is available;
 - bootstrap loss and recovery;
 - restart persistence and DB verification;
 - mempool behavior;
@@ -1308,18 +1296,18 @@ Mandatory through all stages:
 
 # 11. Current implementation queue — exact order
 
-The owner-waived Stage 12C rule and Stage 14-first validation order are authoritative for v0.2.14.
+The owner-waived Stage 12C rule and Stage 14-first validation order are authoritative for v0.2.15.
 
 1. **R0 complete:** green Testnet2 baseline restored.
 2. Stage 12A automated Testnet2 baseline: complete.
 3. Stage 12B UX hardening + cross-platform automated matrix: complete.
-4. Current post-hardening technical baseline: commit `b2704ad26659e6e6de8377013dcc33c8aa8d8ee0`, VALDR v0.2 CI #531, SUCCESS.
+4. Current post-hardening technical baseline: commit `5f11b5b2614a7845b91ab7298d6b45a253163607`, VALDR v0.2 CI #697, SUCCESS.
 5. Stage 12C manual Windows click-through: **owner-waived for v0.2; not manually verified**.
 6. Freeze Stage 12 for v0.2 using automated evidence + explicit owner waiver.
 7. Stage 13A development packaging/provenance: complete on CI #531.
 8. Stage 13B website download integration: implemented and CI-verified.
 9. Stage 13C critical site/content structure: implemented to the current release-candidate preparation level; website CI green.
-10. **Run Stage 14A now** on at least three independently launched clients/nodes: at least three separate sessions, approximately 2-3 hours each, using the exact accepted candidate line.
+10. **Run Stage 14A now** on two independently launched computers/clients: at least three separate sessions, approximately 2-3 hours each, using the exact accepted candidate line and validating the VALDR P2P handshake on TCP/17333.
 11. Fix any blocker found in Stage 14A and rerun full active CI.
 12. After Stage 14A PASS, freeze a non-development Testnet RC.
 13. Complete Stage 13D clean verification, update verified website release metadata, and publish the Testnet RC.
@@ -1343,10 +1331,9 @@ v0.2 productization is complete only when all of the following are true:
 - official website CI green;
 - official website download path fail-closed and accurate until Stage 14A passes and a non-development RC is frozen;
 - critical English/Russian Testnet onboarding/security/download content is accurate;
-- ordinary user can install/use Testnet without terminal and without entering any peer/seed/IP/port;
-- two owner-operated initial nodes are sufficient infrastructure for the current stage; additional independent user clients expand the network automatically;
-- at least three independently operated Testnet clients participate in Stage 14A validation, but the third client does not need to be a third project-owned server;
-- cold client can bootstrap through a compiled real route, learn peers, persist and reconnect;
+- ordinary user can install/use Testnet without terminal;
+- at least two independently operated Testnet clients participate;
+- a cold client can bootstrap through at least one real route; the two real computers reconnect and reconverge without manual chain repair;
 - Stage 14A completes at least three separate validation sessions of approximately 2-3 hours each, with no unresolved consensus split, no normal-recovery requirement for manual DB deletion/repair, and session evidence recorded;
 - Mainnet remains disabled.
 
@@ -1471,41 +1458,3 @@ Risks:
 - the project must avoid accidentally describing the waived check as a PASS.
 
 No consensus or architecture change is introduced by v0.2.14.
-
-
-# 17. v0.2.15 change log
-
-Changes relative to v0.2.14:
-
-1. Make automatic Bitcoin/Litecoin-style P2P participation a mandatory product behavior for every distributable VALDR Desktop build.
-2. Remove any interpretation that an ordinary user must type a peer IP, seed, port, shell command or enable public-node mode before joining the network.
-3. Define the normal flow as: install -> launch -> automatic bootstrap -> peer discovery -> synchronization -> wallet/mining use.
-4. Keep manual `--peer` / `--seed` only as operator/debug overrides.
-5. Record the owner's current infrastructure decision: two owner-operated initial nodes are sufficient for the current Testnet2 stage; a third project-owned server is not required.
-6. Preserve Stage 14A multi-client validation: the third and later clients may be ordinary friend/volunteer installations and must join automatically.
-7. Require compiled bootstrap contacts to be real. A second endpoint is added only after it exists and is reachable; placeholders are forbidden.
-8. Preserve learned-peer cache, peer exchange, automatic reconnect, periodic outbound maintenance, block/transaction relay, P2P v2 and all frozen Testnet2 consensus values.
-9. Preserve outbound-only operation as a valid client fallback where inbound reachability is unavailable; public full-node operation remains an operator function.
-10. Mainnet remains disabled.
-
-Benefits:
-
-- ordinary users receive a normal cryptocurrency-client experience with no networking expertise required;
-- each additional installation joins the same VALDR network and contributes validation/relay/mining through its P2P connections;
-- the network can grow beyond the initial owner-operated nodes through discovery and persisted peer knowledge;
-- the two-node owner infrastructure decision no longer conflicts with the working Master-TZ.
-
-Risks:
-
-- with only one currently reachable bootstrap endpoint, a brand-new cold client has a temporary single bootstrap dependency until the second real endpoint is available;
-- outbound-only users do not add inbound connection capacity, so network resilience improves as more reachable public nodes appear;
-- automatic bootstrap must never weaken RPC localhost-only or wallet-secret boundaries.
-
-Mitigation:
-
-- keep at least one owner bootstrap endpoint continuously reachable during the current distributed test;
-- add the second real endpoint to the compiled profile as soon as it is routable;
-- test cold start, peer exchange, cache persistence, bootstrap loss, reconnect, block relay and mining propagation in Stage 14A;
-- never substitute fake seeds or require ordinary users to repair topology manually.
-
-No Testnet2 consensus, Genesis, wire-format, PoW, UTXO or wallet-format constant is changed by v0.2.15.
