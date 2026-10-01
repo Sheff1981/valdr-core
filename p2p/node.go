@@ -105,9 +105,11 @@ type Node struct {
 	conns      map[string]*peerConnection
 	discovered map[string]string
 	syncV2            map[string]*v2SyncState
-	portMapState      PortMapState
-	lastDNSSeedLookup time.Time
-	closed            bool
+	portMapState         PortMapState
+	lastDNSSeedLookup    time.Time
+	lastBootstrapAttempt time.Time
+	lastBootstrapFailure string
+	closed               bool
 	wg                sync.WaitGroup
 }
 
