@@ -145,6 +145,7 @@ func (s *Server) call(ctx context.Context, method string, raw json.RawMessage) (
 		}
 		inboundPeers, outboundPeers := s.node.PeerDirectionCounts()
 		portMap := s.node.PortMapState()
+		bootstrapDiagnostics := s.node.BootstrapDiagnostics()
 
 		uptimeSeconds := uint64(0)
 		if !s.startedAt.IsZero() {
@@ -178,6 +179,9 @@ func (s *Server) call(ctx context.Context, method string, raw json.RawMessage) (
 			PortMapActive:          portMap.Active,
 			PortMapExternalEndpoint: portMap.ExternalEndpoint,
 			PortMapLastError:       portMap.LastError,
+			LastBootstrapAttemptUTC: bootstrapDiagnostics.LastAttemptUTC,
+			LastDNSSeedLookupUTC:   bootstrapDiagnostics.LastDNSSeedUTC,
+			LastBootstrapFailure:   bootstrapDiagnostics.LastFailure,
 			MempoolCount:           s.node.MempoolLen(),
 			MempoolSizeBytes:       mempoolSizeBytes,
 			TargetBlockTimeSeconds: profile.TargetBlockTimeSeconds,
