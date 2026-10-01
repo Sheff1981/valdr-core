@@ -238,7 +238,7 @@ func startCommand(args []string, out, errOut io.Writer) int {
 	dataDir := fs.String("data", "./data", "VALDR node data directory")
 	networkName := fs.String("network", config.NetworkTestnetV029, "VALDR network profile")
 	nodeID := fs.String("node-id", "valdr-node", "P2P node id")
-	p2pHost := fs.String("p2p-host", "127.0.0.1", "P2P listen host")
+	p2pHost := fs.String("p2p-host", "127.0.0.1", "P2P listen host; empty uses the OS wildcard listener for IPv4/IPv6 where supported")
 	advertiseAddress := fs.String("advertise-address", "", "P2P address advertised to peers; empty uses listen address")
 	outboundOnly := fs.Bool("outbound-only", false, "disable inbound P2P listener")
 	autoPortMap := fs.Bool("natpmp", true, "use PCP or NAT-PMP to map the listening P2P port automatically")

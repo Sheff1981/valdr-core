@@ -31,7 +31,7 @@ func TestDesktopNodeArgsUseAutomaticListeningOrdinaryClient(t *testing.T) {
 		{"--network", "testnet2"},
 		{"--data", cfg.DataDir},
 		{"--node-id", cfg.NodeID},
-		{"--p2p-host", "0.0.0.0"},
+		{"--p2p-host", ""},
 		{"--managed-stdin-shutdown"},
 		{"--rpc-host", "127.0.0.1"},
 		{"--rpc-port", "28332"},
@@ -74,8 +74,8 @@ func TestDesktopZeroConfigDoesNotUseUnverifiedTestnetBootstrap(t *testing.T) {
 	if !containsSequence(args, []string{"--network", "testnet2"}) {
 		t.Fatalf("Desktop did not start the active Testnet2 profile: %v", args)
 	}
-	if !containsSequence(args, []string{"--p2p-host", "0.0.0.0"}) {
-		t.Fatalf("ordinary Desktop must listen for automatic PCP/NAT-PMP mapping: %v", args)
+	if !containsSequence(args, []string{"--p2p-host", ""}) {
+		t.Fatalf("ordinary Desktop must use the wildcard dual-stack listener before optional IPv4 PCP/NAT-PMP mapping: %v", args)
 	}
 	if slices.Contains(args, "--outbound-only") {
 		t.Fatalf("ordinary Desktop unexpectedly forced outbound-only: %v", args)
@@ -202,7 +202,7 @@ func TestDesktopNodeArgsSupportExplicitAdvancedPublicNode(t *testing.T) {
 	}
 
 	required := [][]string{
-		{"--p2p-host", "0.0.0.0"},
+		{"--p2p-host", ""},
 		{"--advertise-address", "node.example.com:17333"},
 		{"--rpc-host", "127.0.0.1"},
 	}

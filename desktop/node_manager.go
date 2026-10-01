@@ -355,14 +355,15 @@ func desktopNodeArgs(cfg NodeProcessConfig) ([]string, error) {
 		}
 		args = append(
 			args,
-			"--p2p-host", "0.0.0.0",
+			"--p2p-host", "",
 			"--advertise-address", advertiseAddress,
 		)
 	} else {
-		// Ordinary Desktop nodes listen locally and let valdrd attempt automatic
-		// PCP/NAT-PMP port mapping. If no mapping is available, outbound
-		// connectivity remains fully functional.
-		args = append(args, "--p2p-host", "0.0.0.0")
+		// Ordinary Desktop nodes use the OS wildcard TCP listener. Go selects a
+		// dual-stack IPv4/IPv6 listener where the host supports it; IPv4
+		// PCP/NAT-PMP remains optional and outbound connectivity remains valid
+		// when no inbound route is available.
+		args = append(args, "--p2p-host", "")
 	}
 	args = append(
 		args,

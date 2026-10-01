@@ -2,7 +2,9 @@ package p2p
 
 import (
 	"context"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/Sheff1981/valdr-core/config"
 )
@@ -13,6 +15,7 @@ func TestListenNetwork(t *testing.T) {
 		address string
 		want    string
 	}{
+		{name: "dual-stack wildcard", address: ":17333", want: "tcp"},
 		{name: "ipv4 wildcard", address: "0.0.0.0:17333", want: "tcp4"},
 		{name: "ipv4 loopback", address: "127.0.0.1:17333", want: "tcp4"},
 		{name: "ipv6 wildcard", address: "[::]:17333", want: "tcp6"},
@@ -26,6 +29,67 @@ func TestListenNetwork(t *testing.T) {
 				t.Fatalf("listenNetwork(%q)=%q want %q", tt.address, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDualStackWildcardAcceptsIPv4AndIPv6WhenAvailable(t *testing.T) {
+	ipv6Probe, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skipf("IPv6 loopback unavailable on this host: %v", err)
+	}
+	_ = ipv6Probe.Close()
+
+	listener, err := net.Listen(listenNetwork(":0"), ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	accepted := make(chan error, 2)
+	go func() {
+		for i := 0; i < 2; i++ {
+			conn, err := listener.Accept()
+			if err != nil {
+				accepted <- err
+				return
+			}
+			_ = conn.Close()
+			accepted <- nil
+		}
+	}()
+
+	for _, tc := range []struct {
+		network string
+		host    string
+	}{
+		{network: "tcp4", host: "127.0.0.1"},
+		{network: "tcp6", host: "::1"},
+	} {
+		conn, err := net.DialTimeout(
+			tc.network,
+			net.JoinHostPort(tc.host, port),
+			time.Second,
+		)
+		if err != nil {
+			t.Fatalf("dual-stack wildcard did not accept %s: %v", tc.network, err)
+		}
+		_ = conn.Close()
+	}
+
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-accepted:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for dual-stack accept")
+		}
 	}
 }
 
