@@ -56,7 +56,9 @@ Section "VALDR Desktop" SecMain
   Pop $1
   ${If} $1 != ""
     ${If} $1 != "INFO: No tasks are running which match the specified criteria."
+      IfSilent valdr_running_silent
       MessageBox MB_ICONEXCLAMATION|MB_OK "VALDR Desktop is still running. Close VALDR Desktop completely, then run this installer again. Wallet and blockchain data will be preserved."
+valdr_running_silent:
       Abort
     ${EndIf}
   ${EndIf}
@@ -66,7 +68,9 @@ Section "VALDR Desktop" SecMain
   Pop $1
   ${If} $1 != ""
     ${If} $1 != "INFO: No tasks are running which match the specified criteria."
+      IfSilent valdrd_running_silent
       MessageBox MB_ICONEXCLAMATION|MB_OK "The VALDR node is still shutting down. Wait a few seconds, then run this installer again. Do not force-close valdrd.exe because it may be writing blockchain data."
+valdrd_running_silent:
       Abort
     ${EndIf}
   ${EndIf}
@@ -76,7 +80,9 @@ Section "VALDR Desktop" SecMain
   Pop $1
   ${If} $1 != ""
     ${If} $1 != "INFO: No tasks are running which match the specified criteria."
+      IfSilent miner_running_silent
       MessageBox MB_ICONEXCLAMATION|MB_OK "VALDR Miner is still running. Stop mining and close VALDR Desktop, then run this installer again."
+miner_running_silent:
       Abort
     ${EndIf}
   ${EndIf}
@@ -100,7 +106,9 @@ Section "VALDR Desktop" SecMain
   Pop $0
   Pop $1
   ${If} $0 != "0"
+    IfSilent firewall_failed_silent
     MessageBox MB_ICONSTOP|MB_OK "VALDR could not create its Windows Firewall rule for TCP port 17333.$\r$\n$\r$\nWithout this rule the node may be unable to accept inbound peers.$\r$\n$\r$\nInstallation will stop so this networking problem is not hidden."
+firewall_failed_silent:
     Abort
   ${EndIf}
 
