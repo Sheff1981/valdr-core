@@ -91,6 +91,9 @@ type StatusResult struct {
 	PortMapActive          bool   `json:"port_map_active"`
 	PortMapExternalEndpoint string `json:"port_map_external_endpoint,omitempty"`
 	PortMapLastError       string `json:"port_map_last_error,omitempty"`
+	LastBootstrapAttemptUTC int64  `json:"last_bootstrap_attempt_utc,omitempty"`
+	LastDNSSeedLookupUTC   int64  `json:"last_dns_seed_lookup_utc,omitempty"`
+	LastBootstrapFailure   string `json:"last_bootstrap_failure,omitempty"`
 	MempoolCount           int    `json:"mempool_count"`
 	MempoolSizeBytes       uint64 `json:"mempool_size_bytes"`
 	TargetBlockTimeSeconds int64  `json:"target_block_time_seconds"`
