@@ -278,7 +278,7 @@ JSON
 esac
 EOF
 chmod +x "$tmp/flaky-bin/valdrd" "$tmp/flaky-bin/valdr-cli"
-VALDR_FLAKY_COUNTER="$tmp/flaky-counter" PATH="$tmp/flaky-bin:$PATH"   bash "$repo_root/scripts/stage14a-soak-observe.sh"     --node http://127.0.0.1:17332     --data "$tmp/data"     --duration-seconds 1     --interval-seconds 1     --output "$tmp/flaky.jsonl"
+VALDR_FLAKY_COUNTER="$tmp/flaky-counter" PATH="$tmp/flaky-bin:$PATH"   bash "$repo_root/scripts/stage14a-soak-observe.sh"     --node http://127.0.0.1:17332     --data "$tmp/data"     --duration-seconds 3     --interval-seconds 1     --output "$tmp/flaky.jsonl"
 python3 - "$tmp/flaky.jsonl" <<'PY'
 import json, sys
 records=[json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]
