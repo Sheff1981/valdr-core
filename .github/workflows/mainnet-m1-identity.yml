@@ -1,0 +1,31 @@
+name: VALDR Mainnet M1 Identity Candidate
+
+on:
+  push:
+    branches:
+      - experiment/mainnet-randomx-prototype
+    paths:
+      - "experiments/mainnet-m1-identity/**"
+      - ".github/workflows/mainnet-m1-identity.yml"
+      - "config/network_profiles.go"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identity-candidate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: M1 identity candidate tests
+        run: go test ./experiments/mainnet-m1-identity -count=1
+      - name: Reproduce candidate identity
+        run: go run ./experiments/mainnet-m1-identity
