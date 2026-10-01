@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+const (
+	dnsSeedOutboundConnectionThreshold = 2
+	dnsSeedRetryInterval                = 10 * time.Minute
+)
+
 type BootstrapFailure struct {
 	Address string
 	Error   string
@@ -76,6 +81,9 @@ func (n *Node) Bootstrap(ctx context.Context, overrides []string) BootstrapResul
 	if n.outboundCount() >= n.protection.OutboundTarget {
 		return result
 	}
+	if !n.shouldQueryDNSSeeds(n.protection.Now()) {
+		return result
+	}
 
 	dnsCandidates, dnsFailures, dnsLookups := n.resolveDNSSeeds(ctx)
 	result.DNSLookups += dnsLookups
@@ -111,6 +119,38 @@ func (n *Node) seedCandidates(overrides []string) []string {
 		}
 	}
 	return seeds
+}
+
+func (n *Node) shouldQueryDNSSeeds(now time.Time) bool {
+	if !n.enableV2 || len(n.networkProfile.DNSSeeds) == 0 {
+		return false
+	}
+
+	threshold := dnsSeedOutboundConnectionThreshold
+	if n.protection.OutboundTarget < threshold {
+		threshold = n.protection.OutboundTarget
+	}
+	if threshold < 1 {
+		threshold = 1
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	outbound := 0
+	for _, peer := range n.peers {
+		if !peer.Inbound {
+			outbound++
+		}
+	}
+	if outbound >= threshold {
+		return false
+	}
+	if !n.lastDNSSeedLookup.IsZero() && now.Sub(n.lastDNSSeedLookup) < dnsSeedRetryInterval {
+		return false
+	}
+	n.lastDNSSeedLookup = now
+	return true
 }
 
 func (n *Node) resolveDNSSeeds(ctx context.Context) ([]string, []BootstrapFailure, int) {
