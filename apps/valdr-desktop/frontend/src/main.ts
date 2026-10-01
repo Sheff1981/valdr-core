@@ -33,6 +33,9 @@ type NodeStatus = {
   port_map_active: boolean;
   port_map_external_endpoint?: string;
   port_map_last_error?: string;
+  last_bootstrap_attempt_utc?: number;
+  last_dns_seed_lookup_utc?: number;
+  last_bootstrap_failure?: string;
   mempool_count: number;
   mempool_size_bytes: number;
   target_block_time_seconds: number;
@@ -771,6 +774,10 @@ root.innerHTML = `
             <div><dt>P2P listener</dt><dd><code id="detail-p2p-listener">—</code></dd></div>
             <div><dt>NAT mapping</dt><dd id="detail-port-map">—</dd></div>
             <div><dt>Public P2P endpoint</dt><dd><code id="detail-public-endpoint">—</code></dd></div>
+            <div><dt>Last bootstrap attempt</dt><dd id="detail-bootstrap-attempt">—</dd></div>
+            <div><dt>Last bootstrap failure</dt><dd id="detail-bootstrap-failure">—</dd></div>
+            <div><dt>Last DNS seed lookup</dt><dd id="detail-dns-seed-lookup">—</dd></div>
+            <div><dt>Discovery state</dt><dd id="detail-discovery-state">—</dd></div>
             <div><dt>Mempool count</dt><dd id="detail-mempool-count">—</dd></div>
             <div><dt>Mempool size</dt><dd id="detail-mempool-size">—</dd></div>
             <div><dt>Tip</dt><dd><code id="detail-tip">—</code></dd></div>
@@ -2109,6 +2116,34 @@ const renderState = (state: DesktopState): void => {
   text(
     "detail-public-endpoint",
     status?.port_map_external_endpoint || status?.advertise_address || "—",
+  );
+  text(
+    "detail-bootstrap-attempt",
+    status?.last_bootstrap_attempt_utc
+      ? new Date(status.last_bootstrap_attempt_utc * 1000).toLocaleString()
+      : "—",
+  );
+  text(
+    "detail-bootstrap-failure",
+    status?.last_bootstrap_failure || "None reported",
+  );
+  text(
+    "detail-dns-seed-lookup",
+    status?.last_dns_seed_lookup_utc
+      ? new Date(status.last_dns_seed_lookup_utc * 1000).toLocaleString()
+      : "Not used",
+  );
+  text(
+    "detail-discovery-state",
+    !status
+      ? "Node unavailable"
+      : status.peer_count > 0
+        ? `Connected · ${status.inbound_peer_count} inbound / ${status.outbound_peer_count} outbound`
+        : status.last_bootstrap_failure
+          ? "No peers · bootstrap attempted and failed"
+          : status.last_bootstrap_attempt_utc
+            ? "No peers · bootstrap completed without a connection"
+            : "No peers · waiting for first bootstrap attempt",
   );
   text("detail-mempool-count", status ? String(status.mempool_count) : "—");
   text("detail-mempool-size", status ? formatBytes(status.mempool_size_bytes) : "—");
