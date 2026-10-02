@@ -37,10 +37,11 @@ output_dir="$(cd "$output_dir" && pwd)"
 desktop_bin="$bin_dir/VALDR"
 node_bin="$bin_dir/valdrd"
 miner_bin="$bin_dir/valdr-miner"
+explorer_bin="$bin_dir/valdr-explorer"
 desktop_entry="$repo_root/packaging/linux/valdr-desktop.desktop"
 icon_source="$repo_root/apps/valdr-desktop/build/appicon.png"
 
-for path in "$desktop_bin" "$node_bin" "$miner_bin"; do
+for path in "$desktop_bin" "$node_bin" "$miner_bin" "$explorer_bin"; do
   if [[ ! -x "$path" ]]; then
     echo "required executable missing: $path" >&2
     exit 1
@@ -113,6 +114,7 @@ APPIMAGE_EXTRACT_AND_RUN=1 "$linuxdeploy" \
 
 install -Dm755 "$node_bin" "$appdir/usr/bin/valdrd"
 install -Dm755 "$miner_bin" "$appdir/usr/bin/valdr-miner"
+install -Dm755 "$explorer_bin" "$appdir/usr/bin/valdr-explorer"
 if [[ ! -x "$appdir/usr/bin/valdr-desktop" ]]; then
   echo "linuxdeploy did not place valdr-desktop in AppDir/usr/bin" >&2
   exit 1
@@ -133,6 +135,7 @@ deb_root="$work_dir/deb-root"
 install -Dm755 "$desktop_bin" "$deb_root/usr/lib/valdr-desktop/VALDR"
 install -Dm755 "$node_bin" "$deb_root/usr/lib/valdr-desktop/valdrd"
 install -Dm755 "$miner_bin" "$deb_root/usr/lib/valdr-desktop/valdr-miner"
+install -Dm755 "$explorer_bin" "$deb_root/usr/lib/valdr-desktop/valdr-explorer"
 install -Dm644 "$desktop_entry" "$deb_root/usr/share/applications/valdr-desktop.desktop"
 install -Dm644 "$icon_file" "$deb_root/usr/share/icons/hicolor/512x512/apps/valdr-desktop.png"
 mkdir -p "$deb_root/usr/bin" "$deb_root/DEBIAN"
@@ -152,7 +155,7 @@ Architecture: amd64
 Maintainer: VALDR
 Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0
 Description: VALDR Desktop Testnet wallet and full node
- VALDR Desktop bundles the VALDR Testnet wallet UI, local full node and miner.
+ VALDR Desktop bundles the VALDR Testnet wallet UI, local full node, miner and read-only Explorer.
 EOF
 
 dpkg-deb --root-owner-group --build "$deb_root" "$deb_out"
