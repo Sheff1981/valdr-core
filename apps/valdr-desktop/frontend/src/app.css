@@ -2219,6 +2219,11 @@ body {
   box-shadow: 0 0 0 4px rgba(149,163,180,.11);
 }
 
+.core-live-status.connected .core-status-dot {
+  background: var(--core-green);
+  box-shadow: 0 0 0 4px rgba(44,168,95,.12), 0 0 14px rgba(44,168,95,.35);
+}
+
 .core-menubar {
   display: flex;
   align-items: center;
