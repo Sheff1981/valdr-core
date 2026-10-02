@@ -239,7 +239,7 @@ declare global {
 
 const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) {
-  throw new Error("VALDR Desktop root element is missing");
+  throw new Error("VALDR Core root element is missing");
 }
 
 root.innerHTML = `
@@ -251,7 +251,7 @@ root.innerHTML = `
       </div>
       <div class="boot-copy">
         <p class="eyebrow">INDEPENDENT CHAIN. NATIVE VDR.</p>
-        <h1>VALDR DESKTOP</h1>
+        <h1>VALDR CORE</h1>
         <p>Preparing secure wallet and Testnet environment</p>
         <div class="boot-progress"><span></span></div>
         <small>TESTNET · MAINNET DISABLED</small>
@@ -312,7 +312,7 @@ root.innerHTML = `
       <p class="eyebrow">FIRST RUN</p>
       <h1>Set up your VALDR wallet</h1>
       <p class="subtle">
-        VALDR Desktop runs a local validating node. The blockchain is stored on this device and disk usage grows as the network grows.
+        VALDR Core runs a local validating node. The blockchain is stored on this device and disk usage grows as the network grows.
         This build connects to Testnet only; Testnet VDR has no promised monetary value.
       </p>
       <p class="subtle">Requires local disk space and network access. VALDR listens for P2P automatically where Windows/network policy permits; outbound connectivity is sufficient to participate.</p>
@@ -354,54 +354,90 @@ root.innerHTML = `
   </div>
 
   <div class="shell">
-    <aside class="sidebar">
-      <div class="brand brand-sidebar">
-        <button class="sidebar-collapse" id="sidebar-collapse" type="button" aria-label="Collapse sidebar" aria-expanded="true">‹</button>
-        <img class="brand-emblem brand-emblem-sidebar" src="/valdr-emblem.svg" alt="VALDR">
-        <div class="brand-copy">
-          <strong>VALDR</strong>
-          <span>Desktop · Testnet</span>
+    <header class="core-chrome" aria-label="VALDR Core application navigation">
+      <div class="core-window-title">
+        <div class="core-brand">
+          <img src="/valdr-app-icon.svg" alt="" class="core-brand-icon">
+          <strong>VALDR Core</strong>
+          <span class="core-network-pill">TESTNET2</span>
+        </div>
+        <div class="core-live-status" aria-live="polite">
+          <span class="core-status-dot"></span>
+          <strong id="sidebar-network-state">Connecting…</strong>
+          <span><span id="sidebar-peer-count">0</span> peers</span>
+          <span id="mainnet-status">Mainnet disabled</span>
         </div>
       </div>
 
-      <nav aria-label="Primary navigation">
-        <button class="nav-item active" data-view="overview">Dashboard</button>
-        <button class="nav-item" data-view="wallet">Wallet</button>
-        <button class="nav-item" data-view="send">Send</button>
-        <button class="nav-item" data-view="receive">Receive</button>
-        <button class="nav-item advanced-only hidden" data-view="mining">Mining</button>
-        <button class="nav-item advanced-only hidden" data-view="network">Network</button>
-        <button class="nav-item" data-view="transactions">Transactions</button>
-        <button class="nav-item" data-view="settings">Settings</button>
+      <div class="core-menubar" role="menubar" aria-label="Application menu">
+        <details class="core-menu">
+          <summary>File</summary>
+          <div class="core-menu-popover">
+            <button class="view-shortcut" data-go-view="wallet" type="button">Create Wallet…</button>
+            <button class="view-shortcut" data-go-view="wallet" type="button">Open / Restore Wallet…</button>
+            <button class="view-shortcut" data-go-view="wallet" type="button">Backup Wallet…</button>
+            <div class="core-menu-separator"></div>
+            <button class="view-shortcut" data-go-view="wallet" type="button">Wallet Security…</button>
+          </div>
+        </details>
+        <details class="core-menu">
+          <summary>Settings</summary>
+          <div class="core-menu-popover">
+            <button class="view-shortcut" data-go-view="wallet" type="button">Encrypt / Unlock Wallet…</button>
+            <button class="menu-action" id="menu-mask-values" type="button">Mask values</button>
+            <div class="core-menu-separator"></div>
+            <button class="view-shortcut" data-go-view="settings" type="button">Options…</button>
+          </div>
+        </details>
+        <details class="core-menu">
+          <summary>Window</summary>
+          <div class="core-menu-popover">
+            <button class="view-shortcut" data-go-view="send" type="button">Sending</button>
+            <button class="view-shortcut" data-go-view="receive" type="button">Receiving</button>
+            <div class="core-menu-separator"></div>
+            <button class="view-shortcut" data-go-view="network" type="button">Node Information</button>
+            <button class="view-shortcut" data-go-view="network" type="button">Network Traffic</button>
+            <button class="view-shortcut" data-go-view="network" type="button">Peers</button>
+          </div>
+        </details>
+        <details class="core-menu">
+          <summary>Help</summary>
+          <div class="core-menu-popover">
+            <button class="view-shortcut" data-go-view="network" type="button">Diagnostics</button>
+            <div class="core-menu-separator"></div>
+            <button class="view-shortcut" data-go-view="settings" type="button">About VALDR Core</button>
+          </div>
+        </details>
+      </div>
+
+      <nav class="core-tabs" aria-label="Wallet navigation">
+        <button class="nav-item active" data-view="overview" type="button"><span aria-hidden="true">⌂</span>Overview</button>
+        <button class="nav-item" data-view="send" type="button"><span aria-hidden="true">↗</span>Send</button>
+        <button class="nav-item" data-view="receive" type="button"><span aria-hidden="true">↙</span>Receive</button>
+        <button class="nav-item" data-view="transactions" type="button"><span aria-hidden="true">▤</span>Transactions</button>
+        <button class="nav-item" data-view="mining" type="button"><span aria-hidden="true">⛏</span>Mining</button>
+        <div class="core-wallet-selector">
+          <label>
+            Wallet:
+            <select id="wallet-selector" aria-label="Active wallet"></select>
+          </label>
+        </div>
+        <button class="nav-item core-hidden-route" data-view="wallet" type="button">Wallet</button>
+        <button class="nav-item core-hidden-route" data-view="network" type="button">Network</button>
+        <button class="nav-item core-hidden-route" data-view="settings" type="button">Settings</button>
       </nav>
-
-      <div class="sidebar-foot">
-        <div class="sidebar-network-live" aria-live="polite">
-          <span class="sidebar-network-dot"></span>
-          <span class="sidebar-network-copy">
-            <strong id="sidebar-network-state">Connecting…</strong>
-            <small><span id="sidebar-peer-count">0</span> peers</small>
-          </span>
-        </div>
-        <span class="testnet-pill">TESTNET</span>
-        <small id="mainnet-status">Mainnet disabled</small>
-      </div>
-    </aside>
+    </header>
 
     <main class="content">
       <header class="topbar valdr-topbar">
         <div class="product-heading">
           <p class="eyebrow">INDEPENDENT CHAIN. NATIVE VDR.</p>
-          <h1 class="product-title">VALDR DESKTOP</h1>
+          <h1 class="product-title">VALDR CORE</h1>
           <p class="product-subtitle">SECURE WALLET · STRONGER NETWORK · A BRIGHTER TOMORROW</p>
           <p class="view-label" id="view-title">Dashboard</p>
         </div>
         <div class="top-actions">
           <button class="secondary" id="toggle-amount-privacy" type="button" aria-pressed="false">Hide amounts</button>
-          <label class="wallet-select-label">
-            Active wallet
-            <select id="wallet-selector" aria-label="Active wallet"></select>
-          </label>
           <div class="status-stack">
             <div class="node-badge" id="node-badge">
               <span class="dot"></span>
@@ -499,7 +535,7 @@ root.innerHTML = `
           <div>
             <p class="eyebrow">TESTNET VDR</p>
             <h2>Send VDR</h2>
-            <p class="subtle">The private key is decrypted and used only inside VALDR Desktop. The node receives only a signed transaction.</p>
+            <p class="subtle">The private key is decrypted and used only inside VALDR Core. The node receives only a signed transaction.</p>
           </div>
         </div>
 
@@ -860,7 +896,7 @@ root.innerHTML = `
           <div>
             <p class="eyebrow">ADVANCED · TESTNET ONLY</p>
             <h2>Mining</h2>
-            <p class="subtle">VALDR Desktop starts a separate local valdr-miner process. Mining never starts automatically.</p>
+            <p class="subtle">VALDR Core starts a separate local valdr-miner process. Mining never starts automatically.</p>
           </div>
         </div>
         <div class="mining-grid">
@@ -935,7 +971,7 @@ root.innerHTML = `
               </label>
               <label class="settings-check">
                 <input id="settings-start-node" type="checkbox">
-                <span id="settings-start-node-label">Start managed local node when VALDR Desktop launches</span>
+                <span id="settings-start-node-label">Start managed local node when VALDR Core launches</span>
               </label>
               <label class="settings-check">
                 <input id="settings-advanced" type="checkbox">
@@ -989,7 +1025,7 @@ root.innerHTML = `
         class="download-access"
         type="button"
         disabled
-        title="Signed VALDR Desktop downloads will be enabled after the Stage 13 release gate"
+        title="Signed VALDR Core downloads will be enabled after the Stage 13 release gate"
         aria-label="VALDR downloads — pending signed release artifacts"
       >
         <span class="download-coin" aria-hidden="true">
@@ -1005,7 +1041,7 @@ root.innerHTML = `
 const api = (): AppAPI => {
   const instance = window.go?.main?.App;
   if (!instance) {
-    throw new Error("VALDR Desktop backend is unavailable");
+    throw new Error("VALDR Core backend is unavailable");
   }
   return instance;
 };
@@ -1203,7 +1239,7 @@ const applyDesktopLanguage = (language: DesktopPreferences["language"]): void =>
         theme: "Тема",
         networkLabel: "Сеть",
         networkNote: "Mainnet отключён в этой сборке",
-        startNode: "Запускать локальную ноду при старте VALDR Desktop",
+        startNode: "Запускать локальную ноду при старте VALDR Core",
         advanced: "Включить расширенный режим",
         save: "Сохранить настройки",
         localData: "Локальные данные",
@@ -1227,7 +1263,7 @@ const applyDesktopLanguage = (language: DesktopPreferences["language"]): void =>
         theme: "Theme",
         networkLabel: "Network",
         networkNote: "Mainnet is disabled in this build",
-        startNode: "Start managed local node when VALDR Desktop launches",
+        startNode: "Start managed local node when VALDR Core launches",
         advanced: "Enable Advanced mode",
         save: "Save settings",
         localData: "Local data",
@@ -2390,6 +2426,11 @@ document.getElementById("export-diagnostics")?.addEventListener("click", async (
 });
 
 document.getElementById("toggle-amount-privacy")?.addEventListener("click", () => {
+  amountPrivacyEnabled = !amountPrivacyEnabled;
+  refreshPrivacyPresentation();
+});
+
+document.getElementById("menu-mask-values")?.addEventListener("click", () => {
   amountPrivacyEnabled = !amountPrivacyEnabled;
   refreshPrivacyPresentation();
 });
