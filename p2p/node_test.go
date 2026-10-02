@@ -270,3 +270,56 @@ func TestV2RequiresExplicitNetworkProfile(t *testing.T) {
 		t.Fatalf("NewNode error=%v want ErrInvalidConfig", err)
 	}
 }
+
+
+func TestV2PeerDiagnosticsExposeLiveTraffic(t *testing.T) {
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nodeA := mustStartNode(t, NodeConfig{
+		NodeID:         "traffic-a",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer nodeA.Close()
+	nodeB := mustStartNode(t, NodeConfig{
+		NodeID:         "traffic-b",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+	})
+	defer nodeB.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if err := nodeA.Connect(ctx, nodeB.Address()); err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	cancel()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		aPeers := nodeA.Peers()
+		bPeers := nodeB.Peers()
+		if len(aPeers) == 1 && len(bPeers) == 1 &&
+			aPeers[0].ConnectedSince > 0 &&
+			bPeers[0].ConnectedSince > 0 &&
+			aPeers[0].BytesSent > 0 &&
+			aPeers[0].BytesReceived > 0 &&
+			bPeers[0].BytesSent > 0 &&
+			bPeers[0].BytesReceived > 0 &&
+			aPeers[0].LastMessageAt > 0 &&
+			bPeers[0].LastMessageAt > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf(
+		"missing live traffic diagnostics: A=%+v B=%+v",
+		nodeA.Peers(),
+		nodeB.Peers(),
+	)
+}
