@@ -111,6 +111,10 @@ type PeerInfo = {
   cumulative_chainwork?: string;
   protocol_version: number;
   inbound: boolean;
+  connected_since?: number;
+  bytes_sent?: number;
+  bytes_received?: number;
+  last_message_at?: number;
 };
 
 type MinerStatus = {
@@ -373,49 +377,49 @@ root.innerHTML = `
         <details class="core-menu">
           <summary>File</summary>
           <div class="core-menu-popover">
-            <button class="view-shortcut" data-go-view="wallet" type="button">Create Wallet…</button>
-            <button class="view-shortcut" data-go-view="wallet" type="button">Open / Restore Wallet…</button>
-            <button class="view-shortcut" data-go-view="wallet" type="button">Backup Wallet…</button>
+            <button id="menu-create-wallet" class="view-shortcut" data-go-view="wallet" data-focus-target="wallet-name" type="button">Create Wallet…</button>
+            <button id="menu-restore-wallet" class="view-shortcut" data-go-view="wallet" data-focus-target="restore-wallet-passphrase" type="button">Open / Restore Wallet…</button>
+            <button id="menu-backup-wallet" class="menu-action" type="button">Backup Wallet…</button>
             <div class="core-menu-separator"></div>
-            <button class="view-shortcut" data-go-view="wallet" type="button">Wallet Security…</button>
+            <button id="menu-wallet-security" class="view-shortcut" data-go-view="wallet" data-focus-target="wallet-security-panel" type="button">Wallet Security…</button>
           </div>
         </details>
         <details class="core-menu">
           <summary>Settings</summary>
           <div class="core-menu-popover">
-            <button class="view-shortcut" data-go-view="wallet" type="button">Encrypt / Unlock Wallet…</button>
+            <button id="menu-unlock-wallet" class="view-shortcut" data-go-view="wallet" data-focus-target="unlock-wallet-passphrase" type="button">Unlock Wallet…</button>
             <button class="menu-action" id="menu-mask-values" type="button">Mask values</button>
             <div class="core-menu-separator"></div>
-            <button class="view-shortcut" data-go-view="settings" type="button">Options…</button>
+            <button id="menu-options" class="view-shortcut" data-go-view="settings" data-focus-target="desktop-settings-form" type="button">Options…</button>
           </div>
         </details>
         <details class="core-menu">
           <summary>Window</summary>
           <div class="core-menu-popover">
-            <button class="view-shortcut" data-go-view="send" type="button">Sending</button>
-            <button class="view-shortcut" data-go-view="receive" type="button">Receiving</button>
+            <button id="menu-sending" class="view-shortcut" data-go-view="send" data-focus-target="send-recipient" type="button">Sending</button>
+            <button id="menu-receiving" class="view-shortcut" data-go-view="receive" data-focus-target="receive-panel" type="button">Receiving</button>
             <div class="core-menu-separator"></div>
-            <button class="view-shortcut advanced-only hidden" data-go-view="network" type="button">Node Information</button>
-            <button class="view-shortcut advanced-only hidden" data-go-view="network" type="button">Network Traffic</button>
-            <button class="view-shortcut advanced-only hidden" data-go-view="network" type="button">Peers</button>
+            <button id="menu-node-information" class="view-shortcut advanced-only hidden" data-go-view="network" data-focus-target="network-information-card" type="button">Node Information</button>
+            <button id="menu-network-traffic" class="view-shortcut advanced-only hidden" data-go-view="network" data-focus-target="network-traffic-panel" type="button">Network Traffic</button>
+            <button id="menu-peers" class="view-shortcut advanced-only hidden" data-go-view="network" data-focus-target="network-peers-panel" type="button">Peers</button>
           </div>
         </details>
         <details class="core-menu">
           <summary>Help</summary>
           <div class="core-menu-popover">
-            <button class="view-shortcut advanced-only hidden" data-go-view="network" type="button">Diagnostics</button>
+            <button id="menu-diagnostics" class="view-shortcut advanced-only hidden" data-go-view="settings" data-focus-target="diagnostics-card" type="button">Diagnostics</button>
             <div class="core-menu-separator"></div>
-            <button class="view-shortcut" data-go-view="settings" type="button">About VALDR Core</button>
+            <button id="menu-about" class="view-shortcut" data-go-view="settings" data-focus-target="about-card" type="button">About VALDR Core</button>
           </div>
         </details>
       </div>
 
       <nav class="core-tabs" aria-label="Wallet navigation">
-        <button class="nav-item active" data-view="overview" type="button"><span aria-hidden="true">⌂</span>Overview</button>
-        <button class="nav-item" data-view="send" type="button"><span aria-hidden="true">↗</span>Send</button>
-        <button class="nav-item" data-view="receive" type="button"><span aria-hidden="true">↙</span>Receive</button>
-        <button class="nav-item" data-view="transactions" type="button"><span aria-hidden="true">▤</span>Transactions</button>
-        <button class="nav-item advanced-only hidden" data-view="mining" type="button"><span aria-hidden="true">⛏</span>Mining</button>
+        <button class="nav-item active" data-view="overview" type="button"><span aria-hidden="true">⌂</span><span class="nav-label">Overview</span></button>
+        <button class="nav-item" data-view="send" type="button"><span aria-hidden="true">↗</span><span class="nav-label">Send</span></button>
+        <button class="nav-item" data-view="receive" type="button"><span aria-hidden="true">↙</span><span class="nav-label">Receive</span></button>
+        <button class="nav-item" data-view="transactions" type="button"><span aria-hidden="true">▤</span><span class="nav-label">Transactions</span></button>
+        <button class="nav-item advanced-only hidden" data-view="mining" type="button"><span aria-hidden="true">⛏</span><span class="nav-label">Mining</span></button>
         <div class="core-wallet-selector">
           <label>
             Wallet:
@@ -608,7 +612,7 @@ root.innerHTML = `
         </article>
       </section>
 
-      <section class="view" id="view-receive">
+      <section class="view" id="view-receive"><span id="receive-panel" class="menu-anchor" tabindex="-1"></span>
         <div class="section-head">
           <div>
             <p class="eyebrow">RECEIVE TESTNET VDR</p>
@@ -734,7 +738,7 @@ root.innerHTML = `
             </form>
             <p id="wallet-action-status" class="subtle"></p>
 
-            <div class="wallet-security">
+            <div class="wallet-security" id="wallet-security-panel" tabindex="-1">
               <div class="section-head">
                 <div>
                   <h3>Wallet security</h3>
@@ -789,7 +793,7 @@ root.innerHTML = `
       </section>
 
       <section class="view" id="view-network">
-        <article class="card">
+        <article class="card" id="network-information-card" tabindex="-1">
           <h2>Network diagnostics</h2>
           <dl class="details">
             <div><dt>Desktop version</dt><dd id="detail-desktop-version">—</dd></div>
@@ -864,7 +868,21 @@ root.innerHTML = `
             </dl>
             <p class="subtle">VALDR listens locally and automatically attempts PCP/NAT-PMP router mapping. If mapping is unavailable, outbound networking continues normally.</p>
           </div>
-          <div class="network-peers">
+          <div class="network-traffic-panel" id="network-traffic-panel" tabindex="-1">
+            <div class="section-head">
+              <div>
+                <h3>Network traffic</h3>
+                <p class="subtle">Live session counters from connected P2P peers.</p>
+              </div>
+            </div>
+            <dl class="details compact">
+              <div><dt>Connected peers</dt><dd id="traffic-peer-count">0</dd></div>
+              <div><dt>Received</dt><dd id="traffic-bytes-received">0 B</dd></div>
+              <div><dt>Sent</dt><dd id="traffic-bytes-sent">0 B</dd></div>
+              <div><dt>Last peer message</dt><dd id="traffic-last-message">—</dd></div>
+            </dl>
+          </div>
+          <div class="network-peers" id="network-peers-panel" tabindex="-1">
             <div class="section-head">
               <div>
                 <h3>Connected peers</h3>
@@ -958,8 +976,8 @@ root.innerHTML = `
               <label>
                 <span id="settings-theme-label">Theme</span>
                 <select id="settings-theme">
-                  <option value="dark">Premium · reference</option>
-                  <option value="classic">Classic dark</option>
+                  <option value="dark">VALDR Core · modern light</option>
+                  <option value="classic">VALDR Core · classic light</option>
                 </select>
               </label>
               <label>
@@ -993,7 +1011,7 @@ root.innerHTML = `
             <p class="subtle" id="settings-data-note">Node data can be chosen during first run. After wallet creation, changing it remains disabled until a safe managed-node migration flow is implemented.</p>
           </article>
 
-          <article class="card">
+          <article class="card" id="about-card" tabindex="-1">
             <h3>About / Build identity</h3>
             <dl class="details">
               <div><dt>Desktop version</dt><dd id="about-desktop-version">—</dd></div>
@@ -1009,7 +1027,7 @@ root.innerHTML = `
             <p id="about-verification" class="subtle">—</p>
           </article>
 
-          <article class="card advanced-only hidden">
+          <article class="card advanced-only hidden" id="diagnostics-card" tabindex="-1">
             <h3>Diagnostics export</h3>
             <p class="subtle">Save a local JSON report with node, storage, mining and redacted log diagnostics.</p>
             <p class="warning">Wallet private keys, passphrases and wallet file contents are not included.</p>
@@ -1020,20 +1038,14 @@ root.innerHTML = `
       </section>
     </main>
 
-    <aside class="quick-access-rail" aria-label="VALDR quick access">
-      <button
-        class="download-access"
-        type="button"
-        disabled
-        title="Signed VALDR Core downloads will be enabled after the Stage 13 release gate"
-        aria-label="VALDR downloads — pending signed release artifacts"
-      >
+    <aside class="quick-access-rail" aria-label="VALDR build status">
+      <div class="download-access build-status-note" aria-label="Development Testnet build">
         <span class="download-coin" aria-hidden="true">
           <img src="/valdr-emblem.svg" alt="">
-          <span class="download-badge">↓</span>
+          <span class="download-badge">T</span>
         </span>
-        <span class="download-caption">Downloads</span>
-      </button>
+        <span class="download-caption">Testnet build</span>
+      </div>
     </aside>
   </div>
 `;
@@ -1283,7 +1295,12 @@ const applyDesktopLanguage = (language: DesktopPreferences["language"]): void =>
   };
   Object.entries(navLabels).forEach(([view, label]) => {
     const button = document.querySelector<HTMLButtonElement>(`.nav-item[data-view="${view}"]`);
-    if (button) button.textContent = label;
+    const labelNode = button?.querySelector<HTMLElement>(".nav-label");
+    if (labelNode) {
+      labelNode.textContent = label;
+    } else if (button) {
+      button.textContent = label;
+    }
   });
 
   text("settings-eyebrow", labels.settingsEyebrow);
@@ -1302,7 +1319,10 @@ const applyDesktopLanguage = (language: DesktopPreferences["language"]): void =>
   text("mainnet-status", labels.mainnet);
 
   const currentNav = document.querySelector<HTMLButtonElement>(`.nav-item[data-view="${currentView}"]`);
-  if (currentNav) text("view-title", currentNav.textContent?.trim() || "VALDR");
+  if (currentNav) {
+    const label = currentNav.querySelector<HTMLElement>(".nav-label")?.textContent?.trim();
+    text("view-title", label || currentNav.textContent?.trim() || "VALDR");
+  }
 };
 
 const renderDesktopPreferences = (): void => {
@@ -1837,7 +1857,11 @@ const renderPeers = (peers: PeerInfo[]): void => {
     const meta = document.createElement("div");
     meta.className = "peer-meta";
     const direction = peer.inbound ? "Inbound" : "Outbound";
-    meta.textContent = `${direction} · v${peer.protocol_version} · height ${peer.height}`;
+    const traffic = `↓ ${formatBytes(peer.bytes_received ?? 0)} · ↑ ${formatBytes(peer.bytes_sent ?? 0)}`;
+    const connected = peer.connected_since
+      ? ` · since ${new Date(peer.connected_since * 1000).toLocaleTimeString()}`
+      : "";
+    meta.textContent = `${direction} · v${peer.protocol_version} · height ${peer.height} · ${traffic}${connected}`;
 
     item.append(identity, meta);
     list.append(item);
@@ -1850,6 +1874,10 @@ const refreshPeers = async (): Promise<void> => {
   text("peer-refresh-status", "Refreshing peers…");
   if (!currentState?.node_running) {
     renderPeers([]);
+    text("traffic-peer-count", "0");
+    text("traffic-bytes-received", "0 B");
+    text("traffic-bytes-sent", "0 B");
+    text("traffic-last-message", "—");
     text("peer-refresh-status", "Node is not running.");
     if (button) button.disabled = false;
     return;
@@ -1857,6 +1885,13 @@ const refreshPeers = async (): Promise<void> => {
   try {
     const peers = await api().GetPeers();
     renderPeers(peers);
+    const totalReceived = peers.reduce((sum, peer) => sum + (peer.bytes_received ?? 0), 0);
+    const totalSent = peers.reduce((sum, peer) => sum + (peer.bytes_sent ?? 0), 0);
+    const lastMessage = peers.reduce((latest, peer) => Math.max(latest, peer.last_message_at ?? 0), 0);
+    text("traffic-peer-count", String(peers.length));
+    text("traffic-bytes-received", formatBytes(totalReceived));
+    text("traffic-bytes-sent", formatBytes(totalSent));
+    text("traffic-last-message", lastMessage > 0 ? new Date(lastMessage * 1000).toLocaleString() : "—");
     text(
       "peer-refresh-status",
       `Updated ${new Date().toLocaleTimeString()} · ${peers.length} peer${peers.length === 1 ? "" : "s"}`,
@@ -2313,7 +2348,8 @@ const navigateToView = (view: string): void => {
   navButton.classList.add("active");
   document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
   document.getElementById(`view-${view}`)?.classList.add("active");
-  text("view-title", navButton.textContent?.trim() || "VALDR");
+  const navLabel = navButton.querySelector<HTMLElement>(".nav-label")?.textContent?.trim();
+  text("view-title", navLabel || navButton.textContent?.trim() || "VALDR");
   if (view === "transactions") {
     void refreshTransactionHistory();
   } else if (view === "overview") {
@@ -2348,10 +2384,28 @@ document.getElementById("sidebar-collapse")?.addEventListener("click", () => {
   }
 });
 
+const focusMenuTarget = (targetID: string | undefined): void => {
+  if (!targetID) return;
+  window.requestAnimationFrame(() => {
+    const target = document.getElementById(targetID);
+    if (!target) return;
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLButtonElement ||
+        target instanceof HTMLTextAreaElement) {
+      target.focus({ preventScroll: true });
+    } else {
+      target.focus({ preventScroll: true });
+    }
+  });
+};
+
 document.querySelectorAll<HTMLButtonElement>(".view-shortcut[data-go-view]").forEach((button) => {
   button.addEventListener("click", () => {
     const view = button.dataset.goView;
     if (view) navigateToView(view);
+    focusMenuTarget(button.dataset.focusTarget);
     button.closest("details")?.removeAttribute("open");
   });
 });
@@ -2610,10 +2664,12 @@ document.getElementById("create-wallet-form")?.addEventListener("submit", async 
   }
 });
 
-document.getElementById("backup-wallet")?.addEventListener("click", async () => {
+const backupActiveWallet = async (): Promise<void> => {
+  navigateToView("wallet");
   const wallet = activeWallet();
   if (!wallet) {
     text("wallet-action-status", "Select a wallet first.");
+    focusMenuTarget("wallet-list");
     return;
   }
   try {
@@ -2628,6 +2684,14 @@ document.getElementById("backup-wallet")?.addEventListener("click", async () => 
       error instanceof Error ? error.message : String(error),
     );
   }
+};
+
+document.getElementById("backup-wallet")?.addEventListener("click", () => {
+  void backupActiveWallet();
+});
+document.getElementById("menu-backup-wallet")?.addEventListener("click", (event) => {
+  (event.currentTarget as HTMLElement).closest("details")?.removeAttribute("open");
+  void backupActiveWallet();
 });
 
 document.getElementById("restore-wallet-form")?.addEventListener("submit", async (event) => {
