@@ -238,6 +238,68 @@ func TestTokenBucketRejectsBurstAboveConfiguredLimit(t *testing.T) {
 	}
 }
 
+func TestRequestedSyncBlockBypassesGenericRateBucket(t *testing.T) {
+	now := time.Unix(2_000_000_150, 0)
+	profile, err := config.ResolveNetworkProfile(config.NetworkDevnetV02)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := NewNode(NodeConfig{
+		NodeID:         "sync-rate-node",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Protection: ProtectionConfig{
+			MessagesPerSecond: 0.01,
+			MessageBurst:      1,
+			BytesPerSecond:    1024 * 1024,
+			ByteBurst:         1024 * 1024,
+			Now:               func() time.Time { return now },
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const peerID = "sync-peer"
+	node.mu.Lock()
+	node.conns[peerID] = &peerConnection{
+		traffic: newPeerTrafficState(node.protection),
+	}
+	node.syncV2[peerID] = &v2SyncState{
+		requested: map[string]struct{}{"requested-block": {}},
+	}
+	node.mu.Unlock()
+
+	if !node.allowPeerTraffic(peerID, 32) {
+		t.Fatal("failed to consume initial generic traffic token")
+	}
+
+	allowed, penalize := node.allowV2FrameTraffic(peerID, V2Frame{
+		MessageType: V2MessageBlock,
+		Payload:     []byte(`{"block":"requested"}`),
+	})
+	if !allowed || penalize {
+		t.Fatalf(
+			"requested sync block allowed=%t penalize=%t want true/false",
+			allowed,
+			penalize,
+		)
+	}
+
+	allowed, penalize = node.allowV2FrameTraffic(peerID, V2Frame{
+		MessageType: V2MessagePing,
+		Payload:     []byte(`{"nonce":1}`),
+	})
+	if allowed || !penalize {
+		t.Fatalf(
+			"ordinary flood frame allowed=%t penalize=%t want false/true",
+			allowed,
+			penalize,
+		)
+	}
+}
+
 func TestBoundedDuplicateCacheEvictsOldest(t *testing.T) {
 	cache := newBoundedStringSet(2)
 	if !cache.Add("a") || !cache.Add("b") {
