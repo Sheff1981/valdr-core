@@ -2621,3 +2621,62 @@ code {
     padding: 14px !important;
   }
 }
+
+
+/* VALDR Core menu/diagnostics interaction hardening. */
+.menu-anchor {
+  display: block;
+  position: relative;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+#network-information-card:focus,
+#network-traffic-panel:focus,
+#network-peers-panel:focus,
+#wallet-security-panel:focus,
+#about-card:focus,
+#diagnostics-card:focus {
+  outline: 2px solid rgba(22,119,232,.28);
+  outline-offset: 4px;
+}
+
+.network-traffic-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--core-border);
+  border-radius: 10px;
+  background: var(--core-surface-soft);
+}
+
+.build-status-note {
+  cursor: default !important;
+  user-select: none;
+}
+
+html[data-theme="classic"] .core-chrome,
+html[data-theme="classic"] .valdr-topbar,
+html[data-theme="classic"] .card,
+html[data-theme="classic"] .reference-hero,
+html[data-theme="classic"] .first-run-card,
+html[data-theme="classic"] .transaction-detail-card,
+html[data-theme="classic"] .send-confirm-card {
+  border-radius: 3px !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="classic"] .core-tabs .nav-item.active {
+  background: #f1f4f7 !important;
+  color: #254766 !important;
+}
+
+html[data-theme="classic"] .core-tabs .nav-item.active::after {
+  background: #5f7892 !important;
+}
+
+html[data-theme="classic"] button.primary {
+  border-color: #526f8b !important;
+  background: #5a7692 !important;
+  box-shadow: none !important;
+}
