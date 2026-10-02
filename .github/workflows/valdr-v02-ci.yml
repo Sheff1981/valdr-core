@@ -215,15 +215,18 @@ jobs:
         working-directory: apps/valdr-desktop
         run: go run github.com/wailsapp/wails/v2/cmd/wails@v2.12.0 build -clean -s -nosyncgomod -tags "webkit2_41" -platform linux/amd64 -o VALDR
 
-      - name: Bundle managed node and miner
+      - name: Bundle managed node, miner and Explorer
         run: |
           go build -o apps/valdr-desktop/build/bin/valdrd ./cmd/valdrd
           go build -o apps/valdr-desktop/build/bin/valdr-miner ./cmd/valdr-miner
+          go build -o apps/valdr-desktop/build/bin/valdr-explorer ./cmd/valdr-explorer
           test -x apps/valdr-desktop/build/bin/VALDR
           test -x apps/valdr-desktop/build/bin/valdrd
           test -x apps/valdr-desktop/build/bin/valdr-miner
+          test -x apps/valdr-desktop/build/bin/valdr-explorer
           apps/valdr-desktop/build/bin/valdrd version
           apps/valdr-desktop/build/bin/valdr-miner version
+          apps/valdr-desktop/build/bin/valdr-explorer --version
 
       - name: Live Desktop wallet send/receive/history integration
         working-directory: apps/valdr-desktop
@@ -569,19 +572,22 @@ jobs:
         working-directory: apps/valdr-desktop
         run: go run github.com/wailsapp/wails/v2/cmd/wails@v2.12.0 build -clean -s -nosyncgomod -platform "${{ matrix.platform }}" -o "${{ matrix.output }}" ${{ matrix.wails_args }}
 
-      - name: Bundle managed node and miner on Windows
+      - name: Bundle managed node, miner and Explorer on Windows
         if: matrix.name == 'windows-amd64'
         shell: pwsh
         run: |
           go build -o "apps/valdr-desktop/build/bin/valdrd.exe" ./cmd/valdrd
           go build -o "apps/valdr-desktop/build/bin/valdr-miner.exe" ./cmd/valdr-miner
+          go build -o "apps/valdr-desktop/build/bin/valdr-explorer.exe" ./cmd/valdr-explorer
           if (-not (Test-Path "apps/valdr-desktop/build/bin/VALDR.exe")) { throw "VALDR.exe missing" }
           if (-not (Test-Path "apps/valdr-desktop/build/bin/valdrd.exe")) { throw "valdrd.exe missing" }
           if (-not (Test-Path "apps/valdr-desktop/build/bin/valdr-miner.exe")) { throw "valdr-miner.exe missing" }
+          if (-not (Test-Path "apps/valdr-desktop/build/bin/valdr-explorer.exe")) { throw "valdr-explorer.exe missing" }
           & "apps/valdr-desktop/build/bin/valdrd.exe" version
           & "apps/valdr-desktop/build/bin/valdr-miner.exe" version
+          & "apps/valdr-desktop/build/bin/valdr-explorer.exe" --version
 
-      - name: Bundle managed node and miner on macOS
+      - name: Bundle managed node, miner and Explorer on macOS
         if: startsWith(matrix.name, 'macos-')
         shell: bash
         run: |
@@ -589,13 +595,17 @@ jobs:
           test -d "$APP/Contents/MacOS"
           go build -o "$APP/Contents/MacOS/valdrd" ./cmd/valdrd
           go build -o "$APP/Contents/MacOS/valdr-miner" ./cmd/valdr-miner
+          go build -o "$APP/Contents/MacOS/valdr-explorer" ./cmd/valdr-explorer
           test -x "$APP/Contents/MacOS/VALDR"
           test -x "$APP/Contents/MacOS/valdrd"
           test -x "$APP/Contents/MacOS/valdr-miner"
+          test -x "$APP/Contents/MacOS/valdr-explorer"
           "$APP/Contents/MacOS/valdrd" version
           "$APP/Contents/MacOS/valdr-miner" version
+          "$APP/Contents/MacOS/valdr-explorer" --version
           codesign --force --sign - "$APP/Contents/MacOS/valdrd"
           codesign --force --sign - "$APP/Contents/MacOS/valdr-miner"
+          codesign --force --sign - "$APP/Contents/MacOS/valdr-explorer"
           codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict "$APP"
 
@@ -866,6 +876,7 @@ jobs:
           $desktop = Join-Path $bin "VALDR.exe"
           $node = Join-Path $bin "valdrd.exe"
           $miner = Join-Path $bin "valdr-miner.exe"
+          $explorer = Join-Path $bin "valdr-explorer.exe"
 
           $versionLine = (& $node version | Out-String).Trim()
           $version = ($versionLine -split "\s+")[-1]
@@ -892,6 +903,7 @@ jobs:
             "/DDESKTOP_EXE=$desktop" `
             "/DNODE_EXE=$node" `
             "/DMINER_EXE=$miner" `
+            "/DEXPLORER_EXE=$explorer" `
             "packaging\windows\valdr-desktop.nsi"
           if ($LASTEXITCODE -ne 0) { throw "NSIS package build failed" }
           if (-not (Test-Path $installer)) { throw "Windows installer missing" }
@@ -899,6 +911,7 @@ jobs:
           Copy-Item $desktop (Join-Path $portableDir "VALDR.exe")
           Copy-Item $node (Join-Path $portableDir "valdrd.exe")
           Copy-Item $miner (Join-Path $portableDir "valdr-miner.exe")
+          Copy-Item $explorer (Join-Path $portableDir "valdr-explorer.exe")
           Compress-Archive -Path (Join-Path $portableDir "*") -DestinationPath $portable
           if (-not (Test-Path $portable)) { throw "Windows portable archive missing" }
 
@@ -966,10 +979,10 @@ jobs:
           # refuse to overwrite a running VALDR process, so make the CI package
           # test start from a genuinely clean process state instead of weakening
           # the installer safety check.
-          Get-Process -Name "VALDR","valdrd","valdr-miner" -ErrorAction SilentlyContinue |
+          Get-Process -Name "VALDR","valdrd","valdr-miner","valdr-explorer" -ErrorAction SilentlyContinue |
             Stop-Process -Force -ErrorAction SilentlyContinue
           Start-Sleep -Milliseconds 500
-          $lingering = Get-Process -Name "VALDR","valdrd","valdr-miner" -ErrorAction SilentlyContinue
+          $lingering = Get-Process -Name "VALDR","valdrd","valdr-miner","valdr-explorer" -ErrorAction SilentlyContinue
           if ($lingering) {
             $lingering | Format-Table -AutoSize Id,ProcessName,Path
             throw "VALDR process survived CI pre-install cleanup"
@@ -980,7 +993,7 @@ jobs:
           $install = Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "installer exited $($install.ExitCode)" }
 
-          foreach ($name in @("VALDR.exe", "valdrd.exe", "valdr-miner.exe", "Uninstall.exe")) {
+          foreach ($name in @("VALDR.exe", "valdrd.exe", "valdr-miner.exe", "valdr-explorer.exe", "Uninstall.exe")) {
             if (-not (Test-Path (Join-Path $installDir $name))) {
               throw "installed file missing: $name"
             }
@@ -990,6 +1003,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "installed valdrd version check failed" }
           & (Join-Path $installDir "valdr-miner.exe") version
           if ($LASTEXITCODE -ne 0) { throw "installed valdr-miner version check failed" }
+          & (Join-Path $installDir "valdr-explorer.exe") --version
+          if ($LASTEXITCODE -ne 0) { throw "installed valdr-explorer version check failed" }
 
           $stdout = Join-Path $env:RUNNER_TEMP "valdr-stage13-installed.out.log"
           $stderr = Join-Path $env:RUNNER_TEMP "valdr-stage13-installed.err.log"
