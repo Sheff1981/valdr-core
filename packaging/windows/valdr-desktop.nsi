@@ -113,6 +113,34 @@ firewall_failed_silent:
     ${EndIf}
   ${EndIf}
 
+  ; Provider-hosted public nodes may intentionally listen on a mapped guest
+  ; port that differs from the Testnet2 default. Keep the ordinary 17333 rule
+  ; narrow and add a second program-bound rule only for an explicit operator
+  ; VALDR_DESKTOP_P2P_PORT override.
+  ReadEnvStr $R2 "VALDR_DESKTOP_P2P_PORT"
+  ${If} $R2 == ""
+    ReadRegStr $R2 HKCU "Environment" "VALDR_DESKTOP_P2P_PORT"
+  ${EndIf}
+  ${If} $R2 != ""
+    ${If} $R2 != "17333"
+      nsExec::ExecToStack 'netsh advfirewall firewall delete rule name="VALDR Testnet2 P2P override" program="$INSTDIR\valdrd.exe"'
+      Pop $0
+      Pop $1
+      nsExec::ExecToStack 'netsh advfirewall firewall add rule name="VALDR Testnet2 P2P override" dir=in action=allow protocol=TCP localport=$R2 program="$INSTDIR\valdrd.exe" profile=private,public enable=yes'
+      Pop $0
+      Pop $1
+      ${If} $0 != "0"
+        ReadEnvStr $R1 "GITHUB_ACTIONS"
+        ${If} $R1 != "true"
+          IfSilent firewall_override_failed_silent
+          MessageBox MB_ICONSTOP|MB_OK "VALDR could not create its Windows Firewall rule for the configured P2P port $R2.$\r$\n$\r$\nThe public node would not be reliably reachable, so installation will stop."
+firewall_override_failed_silent:
+          Abort
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   CreateDirectory "$SMPROGRAMS\VALDR"
@@ -138,8 +166,9 @@ Section "Uninstall"
 
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VALDRDesktop"
 
-  ; Remove the inbound rule owned by this installation.
+  ; Remove the inbound rules owned by this installation.
   nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="VALDR Testnet2 P2P" program="$INSTDIR\valdrd.exe"'
+  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="VALDR Testnet2 P2P override" program="$INSTDIR\valdrd.exe"'
 
   ; Remove only files owned by VALDR. Never recursively delete a user-selected
   ; install directory because it may contain unrelated user files.
