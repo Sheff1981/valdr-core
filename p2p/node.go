@@ -2018,9 +2018,21 @@ func (n *Node) dropPeer(peerID string, expected *peerConnection) {
 		// this, dynamically discovered peers disappear permanently after the
 		// first disconnect and outbound maintenance can never retry them unless
 		// a seed advertises them again.
-		if peerExists && !peer.Inbound &&
-			validateDiscoveredAddress(peer.Address, n.isPublicDiscovery()) == nil {
-			n.rememberDiscoveredPeerLocked(peer.NodeID, peer.Address)
+		if peerExists && !peer.Inbound {
+			address := peer.Address
+			// A NAT/provider mapping can expose a different port than hello
+			// advertises. Prefer the endpoint that completed our outbound
+			// handshake, rather than retrying an unverified advertised route.
+			// Never use inbound remote ports: those are ephemeral client ports.
+			if n.enableV2 {
+				endpoint := current.conn.RemoteAddr().String()
+				if validateDiscoveredAddress(endpoint, n.isPublicDiscovery()) == nil {
+					address = endpoint
+				}
+			}
+			if validateDiscoveredAddress(address, n.isPublicDiscovery()) == nil {
+				n.rememberDiscoveredPeerLocked(peer.NodeID, address)
+			}
 		}
 	}
 	n.mu.Unlock()
