@@ -25,6 +25,7 @@ const (
 	defaultHandshakeTimeout  = 5 * time.Second
 	outboundOnlyHelloAddress = "0.0.0.0:0"
 	maxPeerAdvertisementsV2  = 256
+	mempoolRelayInterval     = 150 * time.Millisecond
 )
 
 var (
@@ -100,6 +101,7 @@ type Node struct {
 	violations         map[string]int
 	seenTx             *boundedStringSet
 	seenInv            *boundedStringSet
+	mempoolRelayInFlight map[string]struct{}
 	listener   net.Listener
 	peers      map[string]Peer
 	conns      map[string]*peerConnection
@@ -218,6 +220,7 @@ func NewNode(cfg NodeConfig) (*Node, error) {
 		violations:         make(map[string]int),
 		seenTx:             newBoundedStringSet(protection.DuplicateCacheSize),
 		seenInv:            newBoundedStringSet(protection.DuplicateCacheSize),
+		mempoolRelayInFlight: make(map[string]struct{}),
 	}, nil
 }
 
@@ -642,7 +645,8 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 			if pc.traffic != nil {
 				pc.traffic.markActivity(n.protection.Now())
 			}
-			if !n.allowPeerTraffic(peerID, len(frame.Payload)+v2FrameHeaderSize) {
+			allowed, penalize := n.allowV2FrameTraffic(peerID, frame)
+			if !allowed {
 				logging.Printf(
 					logging.CategoryP2P,
 					"rate limited peer=%s type=%d bytes=%d",
@@ -650,7 +654,9 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 					frame.MessageType,
 					len(frame.Payload)+v2FrameHeaderSize,
 				)
-				n.recordPeerViolation(peerID, 3)
+				if penalize {
+					n.recordPeerViolation(peerID, 3)
+				}
 				return
 			}
 			if err := n.handleV2Frame(peerID, frame); err != nil {
@@ -678,6 +684,27 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 			return
 		}
 	}
+}
+
+func (n *Node) allowV2FrameTraffic(peerID string, frame V2Frame) (allowed bool, penalize bool) {
+	// Block bodies are accepted only when this node explicitly requested them
+	// after validating their headers. That request already bounds the traffic
+	// (V2MaxInventoryItems and the frame/block size limits), so applying the
+	// generic message-rate bucket here can falsely classify a healthy fast
+	// initial sync as a flood and poison the peer IP for an hour.
+	if frame.MessageType == V2MessageBlock {
+		n.mu.RLock()
+		state := n.syncV2[peerID]
+		expected := state != nil && len(state.requested) > 0
+		n.mu.RUnlock()
+		if expected {
+			return true, false
+		}
+	}
+	return n.allowPeerTraffic(
+		peerID,
+		len(frame.Payload)+v2FrameHeaderSize,
+	), true
 }
 
 func (n *Node) monitorPeerIdle(
@@ -992,6 +1019,16 @@ func (n *Node) afterPeerConnected(peer Peer) {
 
 		if n.shouldSyncV2(peer) {
 			_ = n.requestHeadersV2(peer.NodeID)
+			return
+		}
+
+		// A transaction created while this node had no peers must not remain
+		// stranded forever. If the newly connected peer is already caught up
+		// to the same chainwork/height, replay the bounded local mempool at a
+		// deliberately slow rate. A lagging peer receives the same replay only
+		// after we have served it through our current tip (handleGetDataV2).
+		if n.peerReadyForMempoolRelay(peer) {
+			n.scheduleMempoolRelayToPeer(peer.NodeID)
 		}
 		return
 	}
@@ -1001,6 +1038,71 @@ func (n *Node) afterPeerConnected(peer Peer) {
 	if n.blockchain != nil && peer.Height > n.blockchain.Height() {
 		_ = n.requestBlock(peer.NodeID, n.blockchain.Height()+1)
 	}
+}
+
+func (n *Node) peerReadyForMempoolRelay(peer Peer) bool {
+	if !n.enableV2 || n.blockchain == nil || n.mempool == nil || n.mempool.Len() == 0 {
+		return false
+	}
+	if peer.Height != n.blockchain.Height() {
+		return false
+	}
+	localWork := strings.TrimSpace(n.blockchain.Chainwork())
+	remoteWork := strings.TrimSpace(peer.CumulativeChainwork)
+	return localWork == "" || remoteWork == "" || localWork == remoteWork
+}
+
+func (n *Node) scheduleMempoolRelayToPeer(peerID string) {
+	if !n.enableV2 || n.mempool == nil || n.mempool.Len() == 0 {
+		return
+	}
+
+	n.mu.Lock()
+	if n.closed {
+		n.mu.Unlock()
+		return
+	}
+	if _, connected := n.conns[peerID]; !connected {
+		n.mu.Unlock()
+		return
+	}
+	if _, running := n.mempoolRelayInFlight[peerID]; running {
+		n.mu.Unlock()
+		return
+	}
+	n.mempoolRelayInFlight[peerID] = struct{}{}
+	n.wg.Add(1)
+	n.mu.Unlock()
+
+	go func() {
+		defer func() {
+			n.mu.Lock()
+			delete(n.mempoolRelayInFlight, peerID)
+			n.mu.Unlock()
+			n.wg.Done()
+		}()
+
+		txs := n.mempool.Transactions()
+		for index, tx := range txs {
+			if tx == nil {
+				continue
+			}
+			if err := n.sendV2To(peerID, V2MessageTx, V2TxPayload{
+				Transaction: tx,
+			}); err != nil {
+				return
+			}
+			logging.Printf(
+				logging.CategoryTX,
+				"replayed pending txid=%s peer=%s",
+				tx.TransactionID,
+				peerID,
+			)
+			if index+1 < len(txs) {
+				time.Sleep(mempoolRelayInterval)
+			}
+		}
+	}()
 }
 
 func (n *Node) shouldSyncV2(peer Peer) bool {
@@ -1521,6 +1623,8 @@ func (n *Node) handleGetDataV2(peerID string, payload V2GetDataPayload) error {
 	if err := ValidateV2GetDataPayload(payload); err != nil {
 		return err
 	}
+
+	servedCurrentTip := false
 	for _, item := range payload.Items {
 		candidate, ok := n.blockchain.BlockByHash(item.Hash)
 		if !ok {
@@ -1531,6 +1635,16 @@ func (n *Node) handleGetDataV2(peerID string, payload V2GetDataPayload) error {
 		}); err != nil {
 			return err
 		}
+		if candidate.Height == n.blockchain.Height() {
+			servedCurrentTip = true
+		}
+	}
+
+	// sendV2To serializes frames through the peer write mutex. Scheduling the
+	// replay after the current tip body means the TCP stream presents all
+	// requested blocks before any pending transaction that may spend them.
+	if servedCurrentTip {
+		n.scheduleMempoolRelayToPeer(peerID)
 	}
 	return nil
 }
