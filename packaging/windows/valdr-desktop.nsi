@@ -21,6 +21,9 @@ Unicode true
 !ifndef MINER_EXE
   !error "MINER_EXE define is required"
 !endif
+!ifndef EXPLORER_EXE
+  !error "EXPLORER_EXE define is required"
+!endif
 
 Name "VALDR Desktop"
 OutFile "${OUTFILE}"
@@ -82,9 +85,20 @@ miner_running_silent:
     Abort
   ${EndIf}
 
+  nsExec::ExecToStack 'cmd /C tasklist /FI "IMAGENAME eq valdr-explorer.exe" /NH ^| find /I "valdr-explorer.exe" ^>nul'
+  Pop $0
+  Pop $1
+  ${If} $0 == "0"
+    IfSilent explorer_running_silent
+    MessageBox MB_ICONEXCLAMATION|MB_OK "VALDR Explorer is still running. Close VALDR Core completely, then run this installer again."
+explorer_running_silent:
+    Abort
+  ${EndIf}
+
   File /oname=VALDR.exe "${DESKTOP_EXE}"
   File /oname=valdrd.exe "${NODE_EXE}"
   File /oname=valdr-miner.exe "${MINER_EXE}"
+  File /oname=valdr-explorer.exe "${EXPLORER_EXE}"
 
   ; VALDR Testnet2 P2P must be allowed through Windows Defender Firewall.
   ; Bitcoin Core normally causes Windows to offer a firewall prompt on first
@@ -175,6 +189,7 @@ Section "Uninstall"
   Delete "$INSTDIR\VALDR.exe"
   Delete "$INSTDIR\valdrd.exe"
   Delete "$INSTDIR\valdr-miner.exe"
+  Delete "$INSTDIR\valdr-explorer.exe"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
 
