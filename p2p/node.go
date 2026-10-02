@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	valdrconfig "github.com/Sheff1981/valdr-core/config"
@@ -64,6 +65,10 @@ type Peer struct {
 	CumulativeChainwork string `json:"cumulative_chainwork,omitempty"`
 	ProtocolVersion     uint32 `json:"protocol_version"`
 	Inbound             bool   `json:"inbound"`
+	ConnectedSince      int64  `json:"connected_since,omitempty"`
+	BytesSent           uint64 `json:"bytes_sent,omitempty"`
+	BytesReceived       uint64 `json:"bytes_received,omitempty"`
+	LastMessageAt       int64  `json:"last_message_at,omitempty"`
 }
 
 type DiscoveredPeer struct {
@@ -72,10 +77,25 @@ type DiscoveredPeer struct {
 }
 
 type peerConnection struct {
-	conn     net.Conn
-	writeMu  sync.Mutex
-	remoteIP string
-	traffic  *peerTrafficState
+	conn           net.Conn
+	writeMu        sync.Mutex
+	remoteIP       string
+	traffic        *peerTrafficState
+	connectedSince int64
+	bytesSent      atomic.Uint64
+	bytesReceived  atomic.Uint64
+	lastMessageAt  atomic.Int64
+}
+
+type countingWriter struct {
+	writer io.Writer
+	n      uint64
+}
+
+func (w *countingWriter) Write(p []byte) (int, error) {
+	n, err := w.writer.Write(p)
+	w.n += uint64(n)
+	return n, err
 }
 
 type Node struct {
@@ -373,7 +393,13 @@ func (n *Node) Peers() []Peer {
 	defer n.mu.RUnlock()
 
 	peers := make([]Peer, 0, len(n.peers))
-	for _, peer := range n.peers {
+	for peerID, peer := range n.peers {
+		if pc := n.conns[peerID]; pc != nil {
+			peer.ConnectedSince = pc.connectedSince
+			peer.BytesSent = pc.bytesSent.Load()
+			peer.BytesReceived = pc.bytesReceived.Load()
+			peer.LastMessageAt = pc.lastMessageAt.Load()
+		}
 		peers = append(peers, peer)
 	}
 	sort.Slice(peers, func(i, j int) bool {
@@ -642,8 +668,11 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 				return
 			}
 
+			now := n.protection.Now()
+			pc.bytesReceived.Add(uint64(len(frame.Payload) + v2FrameHeaderSize))
+			pc.lastMessageAt.Store(now.UTC().Unix())
 			if pc.traffic != nil {
-				pc.traffic.markActivity(n.protection.Now())
+				pc.traffic.markActivity(now)
 			}
 			allowed, penalize := n.allowV2FrameTraffic(peerID, frame)
 			if !allowed {
@@ -680,6 +709,8 @@ func (n *Node) servePeer(peerID string, pc *peerConnection) {
 			}
 			return
 		}
+		pc.bytesReceived.Add(uint64(len(payload) + 4))
+		pc.lastMessageAt.Store(n.protection.Now().UTC().Unix())
 		if err := n.handlePayload(peerID, payload); err != nil {
 			return
 		}
@@ -1865,13 +1896,19 @@ func (n *Node) sendV2To(peerID string, messageType V2MessageType, value any) err
 
 	pc.writeMu.Lock()
 	defer pc.writeMu.Unlock()
-	return WriteV2Frame(
-		pc.conn,
+	counter := &countingWriter{writer: pc.conn}
+	err := WriteV2Frame(
+		counter,
 		n.networkProfile,
 		uint16(peer.ProtocolVersion),
 		messageType,
 		value,
 	)
+	if counter.n > 0 {
+		pc.bytesSent.Add(counter.n)
+		pc.lastMessageAt.Store(n.protection.Now().UTC().Unix())
+	}
+	return err
 }
 
 func (n *Node) validateHello(remote helloMessage) error {
@@ -1937,10 +1974,12 @@ func (n *Node) registerPeer(peer Peer, conn net.Conn) (*peerConnection, error) {
 	}
 
 	pc := &peerConnection{
-		conn:     conn,
-		remoteIP: remoteIP(conn.RemoteAddr()),
-		traffic:  newPeerTrafficState(n.protection),
+		conn:           conn,
+		remoteIP:       remoteIP(conn.RemoteAddr()),
+		traffic:        newPeerTrafficState(n.protection),
+		connectedSince: n.protection.Now().UTC().Unix(),
 	}
+	pc.lastMessageAt.Store(pc.connectedSince)
 	n.peers[peer.NodeID] = peer
 	n.conns[peer.NodeID] = pc
 	delete(n.discovered, peer.NodeID)
