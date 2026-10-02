@@ -32,6 +32,7 @@ type NodeProcessConfig struct {
 	DataDir          string
 	NodeID           string
 	RPCPort          uint16
+	P2PPort          uint16
 	Seeds            []string
 	PublicNode       bool
 	AdvertiseAddress string
@@ -347,6 +348,9 @@ func desktopNodeArgs(cfg NodeProcessConfig) ([]string, error) {
 		"--network", profile.Name,
 		"--data", cfg.DataDir,
 		"--node-id", cfg.NodeID,
+	}
+	if cfg.P2PPort != 0 {
+		args = append(args, "--p2p-port", strconv.Itoa(int(cfg.P2PPort)))
 	}
 	if cfg.PublicNode {
 		advertiseAddress := strings.TrimSpace(cfg.AdvertiseAddress)
