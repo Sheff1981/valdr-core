@@ -2216,7 +2216,7 @@ const renderState = (state: DesktopState): void => {
     "sidebar-network-state",
     healthy ? (status && status.peer_count > 0 ? "VALDR network" : "Node online") : state.node_running ? "Starting…" : "Node stopped",
   );
-  document.querySelector(".sidebar-network-live")?.classList.toggle(
+  document.querySelector(".core-live-status")?.classList.toggle(
     "connected",
     Boolean(healthy && status && status.peer_count > 0),
   );
@@ -2352,6 +2352,7 @@ document.querySelectorAll<HTMLButtonElement>(".view-shortcut[data-go-view]").for
   button.addEventListener("click", () => {
     const view = button.dataset.goView;
     if (view) navigateToView(view);
+    button.closest("details")?.removeAttribute("open");
   });
 });
 
@@ -2430,9 +2431,10 @@ document.getElementById("toggle-amount-privacy")?.addEventListener("click", () =
   refreshPrivacyPresentation();
 });
 
-document.getElementById("menu-mask-values")?.addEventListener("click", () => {
+document.getElementById("menu-mask-values")?.addEventListener("click", (event) => {
   amountPrivacyEnabled = !amountPrivacyEnabled;
   refreshPrivacyPresentation();
+  (event.currentTarget as HTMLElement).closest("details")?.removeAttribute("open");
 });
 
 document.getElementById("desktop-settings-form")?.addEventListener("submit", (event) => {
