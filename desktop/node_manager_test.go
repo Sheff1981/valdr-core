@@ -43,6 +43,9 @@ func TestDesktopNodeArgsUseAutomaticListeningOrdinaryClient(t *testing.T) {
 			t.Fatalf("args=%v missing sequence %v", args, sequence)
 		}
 	}
+	if slices.Contains(args, "--p2p-port") {
+		t.Fatalf("ordinary Desktop node unexpectedly overrides the profile P2P port: %v", args)
+	}
 	if slices.Contains(args, "--advertise-address") {
 		t.Fatalf("ordinary Desktop node unexpectedly requires an advertised public address: %v", args)
 	}
@@ -196,6 +199,7 @@ func TestDesktopNodeArgsSupportExplicitAdvancedPublicNode(t *testing.T) {
 		DataDir:          "/tmp/valdr-desktop-public-testnet",
 		NodeID:           "desktop-public-test",
 		RPCPort:          28332,
+		P2PPort:          22,
 		PublicNode:       true,
 		AdvertiseAddress: "node.example.com:17333",
 	}
@@ -205,6 +209,7 @@ func TestDesktopNodeArgsSupportExplicitAdvancedPublicNode(t *testing.T) {
 	}
 
 	required := [][]string{
+		{"--p2p-port", "22"},
 		{"--p2p-host", ""},
 		{"--advertise-address", "node.example.com:17333"},
 		{"--rpc-host", "127.0.0.1"},
