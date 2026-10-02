@@ -1028,3 +1028,57 @@ func TestDesktopFrontendStage12B7BuildIdentityContract(t *testing.T) {
 		}
 	}
 }
+
+
+func TestDesktopCoreMenuTargetsRealFunctionsOrPanels(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "src", "main.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+
+	for _, marker := range []string{
+		`id="menu-create-wallet"`,
+		`data-focus-target="wallet-name"`,
+		`id="menu-restore-wallet"`,
+		`data-focus-target="restore-wallet-passphrase"`,
+		`id="menu-backup-wallet"`,
+		`void backupActiveWallet()`,
+		`id="menu-wallet-security"`,
+		`data-focus-target="wallet-security-panel"`,
+		`id="menu-unlock-wallet"`,
+		`data-focus-target="unlock-wallet-passphrase"`,
+		`id="menu-mask-values"`,
+		`id="menu-options"`,
+		`data-focus-target="desktop-settings-form"`,
+		`id="menu-sending"`,
+		`data-focus-target="send-recipient"`,
+		`id="menu-receiving"`,
+		`data-focus-target="receive-panel"`,
+		`id="menu-node-information"`,
+		`data-focus-target="network-information-card"`,
+		`id="menu-network-traffic"`,
+		`data-focus-target="network-traffic-panel"`,
+		`id="menu-peers"`,
+		`data-focus-target="network-peers-panel"`,
+		`id="menu-diagnostics"`,
+		`data-focus-target="diagnostics-card"`,
+		`id="menu-about"`,
+		`data-focus-target="about-card"`,
+		`id="traffic-bytes-received"`,
+		`id="traffic-bytes-sent"`,
+		`bytes_received`,
+		`bytes_sent`,
+	} {
+		if !strings.Contains(source, marker) {
+			t.Fatalf("VALDR Core menu/control contract missing %q", marker)
+		}
+	}
+
+	if strings.Contains(source, `<button
+        class="download-access"
+        type="button"
+        disabled`) {
+		t.Fatal("VALDR Core must not present an intentionally dead Downloads button")
+	}
+}
