@@ -180,6 +180,35 @@ func TestDesktopAppCreatesEncryptedWalletOnly(t *testing.T) {
 }
 
 
+func TestDesktopOperatorNetworkOverridesFromEnv(t *testing.T) {
+	t.Setenv("VALDR_DESKTOP_P2P_PORT", "22")
+	t.Setenv("VALDR_DESKTOP_ADVERTISE_ADDRESS", "195.208.16.1:48759")
+
+	got, err := desktopOperatorNetworkOverridesFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.P2PPort != 22 || got.AdvertiseAddress != "195.208.16.1:48759" {
+		t.Fatalf("operator network overrides=%+v", got)
+	}
+}
+
+func TestDesktopOperatorNetworkOverridesRejectInvalidValues(t *testing.T) {
+	t.Run("port", func(t *testing.T) {
+		t.Setenv("VALDR_DESKTOP_P2P_PORT", "70000")
+		if _, err := desktopOperatorNetworkOverridesFromEnv(); err == nil {
+			t.Fatal("invalid operator P2P port accepted")
+		}
+	})
+	t.Run("advertise", func(t *testing.T) {
+		t.Setenv("VALDR_DESKTOP_P2P_PORT", "")
+		t.Setenv("VALDR_DESKTOP_ADVERTISE_ADDRESS", "127.0.0.1:17333")
+		if _, err := desktopOperatorNetworkOverridesFromEnv(); err == nil {
+			t.Fatal("unsafe operator advertise address accepted")
+		}
+	})
+}
+
 func TestCopyReceiveAddressRejectsInvalidAddress(t *testing.T) {
 	app := &App{}
 	if err := app.CopyReceiveAddress("not-a-valdr-address"); !errors.Is(
