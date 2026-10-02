@@ -395,15 +395,15 @@ root.innerHTML = `
             <button class="view-shortcut" data-go-view="send" type="button">Sending</button>
             <button class="view-shortcut" data-go-view="receive" type="button">Receiving</button>
             <div class="core-menu-separator"></div>
-            <button class="view-shortcut" data-go-view="network" type="button">Node Information</button>
-            <button class="view-shortcut" data-go-view="network" type="button">Network Traffic</button>
-            <button class="view-shortcut" data-go-view="network" type="button">Peers</button>
+            <button class="view-shortcut advanced-only hidden" data-go-view="network" type="button">Node Information</button>
+            <button class="view-shortcut advanced-only hidden" data-go-view="network" type="button">Network Traffic</button>
+            <button class="view-shortcut advanced-only hidden" data-go-view="network" type="button">Peers</button>
           </div>
         </details>
         <details class="core-menu">
           <summary>Help</summary>
           <div class="core-menu-popover">
-            <button class="view-shortcut" data-go-view="network" type="button">Diagnostics</button>
+            <button class="view-shortcut advanced-only hidden" data-go-view="network" type="button">Diagnostics</button>
             <div class="core-menu-separator"></div>
             <button class="view-shortcut" data-go-view="settings" type="button">About VALDR Core</button>
           </div>
@@ -415,7 +415,7 @@ root.innerHTML = `
         <button class="nav-item" data-view="send" type="button"><span aria-hidden="true">↗</span>Send</button>
         <button class="nav-item" data-view="receive" type="button"><span aria-hidden="true">↙</span>Receive</button>
         <button class="nav-item" data-view="transactions" type="button"><span aria-hidden="true">▤</span>Transactions</button>
-        <button class="nav-item" data-view="mining" type="button"><span aria-hidden="true">⛏</span>Mining</button>
+        <button class="nav-item advanced-only hidden" data-view="mining" type="button"><span aria-hidden="true">⛏</span>Mining</button>
         <div class="core-wallet-selector">
           <label>
             Wallet:
@@ -423,7 +423,7 @@ root.innerHTML = `
           </label>
         </div>
         <button class="nav-item core-hidden-route" data-view="wallet" type="button">Wallet</button>
-        <button class="nav-item core-hidden-route" data-view="network" type="button">Network</button>
+        <button class="nav-item advanced-only hidden" data-view="network" type="button">Network</button>
         <button class="nav-item core-hidden-route" data-view="settings" type="button">Settings</button>
       </nav>
     </header>
