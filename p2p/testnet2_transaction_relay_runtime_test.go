@@ -201,3 +201,113 @@ func TestTestnet2PendingRelayThenAnyMinerConfirmation(t *testing.T) {
 		t.Fatalf("receiver did not index confirmed txid=%s", payment.TransactionID)
 	}
 }
+
+
+func TestTestnet2PendingTransactionReplaysAfterLatePeerCatchup(t *testing.T) {
+	if os.Getenv("VALDR_TESTNET2_RUNTIME") != "1" {
+		t.Skip("set VALDR_TESTNET2_RUNTIME=1 for the dedicated Testnet2 runtime gate")
+	}
+
+	profile, err := config.ResolveNetworkProfile(config.NetworkTestnetV029)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chainA, err := blockchain.NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chainB, err := blockchain.NewForProfile(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sender, err := wallet.New("testnet2-late-relay-sender")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipient, err := wallet.New("testnet2-late-relay-recipient")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := mining.MineBlock(
+		chainA,
+		sender.Address,
+		profile.GenesisTimestamp+profile.TargetBlockTimeSeconds,
+		nil,
+	); err != nil {
+		t.Fatalf("mine funding block: %v", err)
+	}
+
+	poolA := mempool.NewWithConfig(mempool.Config{
+		ChainID:            profile.ChainID,
+		MinRelayFeePerByte: profile.MinRelayFeePerByte,
+	})
+	poolB := mempool.NewWithConfig(mempool.Config{
+		ChainID:            profile.ChainID,
+		MinRelayFeePerByte: profile.MinRelayFeePerByte,
+	})
+
+	nodeA := mustStartNode(t, NodeConfig{
+		NodeID:         "testnet2-late-relay-node-a",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Blockchain:     chainA,
+		Mempool:        poolA,
+	})
+	defer nodeA.Close()
+
+	available, err := chainA.UTXOs(sender.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payment, _, err := sender.CreateTransactionForChain(
+		profile.ChainID,
+		available,
+		recipient.Address,
+		25_000_000,
+		profile.MinRelayFeePerByte,
+		profile.GenesisTimestamp+2*profile.TargetBlockTimeSeconds,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// This is the real reconnect regression: the transaction exists before
+	// any peer is connected, so the initial broadcast has nobody to send to.
+	if err := nodeA.BroadcastTransaction(payment); err != nil {
+		t.Fatalf("local pending transaction: %v", err)
+	}
+	if !poolA.Contains(payment.TransactionID) {
+		t.Fatal("sender did not retain pending transaction")
+	}
+
+	nodeB := mustStartNode(t, NodeConfig{
+		NodeID:         "testnet2-late-relay-node-b",
+		ListenAddress:  "127.0.0.1:0",
+		NetworkProfile: &profile,
+		EnableV2:       true,
+		Blockchain:     chainB,
+		Mempool:        poolB,
+	})
+	defer nodeB.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := nodeB.Connect(ctx, nodeA.Address()); err != nil {
+		cancel()
+		t.Fatalf("connect late peer: %v", err)
+	}
+	cancel()
+
+	waitForSameTip(t, chainB, chainA, 15*time.Second)
+	waitForCondition(t, "pending transaction replays after peer catch-up", func() bool {
+		return poolB.Contains(payment.TransactionID)
+	})
+	if chainB.Height() != chainA.Height() {
+		t.Fatalf("late peer height=%d want=%d", chainB.Height(), chainA.Height())
+	}
+	if !poolB.Contains(payment.TransactionID) {
+		t.Fatalf("late peer missing replayed txid=%s", payment.TransactionID)
+	}
+}
