@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -191,18 +192,29 @@ func NewApp() (*App, error) {
 	}
 
 	nodeLogs := desktopcore.NewLogBuffer(desktopcore.DefaultDesktopLogBytes)
+	operatorNetwork, err := desktopOperatorNetworkOverridesFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	publicNode := preferences.PublicNode
+	advertiseAddress := preferences.PublicNodeAdvertiseAddress
+	if operatorNetwork.AdvertiseAddress != "" {
+		publicNode = true
+		advertiseAddress = operatorNetwork.AdvertiseAddress
+	}
 	nodeID, err := desktopcore.LoadOrCreateNodeID(filepath.Join(paths.Root, "node-id"))
 	if err != nil {
 		return nil, err
 	}
 	node, err := desktopcore.NewNodeManager(desktopcore.NodeProcessConfig{
-		BinaryPath: strings.TrimSpace(os.Getenv("VALDRD_PATH")),
-		Network:    config.NetworkTestnetV029,
-		DataDir:    paths.NodeData,
-		NodeID:     nodeID,
+		BinaryPath:       strings.TrimSpace(os.Getenv("VALDRD_PATH")),
+		Network:          config.NetworkTestnetV029,
+		DataDir:          paths.NodeData,
+		NodeID:           nodeID,
+		P2PPort:          operatorNetwork.P2PPort,
 		Seeds:            desktopSeedsFromEnv(),
-		PublicNode:       preferences.PublicNode,
-		AdvertiseAddress: preferences.PublicNodeAdvertiseAddress,
+		PublicNode:       publicNode,
+		AdvertiseAddress: advertiseAddress,
 		Stdout:           nodeLogs,
 		Stderr:           nodeLogs,
 	})
@@ -1459,6 +1471,39 @@ func (a *App) getNodeError() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.nodeError
+}
+
+type desktopOperatorNetworkOverrides struct {
+	P2PPort          uint16
+	AdvertiseAddress string
+}
+
+func desktopOperatorNetworkOverridesFromEnv() (desktopOperatorNetworkOverrides, error) {
+	var result desktopOperatorNetworkOverrides
+
+	rawPort := strings.TrimSpace(os.Getenv("VALDR_DESKTOP_P2P_PORT"))
+	if rawPort != "" {
+		port, err := strconv.Atoi(rawPort)
+		if err != nil || port < 1 || port > 65535 {
+			return result, fmt.Errorf("invalid VALDR_DESKTOP_P2P_PORT %q", rawPort)
+		}
+		result.P2PPort = uint16(port)
+	}
+
+	result.AdvertiseAddress = strings.TrimSpace(
+		os.Getenv("VALDR_DESKTOP_ADVERTISE_ADDRESS"),
+	)
+	if result.AdvertiseAddress != "" {
+		if err := desktopcore.ValidatePublicNodeAdvertiseAddress(
+			result.AdvertiseAddress,
+		); err != nil {
+			return desktopOperatorNetworkOverrides{}, fmt.Errorf(
+				"invalid VALDR_DESKTOP_ADVERTISE_ADDRESS: %w",
+				err,
+			)
+		}
+	}
+	return result, nil
 }
 
 func desktopSeedsFromEnv() []string {
